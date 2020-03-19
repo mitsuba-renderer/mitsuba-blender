@@ -2,6 +2,23 @@ import xml.etree.ElementTree as ET
 import bpy
 from mathutils import *
 import numpy as np
+from os import getenv
+import sys
+import warnings
+
+python_path = getenv('PYTHONPATH', 'NONE')#TODO other default value
+
+if python_path == 'NONE':
+    raise ImportError("Environment variable PYTHONPATH not set.")
+
+tokens = python_path.split(':')
+for token in tokens: #add the paths to python path
+    sys.path.append(token)
+
+import mitsuba
+mitsuba.set_variant('scalar_rgb')
+from mitsuba.render import Mesh
+from mitsuba.core import FileStream, Matrix4f
 
 C = bpy.context
 D = bpy.data
@@ -73,20 +90,37 @@ def export_camera(b_camera):
 
 def export_mesh(b_mesh):
     #object export
+
+    #create a mitsuba mesh
+    b_mesh.data.calc_loop_triangles()#compute the triangle tesselation
+    loop_tri_count = len(b_mesh.data.loop_triangles)
+    name = b_mesh.name #or name_full? TODO: check when those are different
+    if loop_tri_count == 0:
+        warnings.warn("Mesh: {} has no faces. Skipping.".format(name), Warning)
+        return
+
+    loop_tri_ptr = b_mesh.data.loop_triangles[0].as_pointer()
+    loop_ptr = b_mesh.data.loops[0].as_pointer()
+    poly_ptr = b_mesh.data.polygons[0].as_pointer()
+    vert_ptr = b_mesh.data.vertices[0].as_pointer()
+    mat = b_mesh.matrix_world
+    to_world = Matrix4f(mat[0][0], mat[0][1], mat[0][2], mat[0][3],
+                        mat[1][0], mat[1][1], mat[1][2], mat[1][3],
+                        mat[2][0], mat[2][1], mat[2][2], mat[2][3],
+                        mat[3][0], mat[3][1], mat[3][2], mat[3][3])
+    m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_ptr, poly_ptr, to_world)
+
+    mesh_path = path + "/" + name + ".ply"
     shape = ET.SubElement(scene, "shape", type="ply")
-    bpy.ops.object.select_all(action='DESELECT')
-   # obj = D.objects['Suzanne']#TODO: go through all scene.objects and export accordingly
-    b_mesh.select_set(True)
-    #obj_eval = obj.evaluated_get(depsgraph)
-    mesh_path = path + "/" + b_mesh.name_full+".ply"
     add_string(shape, "filename", mesh_path)
+    mesh_fs = FileStream(mesh_path, FileStream.ETruncReadWrite)
+    m_mesh.write_ply(mesh_fs)#save as binary ply
+    mesh_fs.close()
     #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
     #TODO: evaluated versions and instances
-    bpy.ops.export_mesh.ply(filepath = mesh_path, use_selection=True)
     #object texture: dummy material for now
     material = ET.SubElement(shape, "bsdf", type="diffuse")
     add_rgb(material, "reflectance", Vector((1,1,1)))
-    #ET.SubElement(material, "spectrum", name="radiance", value="1")
 
 def export_light(b_light):
     #light
@@ -97,15 +131,17 @@ def export_light(b_light):
     else:
         raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
 
-
+depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
+#main export loop
 for b_object in D.objects:
+    evaluated_obj = b_object.evaluated_get(depsgraph)
     #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
     if b_object.type == 'MESH':
-        export_mesh(b_object)
+        export_mesh(evaluated_obj)
     elif b_object.type == 'CAMERA':
-        export_camera(b_object)#TODO: investigate multiple scenes and multiple cameras at same time
+        export_camera(evaluated_obj)#TODO: investigate multiple scenes and multiple cameras at same time
     elif b_object.type == 'LIGHT':
-        export_light(b_object)
+        export_light(evaluated_obj)
     else:
         raise NotImplementedError("Object type {} is not supported".format(b_object.type))
 
