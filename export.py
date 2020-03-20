@@ -137,6 +137,9 @@ depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (no
 for b_object in D.objects:
     evaluated_obj = b_object.evaluated_get(depsgraph)
     #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
+    if evaluated_obj.hide_render:
+        print("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name))
+        continue#ignore it since we don't want it rendered (TODO: hide_viewport)
     if b_object.type == 'MESH':
         export_mesh(evaluated_obj)
     elif b_object.type == 'CAMERA':
@@ -149,3 +152,4 @@ for b_object in D.objects:
 #write XML file
 tree = ET.ElementTree(scene)
 tree.write(path + "Test.xml")
+print("Success.")
