@@ -103,12 +103,13 @@ def export_mesh(b_mesh):
     loop_ptr = b_mesh.data.loops[0].as_pointer()
     poly_ptr = b_mesh.data.polygons[0].as_pointer()
     vert_ptr = b_mesh.data.vertices[0].as_pointer()
+    vert_count = len(b_mesh.data.vertices)#TODO: maybe avoid calling len()
     mat = b_mesh.matrix_world
     to_world = Matrix4f(mat[0][0], mat[0][1], mat[0][2], mat[0][3],
                         mat[1][0], mat[1][1], mat[1][2], mat[1][3],
                         mat[2][0], mat[2][1], mat[2][2], mat[2][3],
                         mat[3][0], mat[3][1], mat[3][2], mat[3][3])
-    m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_ptr, poly_ptr, to_world)
+    m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_count, vert_ptr, poly_ptr, to_world)
 
     mesh_path = path + "/" + name + ".ply"
     shape = ET.SubElement(scene, "shape", type="ply")
