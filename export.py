@@ -59,7 +59,8 @@ scene = ET.Element("scene", version="2.0.0")
 integrator = ET.SubElement(scene, "integrator", type="path")#debug
 #TODO: add path tracer params
 
-def export_camera(b_camera):
+def export_camera(camera_instance):
+    b_camera = camera_instance.object#TODO: instances here too?
     #camera
     sensor = ET.SubElement(scene, "sensor", type="perspective")#TODO: handle other types (thin lens, ortho)
 
@@ -88,13 +89,11 @@ def export_camera(b_camera):
     add_int(film, "height", height)
     #TODO: reconstruction filter
 
-def export_mesh(b_mesh):
-    #object export
-
+def save_mesh(b_mesh, file_path):
     #create a mitsuba mesh
     b_mesh.data.calc_loop_triangles()#compute the triangle tesselation
+    name = b_mesh.name
     loop_tri_count = len(b_mesh.data.loop_triangles)
-    name = b_mesh.name #or name_full? TODO: check when those are different
     if loop_tri_count == 0:
         warnings.warn("Mesh: {} has no faces. Skipping.".format(name), Warning)
         return
@@ -111,19 +110,36 @@ def export_mesh(b_mesh):
                         mat[3][0], mat[3][1], mat[3][2], mat[3][3])
     m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_count, vert_ptr, poly_ptr, to_world)
 
-    mesh_path = path + "/" + name + ".ply"
-    shape = ET.SubElement(scene, "shape", type="ply")
-    add_string(shape, "filename", mesh_path)
-    mesh_fs = FileStream(mesh_path, FileStream.ETruncReadWrite)
+    mesh_fs = FileStream(file_path, FileStream.ETruncReadWrite)
     m_mesh.write_ply(mesh_fs)#save as binary ply
     mesh_fs.close()
-    #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
-    #TODO: evaluated versions and instances
-    #object texture: dummy material for now
-    material = ET.SubElement(shape, "bsdf", type="diffuse")
-    add_rgb(material, "reflectance", Vector((1,1,1)))
 
-def export_light(b_light):
+def export_mesh(mesh_instance):
+    #object export
+    b_mesh = mesh_instance.object
+    if b_mesh.is_instancer and not b_mesh.show_instancer_for_render:
+        return#don't export hidden mesh
+
+    name = b_mesh.name #or name_full? TODO: check when those are different
+    mesh_path = path + "/" + name + ".ply"
+    if not mesh_instance.is_instance:
+        save_mesh(b_mesh, mesh_path)
+    if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
+        #we only write a shape plugin if an object is *not* an emitter, i.e. either an instance or an original object
+        shape = ET.SubElement(scene, "shape", type="ply")
+        add_string(shape, "filename", mesh_path)
+        if(mesh_instance.is_instance):
+            #instance, load referenced object saved before with another transform matrix
+            transform = ET.SubElement(shape, "transform", name="to_world")
+            add_matrix(transform, 4, 4, mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
+        #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
+        #TODO: evaluated versions and instances
+        #object texture: dummy material for now
+        material = ET.SubElement(shape, "bsdf", type="diffuse")#TODO: reference bsdf with ids
+        add_rgb(material, "reflectance", Vector((1,1,1)))
+
+def export_light(light_instance):
+    b_light = light_instance.object#TODO instances here too
     #light
     if(b_light.data.type == 'POINT'):
         emitter = ET.SubElement(scene, "emitter", type="point")#TODO: handle other types
@@ -134,21 +150,22 @@ def export_light(b_light):
 
 depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
 #main export loop
-for b_object in D.objects:
-    evaluated_obj = b_object.evaluated_get(depsgraph)
+for object_instance in depsgraph.object_instances:
+    evaluated_obj = object_instance.object
+    object_type = evaluated_obj.type
     #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
     if evaluated_obj.hide_render:
         print("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name))
         continue#ignore it since we don't want it rendered (TODO: hide_viewport)
-    if b_object.type == 'MESH':
-        export_mesh(evaluated_obj)
-    elif b_object.type == 'CAMERA':
-        export_camera(evaluated_obj)#TODO: investigate multiple scenes and multiple cameras at same time
-    elif b_object.type == 'LIGHT':
-        export_light(evaluated_obj)
-    else:
-        raise NotImplementedError("Object type {} is not supported".format(b_object.type))
 
+    if object_type == 'MESH':
+        export_mesh(object_instance)
+    elif object_type == 'CAMERA':
+        export_camera(object_instance)#TODO: investigate multiple scenes and multiple cameras at same time
+    elif object_type == 'LIGHT':
+        export_light(object_instance)
+    else:
+        raise NotImplementedError("Object type {} is not supported".format(object_type))
 #write XML file
 tree = ET.ElementTree(scene)
 tree.write(path + "Test.xml")
