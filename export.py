@@ -15,6 +15,9 @@ tokens = python_path.split(':')
 for token in tokens: #add the paths to python path
     sys.path.append(token)
 
+sys.path.append('/home/bathal/Documents/EPFL/mitsuba-blender/')#ugly workaround, TODO resolve paths properly
+from file_api import FileExportContext
+
 import mitsuba
 mitsuba.set_variant('scalar_rgb')
 from mitsuba.render import Mesh
@@ -22,77 +25,48 @@ from mitsuba.core import FileStream, Matrix4f
 
 C = bpy.context
 D = bpy.data
-depsgraph = C.evaluated_depsgraph_get()
-b_scene = D.scenes[0] #TODO: what if there are multiple scenes?
-path = "/home/bathal/Documents/EPFL/scenes/Test/"
 
-#TODO: write xml writing code elsewhere
-def add_string(parent, n, v):
-    ET.SubElement(parent, "string", name=n, value=v)
-
-def add_int(parent, n, v):
-    ET.SubElement(parent, "integer", name=n, value=str(v))
-    
-def add_float(parent, n, v):
-    ET.SubElement(parent, "float", name=n, value=str(v))
-
-def add_matrix(parent, m, n, mat):
-    """
-    parent: parent node in the XML structure
-    m,n: matrix dimensions
-    mat: matrix
-    """
-    str_mat = ""
-    for i in range(m):
-        for j in range(n):
-            str_mat += " " + str(mat[i][j])
-    ET.SubElement(parent, "matrix", value=str_mat)
-
-def add_rgb(parent, n, vec):
-    ET.SubElement(parent, "rgb", name=n, value="{}, {}, {}".format(*vec))
-
-#coordinate system change between blender and mitsuba
-coordinate_mat = Matrix(((-1,0,0,0),(0,1,0,0),(0,0,-1,0),(0,0,0,1)))
-
-scene = ET.Element("scene", version="2.0.0")
-
-integrator = ET.SubElement(scene, "integrator", type="path")#debug
-#TODO: add path tracer params
-
-def export_camera(camera_instance):
-    b_camera = camera_instance.object#TODO: instances here too?
+def export_camera(camera_instance, b_scene, export_ctx):
     #camera
-    sensor = ET.SubElement(scene, "sensor", type="perspective")#TODO: handle other types (thin lens, ortho)
-
+    b_camera = camera_instance.object#TODO: instances here too?
+    params = {'plugin':'sensor'}
+    params['type'] = 'perspective'
+    params['id'] = b_camera.name_full
     #TODO: encapsulating classes for everything
     #extract fov
-    add_string(sensor, "fov_axis", "x")#TODO: check cam.sensor_fit
-    add_float(sensor, "fov", str(b_camera.data.angle_x * 180 / np.pi))
+    params['fov_axis'] = 'x'
+    params['fov'] = b_camera.data.angle_x * 180 / np.pi#TODO: check cam.sensor_fit
+
     #TODO: test other parameters relevance (camera.lens, orthographic_scale, dof...)
-    add_float(sensor, "near_clip", str(b_camera.data.clip_start))
-    add_float(sensor, "far_clip", str(b_camera.data.clip_end))
+    params['near_clip'] = b_camera.data.clip_start
+    params['far_clip'] = b_camera.data.clip_end
     #TODO: check that distance units are consistent everywhere (e.g. mm everywhere)
     #TODO enable focus thin lens / cam.dof
 
-    transform = ET.SubElement(sensor, "transform", name="to_world")
+    #matrix used to transform the camera, since they have different default position in blender and mitsuba (mitsuba is y up, blender is z up)
+    coordinate_mat = Matrix(((-1,0,0,0),(0,1,0,0),(0,0,-1,0),(0,0,0,1)))
+    params['to_world'] = export_ctx.transform_matrix(b_camera.matrix_world @ coordinate_mat)
 
-    add_matrix(transform, 4, 4, b_camera.matrix_world @ coordinate_mat) #TODO: constraints, anim data,etc. (deg evaluation)
+    sampler = {'plugin':'sampler'}
+    sampler['type'] = 'independent'
+    sampler['sample_count'] = b_scene.cycles.samples
+    params['sampler'] = sampler
 
-    sampler = ET.SubElement(sensor, "sampler", type="independent")
-    add_int(sampler, "sample_count", b_scene.cycles.preview_samples)#debug, TODO: switch to samples
-
-    film = ET.SubElement(sensor, "film", type="hdrfilm")
+    film = {'plugin':'film'}
+    film['type'] = 'hdrfilm'
     scale = C.scene.render.resolution_percentage / 100
     width = int(C.scene.render.resolution_x * scale)
-    add_int(film, "width", width)
+    film['width'] = width
     height = int(C.scene.render.resolution_y * scale)
-    add_int(film, "height", height)
+    film['height'] = height
+    params['film'] = film
     #TODO: reconstruction filter
+    export_ctx.data_add(params)
 
 def save_mesh(b_mesh, file_path):
     #create a mitsuba mesh
     b_mesh.data.calc_loop_triangles()#compute the triangle tesselation
-    name = b_mesh.name
+    name = b_mesh.name_full
     loop_tri_count = len(b_mesh.data.loop_triangles)
     if loop_tri_count == 0:
         warnings.warn("Mesh: {} has no faces. Skipping.".format(name), Warning)
@@ -114,41 +88,52 @@ def save_mesh(b_mesh, file_path):
     m_mesh.write_ply(mesh_fs)#save as binary ply
     mesh_fs.close()
 
-def export_mesh(mesh_instance):
+def export_mesh(mesh_instance, export_ctx):
     #object export
     b_mesh = mesh_instance.object
     if b_mesh.is_instancer and not b_mesh.show_instancer_for_render:
         return#don't export hidden mesh
 
     name = b_mesh.name #or name_full? TODO: check when those are different
-    mesh_path = path + "/" + name + ".ply"
+    mesh_path = export_ctx.directory + "/" + name + ".ply"
     if not mesh_instance.is_instance:
         save_mesh(b_mesh, mesh_path)
     if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
         #we only write a shape plugin if an object is *not* an emitter, i.e. either an instance or an original object
-        shape = ET.SubElement(scene, "shape", type="ply")
-        add_string(shape, "filename", mesh_path)
+        params = {'plugin':'shape', 'type':'ply'}
+        params['filename'] = mesh_path
         if(mesh_instance.is_instance):
             #instance, load referenced object saved before with another transform matrix
-            transform = ET.SubElement(shape, "transform", name="to_world")
-            add_matrix(transform, 4, 4, mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
+            params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
         #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
-        #TODO: evaluated versions and instances
         #object texture: dummy material for now
-        material = ET.SubElement(shape, "bsdf", type="diffuse")#TODO: reference bsdf with ids
-        add_rgb(material, "reflectance", Vector((1,1,1)))
+        bsdf = {'plugin':'bsdf', 'type':'diffuse'}
+        bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
+        params['bsdf'] = bsdf
+        export_ctx.data_add(params)
 
-def export_light(light_instance):
-    b_light = light_instance.object#TODO instances here too
+def export_light(light_instance, export_ctx):
     #light
+    b_light = light_instance.object#TODO instances here too
+    params = {'plugin':'emitter'}
     if(b_light.data.type == 'POINT'):
-        emitter = ET.SubElement(scene, "emitter", type="point")#TODO: handle other types
-        ET.SubElement(emitter, "point", name="position", x=str(b_light.location[0]), y=str(b_light.location[1]), z=str(b_light.location[2]))
-        ET.SubElement(emitter, "spectrum", name="intensity", value=str(b_light.data.energy/(4*np.pi)))#energy converted to emitted radiance (homogeneous over the sphere)
+        params['type'] = 'point'
+        params['position'] = export_ctx.point(b_light.location)
+        params['intensity'] = export_ctx.spectrum(b_light.data.energy/(4*np.pi), 'spectrum')
     else:
         raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
 
+    export_ctx.data_add(params)
+
+
+export_ctx = FileExportContext()
+path = "/home/bathal/Documents/EPFL/scenes/Test/Test.xml"
+export_ctx.set_filename(path)
+integrator = {'plugin':'integrator', 'type':'path'}
+export_ctx.data_add(integrator)
+
 depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
+b_scene = D.scenes[0] #TODO: what if there are multiple scenes?
 #main export loop
 for object_instance in depsgraph.object_instances:
     evaluated_obj = object_instance.object
@@ -159,14 +144,13 @@ for object_instance in depsgraph.object_instances:
         continue#ignore it since we don't want it rendered (TODO: hide_viewport)
 
     if object_type == 'MESH':
-        export_mesh(object_instance)
-    elif object_type == 'CAMERA':
-        export_camera(object_instance)#TODO: investigate multiple scenes and multiple cameras at same time
+        export_mesh(object_instance, export_ctx)
+    elif object_type == 'CAMERA':#TODO: export only scene.camera
+        export_camera(object_instance, b_scene, export_ctx)#TODO: investigate multiple scenes and multiple cameras at same time
     elif object_type == 'LIGHT':
-        export_light(object_instance)
+        export_light(object_instance, export_ctx)
     else:
         raise NotImplementedError("Object type {} is not supported".format(object_type))
-#write XML file
-tree = ET.ElementTree(scene)
-tree.write(path + "Test.xml")
-print("Success.")
+
+#write data to scene .xml file
+export_ctx.configure()
