@@ -71,6 +71,15 @@ def save_mesh(b_mesh, file_path):
     if loop_tri_count == 0:
         warnings.warn("Mesh: {} has no faces. Skipping.".format(name), Warning)
         return
+    if not b_mesh.data.uv_layers:
+        uv_ptr = 0#nullptr
+    else:
+        if len(b_mesh.data.uv_layers) > 1:
+            print("Mesh: '%s' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render."%name)
+        for uv_layer in b_mesh.data.uv_layers:
+            if uv_layer.active_render:#if there is only 1 UV layer, it is always active
+                uv_ptr = uv_layer.data[0].as_pointer()
+                break
 
     loop_tri_ptr = b_mesh.data.loop_triangles[0].as_pointer()
     loop_ptr = b_mesh.data.loops[0].as_pointer()
@@ -82,7 +91,7 @@ def save_mesh(b_mesh, file_path):
                         mat[1][0], mat[1][1], mat[1][2], mat[1][3],
                         mat[2][0], mat[2][1], mat[2][2], mat[2][3],
                         mat[3][0], mat[3][1], mat[3][2], mat[3][3])
-    m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_count, vert_ptr, poly_ptr, to_world)
+    m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr, vert_count, vert_ptr, poly_ptr, uv_ptr, to_world)
 
     mesh_fs = FileStream(file_path, FileStream.ETruncReadWrite)
     m_mesh.write_ply(mesh_fs)#save as binary ply
@@ -108,7 +117,8 @@ def export_mesh(mesh_instance, export_ctx):
         #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
         #object texture: dummy material for now
         bsdf = {'plugin':'bsdf', 'type':'diffuse'}
-        bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
+        #bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
+        bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
         params['bsdf'] = bsdf
         export_ctx.data_add(params)
 
