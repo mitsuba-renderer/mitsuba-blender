@@ -255,7 +255,10 @@ class FileExportContext():
 
         else:
             if plugin != plugin_type:
-                del args['name']#plugins don't need a name
+                del args['name']#plugins don't need their inherited name
+            if 'name' in param_dict:
+                args['name'] = param_dict['name']
+                del param_dict['name']
 
             if 'id' in param_dict:
                 args['id'] = param_dict.pop('id')
