@@ -279,9 +279,9 @@ def export_material(export_ctx, material):
     return mat_params
     """
 
-def export_world(export_ctx, world):
+def convert_world(export_ctx, world):
     """
-    export environment lighting. Constant emitter and envmaps are supported
+    convert environment lighting. Constant emitter and envmaps are supported
     """
     params = {
             'plugin':'emitter',
@@ -303,8 +303,36 @@ def export_world(export_ctx, world):
                     'scale': strength
                 })
                 coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))
-                params['to_world'] = export_ctx.transform_matrix(coordinate_mat)
-                #TODO: transforms
+                to_world = Matrix()#4x4 Identity
+                if color_node.inputs["Vector"].is_linked:
+                    vector_node = color_node.inputs["Vector"].links[0].from_node
+                    if vector_node.type != 'MAPPING':
+                        raise NotImplementedError("Node: %s is not supported. Only a mapping node is supported" % vector_node.bl_idname)
+                    if not vector_node.inputs["Vector"].is_linked:
+                        raise NotImplementedError("The node %s should be linked with a Texture coordinate node." % vector_node.bl_idname)
+                    coord_node = vector_node.inputs["Vector"].links[0].from_node
+                    coord_socket = vector_node.inputs["Vector"].links[0].from_socket
+                    if coord_node.type != 'TEX_COORD':
+                        raise NotImplementedError("Unsupported node type: %s." % coord_node.bl_idname)
+                    if coord_socket.name != 'Generated':
+                        raise NotImplementedError("Link should come from 'Generated'.")
+                    #only supported node setup for transform
+                    if vector_node.vector_type != 'TEXTURE':
+                        raise NotImplementedError("Only 'Texture' mapping mode is supported.")
+                    if vector_node.inputs["Location"].is_linked or vector_node.inputs["Rotation"].is_linked or vector_node.inputs["Scale"].is_linked:
+                        raise NotImplementedError("Transfrom inputs shouldn't be linked.")
+
+                    rotation = vector_node.inputs["Rotation"].default_value.to_matrix()
+                    scale = vector_node.inputs["Scale"].default_value
+                    location = vector_node.inputs["Location"].default_value
+                    for i in range(3):
+                        for j in range(3):
+                            to_world[i][j] = rotation[i][j]
+                        to_world[i][i] *= scale[i]
+                        to_world[i][3] = location[i]
+                    to_world = to_world
+                #TODO: support other types of mappings (vector, point...)
+                params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
             elif color_node.type == 'RGB':
                 color = color_node.color
         else:
@@ -319,4 +347,12 @@ def export_world(export_ctx, world):
     else:
         raise NotImplementedError("Node type %s is not supported" % surface_node.type)
 
-    export_ctx.data_add(params)
+    return params
+
+def export_world(export_ctx, world):
+
+    try:
+        params = convert_world(export_ctx, world)
+        export_ctx.data_add(params)
+    except NotImplementedError as err:
+        print("Error while exporting world: %s. Not exporting it." % err.args[0])
