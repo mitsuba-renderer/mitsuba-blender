@@ -17,6 +17,7 @@ for token in tokens: #add the paths to python path
 
 sys.path.append('/home/bathal/Documents/EPFL/mitsuba-blender/')#ugly workaround, TODO resolve paths properly
 from file_api import FileExportContext
+from materials import export_material
 
 import mitsuba
 mitsuba.set_variant('scalar_rgb')
@@ -127,10 +128,14 @@ def export_mesh(mesh_instance, export_ctx):
             params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
         #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
         #object texture: dummy material for now
-        bsdf = {'plugin':'bsdf', 'type':'diffuse'}
+        #bsdf = {'plugin':'bsdf', 'type':'diffuse'}
         #bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
-        bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
-        params['bsdf'] = bsdf
+        #bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
+        if b_mesh.active_material:
+            params['bsdf'] = {'type':'ref', 'id':b_mesh.active_material.name}
+        else:#default bsdf
+            params['bsdf'] = {'plugin':'bsdf', 'type':'diffuse'}
+        #TODO: export meshes with multiple materials
         export_ctx.data_add(params)
 
 def export_light(light_instance, export_ctx):
@@ -146,7 +151,6 @@ def export_light(light_instance, export_ctx):
 
     export_ctx.data_add(params)
 
-
 export_ctx = FileExportContext()
 path = "/home/bathal/Documents/EPFL/scenes/Test/Test.xml"
 export_ctx.set_filename(path)
@@ -156,6 +160,13 @@ export_ctx.data_add(integrator)
 depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
 b_scene = D.scenes[0] #TODO: what if there are multiple scenes?
 #main export loop
+
+#TODO: also export images only once with refs
+for b_mat in D.materials:
+    #export materials
+   if b_mat.users > 0:#if the material is used
+       export_material(export_ctx, b_mat)
+
 for object_instance in depsgraph.object_instances:
     evaluated_obj = object_instance.object
     object_type = evaluated_obj.type
