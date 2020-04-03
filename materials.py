@@ -288,15 +288,13 @@ def export_material(export_ctx, material):
     return mat_params
     """
 
-def convert_world(export_ctx, world):
+def convert_world(export_ctx, surface_node):
     """
     convert environment lighting. Constant emitter and envmaps are supported
     """
     params = {
             'plugin':'emitter',
             }
-    output_node = world.node_tree.nodes['World Output']
-    surface_node = output_node.inputs["Surface"].links[0].from_node
     if surface_node.inputs['Strength'].is_linked:
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
     strength = surface_node.inputs['Strength'].default_value
@@ -360,8 +358,12 @@ def convert_world(export_ctx, world):
 
 def export_world(export_ctx, world):
 
+    output_node = world.node_tree.nodes['World Output']
+    if not output_node.inputs["Surface"].is_linked:
+        return
+    surface_node = output_node.inputs["Surface"].links[0].from_node
     try:
-        params = convert_world(export_ctx, world)
+        params = convert_world(export_ctx, surface_node)
         export_ctx.data_add(params)
     except NotImplementedError as err:
         print("Error while exporting world: %s. Not exporting it." % err.args[0])
