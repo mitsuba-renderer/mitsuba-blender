@@ -223,7 +223,7 @@ class FileExportContext():
         self.wf(self.current_file, '/>\n')
 
     # Funtions to emulate Mitsuba extension API
-
+    #TODO: redo all this, it is weird and unobvious
     def pmgr_create(self, mts_dict=None, args={}):
         if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
             return
@@ -254,8 +254,8 @@ class FileExportContext():
                 del args['name']
 
         else:
-            if plugin != plugin_type:
-                del args['name']#plugins don't need their inherited name
+            if plugin != plugin_type and plugin != 'texture':
+                del args['name']#plugins except textures don't need their inherited name
             if 'name' in param_dict:
                 args['name'] = param_dict['name']
                 del param_dict['name']
