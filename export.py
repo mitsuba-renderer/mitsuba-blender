@@ -116,7 +116,7 @@ def export_mesh(mesh_instance, export_ctx):
         return#don't export hidden mesh
 
     name = b_mesh.name #or name_full? TODO: check when those are different
-    mesh_path = export_ctx.directory + "/" + name + ".ply"
+    mesh_path = export_ctx.directory + "/" + name + ".ply"#TODO: relative paths
     if not mesh_instance.is_instance:
         save_mesh(b_mesh, mesh_path)
     if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
@@ -132,7 +132,13 @@ def export_mesh(mesh_instance, export_ctx):
         #bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
         #bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
         if b_mesh.active_material:
-            params['bsdf'] = {'type':'ref', 'id':b_mesh.active_material.name}
+            if export_ctx.scene_data[b_mesh.active_material.name]['plugin']=='emitter':
+                #emitter object, we need to add it a dummy, non interacting bsdf
+                params['emitter'] = {'type':'ref', 'id':b_mesh.active_material.name}
+                params['bsdf'] = {'type':'ref', 'id':'empty-emitter-bsdf'}#this was added when materials were exported
+                #TODO: store the id of the dummy emitter bsdf some place
+            else:
+                params['bsdf'] = {'type':'ref', 'id':b_mesh.active_material.name}
         else:#default bsdf
             params['bsdf'] = {'plugin':'bsdf', 'type':'diffuse'}
         #TODO: export meshes with multiple materials

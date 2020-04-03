@@ -145,7 +145,7 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
 
     else:
-        radiance = current_node.inputs["Strength"].default_value / (2.0 * pi)#TODO: fix this
+        radiance = current_node.inputs["Strength"].default_value#TODO: fix this
 
     if current_node.inputs['Color'].is_linked:
         raise NotImplementedError("Only default emitter color is supported.")#TODO: rgb input
@@ -159,9 +159,18 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         'radiance': export_ctx.spectrum(radiance),
     }
 
+    #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
+    if 'empty-emitter-bsdf' not in export_ctx.scene_data:#we only need to add one of this, but we may have multiple emitter materials
+        empty_bsdf = {
+            'plugin':'bsdf',
+            'type':'diffuse',
+            'reflectance':export_ctx.spectrum(0),#no interaction with light
+            'id':'empty-emitter-bsdf'
+        }
+        export_ctx.data_add(empty_bsdf)
     return params
 
-def convert_mix_materials_cycles(export_ctx, current_node):
+def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix this
     add_shader = (current_node.type == 'ADD_SHADER')
 
     # in the case of AddShader 1-True = 0
