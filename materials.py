@@ -1,4 +1,5 @@
 from numpy import pi
+from mathutils import Matrix
 
 RoughnessMode = {'GGX': 'ggx', 'SHARP': 'beckmann', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
@@ -277,3 +278,45 @@ def export_material(export_ctx, material):
             mat_params.update({'interior': {'type': 'ref', 'id': '%s-medium' % name}})
     return mat_params
     """
+
+def export_world(export_ctx, world):
+    """
+    export environment lighting. Constant emitter and envmaps are supported
+    """
+    params = {
+            'plugin':'emitter',
+            }
+    output_node = world.node_tree.nodes['World Output']
+    surface_node = output_node.inputs["Surface"].links[0].from_node
+    if surface_node.inputs['Strength'].is_linked:
+        raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
+    strength = surface_node.inputs['Strength'].default_value
+
+    if surface_node.type in ['BACKGROUND', 'EMISSION']:
+        socket = surface_node.inputs["Color"]
+        if socket.is_linked:
+            color_node = socket.links[0].from_node
+            if color_node.type == 'TEX_ENVIRONMENT':
+                params.update({
+                    'type': 'envmap',
+                    'filename': color_node.image.filepath_from_user(),
+                    'scale': strength
+                })
+                coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))
+                params['to_world'] = export_ctx.transform_matrix(coordinate_mat)
+                #TODO: transforms
+            elif color_node.type == 'RGB':
+                color = color_node.color
+        else:
+            color = socket.default_value
+        if 'type' not in params:
+            radiance = [x * strength for x in color[:]]
+            params.update({
+                'type': 'constant',
+                'radiance': export_ctx.spectrum(radiance)
+            })
+
+    else:
+        raise NotImplementedError("Node type %s is not supported" % surface_node.type)
+
+    export_ctx.data_add(params)

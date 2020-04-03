@@ -17,7 +17,7 @@ for token in tokens: #add the paths to python path
 
 sys.path.append('/home/bathal/Documents/EPFL/mitsuba-blender/')#ugly workaround, TODO resolve paths properly
 from file_api import FileExportContext
-from materials import export_material
+from materials import export_material, export_world
 
 import mitsuba
 mitsuba.set_variant('scalar_rgb')
@@ -160,12 +160,13 @@ export_ctx.data_add(integrator)
 depsgraph = C.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
 b_scene = D.scenes[0] #TODO: what if there are multiple scenes?
 #main export loop
+export_world(export_ctx, b_scene.world)
 
 #TODO: also export images only once with refs
 for b_mat in D.materials:
     #export materials
-   if b_mat.users > 0:#if the material is used
-       export_material(export_ctx, b_mat)
+    if b_mat.users > 0:#if the material is used
+        export_material(export_ctx, b_mat)
 
 for object_instance in depsgraph.object_instances:
     evaluated_obj = object_instance.object
