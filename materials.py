@@ -1,6 +1,20 @@
 from numpy import pi
 from mathutils import Matrix
 
+def linear_to_srgb(x):
+    if x > 0.0031308:
+        x = 1.055 * pow(x, 0.416) - 0.055
+    else:
+        x = 12.92 * x
+    return x
+
+def srgb_to_linear(x):
+    if x > 0.04045:
+        x = pow((x+0.055)/1.055, 2.4)
+    else:
+        x = x / 12.92
+    return x
+
 RoughnessMode = {'GGX': 'ggx', 'SHARP': 'beckmann', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
@@ -170,28 +184,62 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         export_ctx.data_add(empty_bsdf)
     return params
 
+def convert_add_materials_cycles(export_ctx, current_node):
+    if not current_node.inputs[0].is_linked or not current_node.inputs[1].is_linked:
+        raise NotImplementedError("Add shader is not linked to two materials.")
+    mat_I = current_node.inputs[0].links[0].from_node
+    mat_II = current_node.inputs[1].links[0].from_node
+
+    if current_node.outputs[0].links[0].to_node.type != 'OUTPUT_MATERIAL':
+        raise NotImplementedError("Add Shader is supported only as the final node of the shader (right behind 'Material Output').")
+    #TODO: we could support it better to an extent, but it creates lots of degenerate cases, some of which won't work. Is it really worth it?
+    elif mat_I.type != 'EMISSION' and mat_II.type != 'EMISSION':
+        #Two bsdfs, this is not supported
+        raise NotImplementedError("Adding two BSDFs is not supported, consider using a mix shader instead.")
+    elif mat_I.type == 'EMISSION' and mat_II.type == 'EMISSION':
+        #weight radiances
+        #only RGB values for emitter colors are supported for now, so we can do this. It may be broken if we allow textures or spectra in blender
+        radiance_I = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_I)['radiance']['value'].split(" ")]
+        radiance_II = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_II)['radiance']['value'].split(" ")]
+
+        sum_radiance = [linear_to_srgb(srgb_to_linear(radiance_I[i]) + srgb_to_linear(radiance_II[i])) for i in range(3)]
+        params = {
+            'plugin': 'emitter',
+            'type': 'area',
+            'radiance': export_ctx.spectrum(sum_radiance),
+        }
+        return params
+    else:
+        #one emitter, one bsdf
+        return [cycles_material_to_dict(export_ctx, mat_I),
+                cycles_material_to_dict(export_ctx, mat_II)]
+
 def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix this
-    add_shader = (current_node.type == 'ADD_SHADER')
+    if not current_node.inputs[1].is_linked or not current_node.inputs[2].is_linked:
+        raise NotImplementedError("Mix shader is not linked to two materials.")
 
-    # in the case of AddShader 1-True = 0
-    mat_I = current_node.inputs[1 - add_shader].links[0].from_node
-    mat_II = current_node.inputs[2 - add_shader].links[0].from_node
+    mat_I = current_node.inputs[1].links[0].from_node
+    mat_II = current_node.inputs[2].links[0].from_node
 
-    #TODO: XOR would be better in case of two emission type material
-    emitter = ((mat_I.type == 'EMISSION') or (mat_II.type == 'EMISSION'))
-
-    if emitter:
-        params = cycles_material_to_dict(export_ctx, mat_I)
-        params.update(cycles_material_to_dict(export_ctx, mat_II))
-
+    if mat_I.type == 'EMISSION' and mat_II.type == 'EMISSION':
+        #weight radiances
+        #only RGB values for emitter colors are supported for now, so we can do this. It may be broken if we allow textures or spectra in blender
+        if current_node.inputs['Fac'].is_linked:#texture weight
+            raise NotImplementedError("Only uniform weight is supported for mixing emitters.")
+        radiance_I = [srgb_to_linear(float(f)) for f in convert_emitter_materials_cycles(export_ctx, mat_I)['radiance']['value'].split(" ")]
+        radiance_II = [srgb_to_linear(float(f)) for f in convert_emitter_materials_cycles(export_ctx, mat_II)['radiance']['value'].split(" ")]
+        w = current_node.inputs['Fac'].default_value
+        weighted_radiance = [linear_to_srgb((1.0-w)*radiance_I[i] + w*radiance_II[i]) for i in range(3)]
+        params = {
+            'plugin': 'emitter',
+            'type': 'area',
+            'radiance': export_ctx.spectrum(weighted_radiance),
+        }
         return params
 
-    else:
-        if add_shader:
-            weight = 0.5
+    elif mat_I.type != 'EMISSION' and mat_II.type != 'EMISSION':
 
-        else:
-            weight = current_node.inputs['Fac'].default_value#TODO: texture weight
+        weight = current_node.inputs['Fac'].default_value#TODO: texture weight
 
         params = {
             'plugin': 'bsdf',
@@ -211,6 +259,8 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         ])
 
         return params
+    else:#one bsdf, one emitter
+        raise NotImplementedError("Mixing a BSDF and an emitter is not supported. Consider using an Add shader instead.")
 
 #TODO: Add more support for other materials: refraction, transparent, translucent, principled
 cycles_converters = {
@@ -219,7 +269,7 @@ cycles_converters = {
     'BSDF_GLASS': convert_glass_materials_cycles,
     'EMISSION': convert_emitter_materials_cycles,
     'MIX_SHADER': convert_mix_materials_cycles,
-    'ADD_SHADER': convert_mix_materials_cycles,
+    'ADD_SHADER': convert_add_materials_cycles,
 }
 
 def cycles_material_to_dict(export_ctx, node):
@@ -266,8 +316,18 @@ def export_material(export_ctx, material):
 
     #TODO: hide emitters
     #TODO: don't export unused materials
-    mat_params['id'] = name
-    export_ctx.data_add(mat_params)
+
+    if isinstance(mat_params, list):#Add/mix shader
+        mat_keys = []
+        for i in range(len(mat_params)):
+            mat_id = "%s-%d" %(name,i)
+            mat_params[i]['id'] = mat_id
+            mat_keys.append(mat_id)
+            export_ctx.data_add(mat_params[i])
+        export_ctx.mat_cache.add_material(mat_keys, name)
+    else:
+        mat_params['id'] = name
+        export_ctx.data_add(mat_params)
     """
     if mat_params['plugin']=='bsdf' and mat_params['type'] != 'null':
         bsdf_params = OrderedDict([('id', '%s-bsdf' % name)])

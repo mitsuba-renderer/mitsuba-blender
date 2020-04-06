@@ -34,13 +34,39 @@ mitsuba_tags = {
     'transform'
 }
 
+class MixedMaterialsCache:
+    '''
+    Store a list of the exported materials, that have both a BSDF and an emitter
+    We need it to add 2 refs to each shape using this material
+    This is useless when a material is only one bsdf/emitter, so we won't add those.
+    '''
+    def __init__(self):
+        self.mats = {}
+
+    def add_material(self, mat_list, mat_id):
+        """
+        Store a list of materials in the data structure
+
+        mat_list: list of references to materials (BSDF or emitter)
+        mat_id: id of the blender material that encapsulates all these
+        """
+        assert(len(mat_list) > 1, "Trying to add only one material to the cache, this is useless!")
+        self.mats[mat_id] = mat_list
+
+    def has(self, mat_id):
+        """
+        Determine if the given material is in the cache or not
+        """
+        return mat_id in self.mats.keys()
+
+
 class Files:
     MAIN = 0
     MATS = 1
     GEOM = 2
     VOLM = 3
 
-class FileExportContext():
+class FileExportContext:
     '''
     File API
     '''
@@ -58,6 +84,7 @@ class FileExportContext():
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0
+        self.mix_mats = MixedMaterialsCache()
 
     # Function to add new elements to the scene dict.
     # If a name is provided it will be used as the key of the element.

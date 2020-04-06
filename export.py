@@ -132,7 +132,12 @@ def export_mesh(mesh_instance, export_ctx):
         #bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
         #bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
         if b_mesh.active_material:
-            if export_ctx.scene_data[b_mesh.active_material.name]['plugin']=='emitter':
+            mat_id = b_mesh.active_material.name
+            if export_ctx.mat_cache.has(mat_id):#add one emitter *and* one bsdf
+                materials = export_ctx.mat_cache.mats[mat_id]
+                for mat in materials:
+                    params[mat] = {'type':'ref', 'id':mat}
+            elif export_ctx.scene_data[mat_id]['plugin']=='emitter':
                 #emitter object, we need to add it a dummy, non interacting bsdf
                 params['emitter'] = {'type':'ref', 'id':b_mesh.active_material.name}
                 params['bsdf'] = {'type':'ref', 'id':'empty-emitter-bsdf'}#this was added when materials were exported
