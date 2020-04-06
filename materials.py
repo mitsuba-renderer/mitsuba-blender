@@ -324,7 +324,7 @@ def export_material(export_ctx, material):
             mat_params[i]['id'] = mat_id
             mat_keys.append(mat_id)
             export_ctx.data_add(mat_params[i])
-        export_ctx.mat_cache.add_material(mat_keys, name)
+        export_ctx.mixed_mats.add_material(mat_keys, name)
     else:
         mat_params['id'] = name
         export_ctx.data_add(mat_params)

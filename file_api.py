@@ -50,7 +50,6 @@ class MixedMaterialsCache:
         mat_list: list of references to materials (BSDF or emitter)
         mat_id: id of the blender material that encapsulates all these
         """
-        assert(len(mat_list) > 1, "Trying to add only one material to the cache, this is useless!")
         self.mats[mat_id] = mat_list
 
     def has(self, mat_id):
@@ -84,7 +83,7 @@ class FileExportContext:
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0
-        self.mix_mats = MixedMaterialsCache()
+        self.mixed_mats = MixedMaterialsCache()
 
     # Function to add new elements to the scene dict.
     # If a name is provided it will be used as the key of the element.
