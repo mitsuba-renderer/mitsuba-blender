@@ -64,10 +64,22 @@ def export_light(light_instance, export_ctx):
     #light
     b_light = light_instance.object#TODO instances here too
     params = {'plugin':'emitter'}
-    if(b_light.data.type == 'POINT'):
+    b_type = b_light.data.type
+    if b_type == 'POINT':
         params['type'] = 'point'
         params['position'] = export_ctx.point(b_light.location)
         params['intensity'] = export_ctx.spectrum(b_light.data.energy/(4*np.pi), 'spectrum')
+    elif b_type == 'SUN':
+        params['type'] = 'directional'
+        color = b_light.data.color
+        irradiance = b_light.data.energy * color
+        params['irradiance'] = export_ctx.spectrum(irradiance)
+        init_mat = Matrix(((1,0,0,0),
+                          (0,-1,0,0),
+                          (0,0,-1,0),
+                          (0,0,0,1)))
+        params['to_world'] = export_ctx.transform_matrix(b_light.matrix_world @ init_mat)
+    #TODO: area light
     else:
         raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
 
