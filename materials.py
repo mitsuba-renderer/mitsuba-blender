@@ -15,7 +15,7 @@ def srgb_to_linear(x):
         x = x / 12.92
     return x
 
-RoughnessMode = {'GGX': 'ggx', 'SHARP': 'beckmann', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
+RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
 def convert_float_texture_node(export_ctx, socket):
@@ -101,7 +101,7 @@ def convert_glossy_materials_cycles(export_ctx, current_node):
 
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
-    if roughness:
+    if roughness and current_node.distribution != 'SHARP':
         params.update({
             'type': 'roughconductor',
             'alpha': roughness,
@@ -132,7 +132,7 @@ def convert_glass_materials_cycles(export_ctx, current_node):
     
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
-    if roughness:
+    if roughness and current_node.distribution != 'SHARP':
         params.update({
             'type': 'roughdielectric',
             'alpha': roughness,
