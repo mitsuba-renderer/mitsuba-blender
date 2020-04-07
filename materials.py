@@ -35,7 +35,10 @@ def convert_float_texture_node(export_ctx, socket):
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
 
     else:
-        params = socket.default_value
+        if socket.name == 'Roughness':#roughness values in blender are remapped with a square root
+            params = pow(socket.default_value, 2)
+        else:
+            params = socket.default_value
 
     return params
 
