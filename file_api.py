@@ -43,14 +43,14 @@ class MixedMaterialsCache:
     def __init__(self):
         self.mats = {}
 
-    def add_material(self, mat_list, mat_id):
+    def add_material(self, mat_dict, mat_id):
         """
-        Store a list of materials in the data structure
+        Store a dict containing one ref to a bsdf and one emitter
 
-        mat_list: list of references to materials (BSDF or emitter)
+        mat_dict: {'emitter':emitter_dict, 'bsdf': bsdf_id}
         mat_id: id of the blender material that encapsulates all these
         """
-        self.mats[mat_id] = mat_list
+        self.mats[mat_id] = mat_dict
 
     def has(self, mat_id):
         """

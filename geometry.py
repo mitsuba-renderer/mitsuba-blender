@@ -103,14 +103,9 @@ class GeometryExporter:
             else:
                 mat_id = b_mesh.data.materials[mat_nr].name
                 if export_ctx.mixed_mats.has(mat_id):#add one emitter *and* one bsdf
-                    materials = export_ctx.mixed_mats.mats[mat_id]
-                    for mat in materials:
-                        params[mat] = {'type':'ref', 'id':mat}
-                elif export_ctx.scene_data[mat_id]['plugin']=='emitter':
-                    #emitter object, we need to add it a dummy, non interacting bsdf
-                    params['emitter'] = {'type':'ref', 'id':mat_id}
-                    params['bsdf'] = {'type':'ref', 'id':'empty-emitter-bsdf'}#this was added when materials were exported
-                    #TODO: store the id of the dummy emitter bsdf some place
+                    mixed_mat = export_ctx.mixed_mats.mats[mat_id]
+                    params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
+                    params['emitter'] = mixed_mat['emitter']
                 else:
                     params['bsdf'] = {'type':'ref', 'id':mat_id}
 

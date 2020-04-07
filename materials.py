@@ -176,15 +176,6 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         'radiance': export_ctx.spectrum(radiance),
     }
 
-    #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
-    if 'empty-emitter-bsdf' not in export_ctx.scene_data:#we only need to add one of this, but we may have multiple emitter materials
-        empty_bsdf = {
-            'plugin':'bsdf',
-            'type':'diffuse',
-            'reflectance':export_ctx.spectrum(0),#no interaction with light
-            'id':'empty-emitter-bsdf'
-        }
-        export_ctx.data_add(empty_bsdf)
     return params
 
 def convert_add_materials_cycles(export_ctx, current_node):
@@ -321,16 +312,33 @@ def export_material(export_ctx, material):
     #TODO: don't export unused materials
 
     if isinstance(mat_params, list):#Add/mix shader
-        mat_keys = []
-        for i in range(len(mat_params)):
-            mat_id = "%s-%d" %(name,i)
-            mat_params[i]['id'] = mat_id
-            mat_keys.append(mat_id)
-            export_ctx.data_add(mat_params[i])
-        export_ctx.mixed_mats.add_material(mat_keys, name)
+        mats = {}
+        for mat in mat_params:
+            if mat['plugin'] == 'bsdf':
+                mat['id'] = name#only bsdfs need IDs for referencing
+                mats['bsdf'] = name
+                export_ctx.data_add(mat)
+            else:#emitter
+                mats['emitter'] = mat#directly store the emitter, we don't reference emitters
+        export_ctx.mixed_mats.add_material(mats, name)
     else:
-        mat_params['id'] = name
-        export_ctx.data_add(mat_params)
+        if mat_params['plugin'] == 'bsdf':#usual case
+            mat_params['id'] = name
+            export_ctx.data_add(mat_params)
+        else:#emitter with no bsdf
+            mats = {}
+            #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
+            if 'empty-emitter-bsdf' not in export_ctx.scene_data:#we only need to add one of this, but we may have multiple emitter materials
+                empty_bsdf = {
+                    'plugin':'bsdf',
+                    'type':'diffuse',
+                    'reflectance':export_ctx.spectrum(0),#no interaction with light
+                    'id':'empty-emitter-bsdf'
+                }
+                export_ctx.data_add(empty_bsdf)
+            mats['bsdf'] = 'empty-emitter-bsdf'
+            mats['emitter'] = mat_params
+            export_ctx.mixed_mats.add_material(mats, name)
     """
     if mat_params['plugin']=='bsdf' and mat_params['type'] != 'null':
         bsdf_params = OrderedDict([('id', '%s-bsdf' % name)])
