@@ -68,13 +68,12 @@ def export_light(light_instance, export_ctx):
     if b_type == 'POINT':
         params['type'] = 'point'
         params['position'] = export_ctx.point(b_light.location)
-        color = b_light.data.color
-        intensity = color * b_light.data.energy / (4*np.pi)#normalize by the solid angle of a sphere
+        energy = b_light.data.energy / (4*np.pi) #normalize by the solid angle of a sphere
+        intensity = energy * b_light.data.color
         params['intensity'] = export_ctx.spectrum(intensity, 'spectrum')
     elif b_type == 'SUN':
         params['type'] = 'directional'
-        color = b_light.data.color
-        irradiance = b_light.data.energy * color
+        irradiance = b_light.data.energy * b_light.data.color
         params['irradiance'] = export_ctx.spectrum(irradiance, 'spectrum')
         init_mat = Matrix(((1,0,0,0),
                           (0,-1,0,0),

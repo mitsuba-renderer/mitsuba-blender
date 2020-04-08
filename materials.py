@@ -196,7 +196,7 @@ def convert_add_materials_cycles(export_ctx, current_node):
         radiance_I = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_I)['radiance']['value'].split(" ")]
         radiance_II = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_II)['radiance']['value'].split(" ")]
 
-        sum_radiance = [linear_to_srgb(srgb_to_linear(radiance_I[i]) + srgb_to_linear(radiance_II[i])) for i in range(3)]
+        sum_radiance = [radiance_I[i] + radiance_II[i] for i in range(3)]
         params = {
             'plugin': 'emitter',
             'type': 'area',
@@ -220,10 +220,10 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         #only RGB values for emitter colors are supported for now, so we can do this. It may be broken if we allow textures or spectra in blender
         if current_node.inputs['Fac'].is_linked:#texture weight
             raise NotImplementedError("Only uniform weight is supported for mixing emitters.")
-        radiance_I = [srgb_to_linear(float(f)) for f in convert_emitter_materials_cycles(export_ctx, mat_I)['radiance']['value'].split(" ")]
-        radiance_II = [srgb_to_linear(float(f)) for f in convert_emitter_materials_cycles(export_ctx, mat_II)['radiance']['value'].split(" ")]
+        radiance_I = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_I)['radiance']['value'].split(" ")]
+        radiance_II = [float(f) for f in convert_emitter_materials_cycles(export_ctx, mat_II)['radiance']['value'].split(" ")]
         w = current_node.inputs['Fac'].default_value
-        weighted_radiance = [linear_to_srgb((1.0-w)*radiance_I[i] + w*radiance_II[i]) for i in range(3)]
+        weighted_radiance = [(1.0-w)*radiance_I[i] + w*radiance_II[i] for i in range(3)]
         params = {
             'plugin': 'emitter',
             'type': 'area',
