@@ -4,6 +4,7 @@ from mitsuba.render import Mesh
 from mitsuba.core import FileStream, Matrix4f
 import warnings
 from materials import export_material
+import os
 
 class GeometryExporter:
     """
@@ -83,16 +84,18 @@ class GeometryExporter:
             name = b_mesh.name_full
         else:
             name = "%s-%d" %(b_mesh.name_full, mat_nr)
-        mesh_path = export_ctx.directory + "/" + name + ".ply"#TODO: relative paths
+
+        relative_path = "%s.ply" % name
+        abs_path = os.path.join(export_ctx.directory, relative_path)
         if not mesh_instance.is_instance:
-            if self.save_mesh(b_mesh, mesh_path, mat_nr) and mat_nr >= 0:
+            if self.save_mesh(b_mesh, abs_path, mat_nr) and mat_nr >= 0:
                 export_material(export_ctx, b_mesh.data.materials[mat_nr])
         if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
             if mat_nr!=-1 and mat_nr not in self.exported_meshes[b_mesh.name_full]:
                 return
             params = {'plugin':'shape', 'type':'ply'}
-            params['filename'] = mesh_path
+            params['filename'] = relative_path
             if(mesh_instance.is_instance):
                 #instance, load referenced object saved before with another transform matrix
                 params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
