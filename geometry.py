@@ -3,6 +3,7 @@ mitsuba.set_variant('scalar_rgb')
 from mitsuba.render import Mesh
 from mitsuba.core import FileStream, Matrix4f
 import warnings
+from materials import export_material
 
 class GeometryExporter:
     """
@@ -69,6 +70,8 @@ class GeometryExporter:
             m_mesh.write_ply(mesh_fs)#save as binary ply
             mesh_fs.close()
             self.add_exported_mesh(b_mesh.name_full, mat_nr)
+            return True
+        return False
 
     def export_mesh_mat(self, mesh_instance, export_ctx, mat_nr):
         #object export
@@ -82,7 +85,8 @@ class GeometryExporter:
             name = "%s-%d" %(b_mesh.name_full, mat_nr)
         mesh_path = export_ctx.directory + "/" + name + ".ply"#TODO: relative paths
         if not mesh_instance.is_instance:
-            self.save_mesh(b_mesh, mesh_path, mat_nr)
+            if self.save_mesh(b_mesh, mesh_path, mat_nr) and mat_nr >= 0:
+                export_material(export_ctx, b_mesh.data.materials[mat_nr])
         if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
             if mat_nr!=-1 and mat_nr not in self.exported_meshes[b_mesh.name_full]:
@@ -93,10 +97,6 @@ class GeometryExporter:
                 #instance, load referenced object saved before with another transform matrix
                 params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
             #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
-            #object texture: dummy material for now
-            #bsdf = {'plugin':'bsdf', 'type':'diffuse'}
-            #bsdf['reflectance'] = export_ctx.spectrum([1,1,1], 'rgb')
-            #bsdf['reflectance'] = {'plugin':'texture','name':'reflectance','type':'checkerboard'}
 
             if mat_nr == -1:#default bsdf
                 params['bsdf'] = {'plugin':'bsdf', 'type':'diffuse'}

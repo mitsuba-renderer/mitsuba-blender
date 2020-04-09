@@ -328,7 +328,9 @@ def export_material(export_ctx, material):
     mat_params = b_material_to_dict(export_ctx, material)
 
     #TODO: hide emitters
-    #TODO: don't export unused materials
+    if export_ctx.scene_data.get(name) is not None:
+        #material was already exported
+        return
 
     if isinstance(mat_params, list):#Add/mix shader
         mats = {}
