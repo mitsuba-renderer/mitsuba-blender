@@ -79,6 +79,14 @@ def convert_color_texture_node(export_ctx, socket):
 
     return params
 
+def two_sided_bsdf(bsdf):
+    params = {
+             'plugin':'bsdf',
+             'type':'twosided',
+             'bsdf': bsdf
+    }
+    return params
+
 def convert_diffuse_materials_cycles(export_ctx, current_node):
     params = {}
     """
@@ -105,7 +113,7 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
             'reflectance': reflectance,
         })
 
-    return params
+    return two_sided_bsdf(params)
 
 def convert_glossy_materials_cycles(export_ctx, current_node):
     params = {'plugin':'bsdf'}
@@ -131,7 +139,7 @@ def convert_glossy_materials_cycles(export_ctx, current_node):
             'specular_reflectance': specular_reflectance,
         })
 
-    return params
+    return two_sided_bsdf(params)
 
 def convert_glass_materials_cycles(export_ctx, current_node):
     params = {'plugin': 'bsdf'}
