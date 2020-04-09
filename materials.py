@@ -18,6 +18,21 @@ def srgb_to_linear(x):
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
+def export_texture_node(export_ctx, tex_node):
+    params = {
+        'plugin':'texture',
+        'type':'bitmap'
+    }
+    params['filename'] = tex_node.image.filepath_from_user()#abs path to texture
+    #TODO: texture transform (mapping node)
+    #TODO: save textures in the scene directory
+    flip_tex = Matrix(((1,0,0,0),
+                       (0,-1,0,0),
+                       (0,0,1,0),
+                       (0,0,0,1)))
+    params['to_uv'] = export_ctx.transform_matrix(flip_tex)
+    return params
+
 def convert_float_texture_node(export_ctx, socket):
     params = None
 
@@ -25,12 +40,7 @@ def convert_float_texture_node(export_ctx, socket):
         node = socket.links[0].from_node
 
         if node.type == "TEX_IMAGE":
-            params = {
-                'plugin': 'texture',
-                'type': 'bitmap',
-            }
-            params['filename'] = node.image.filepath_from_user()#absolute path to texture
-            #TODO: copy the image in the mitsuba scene folder
+            params = export_texture_node(export_ctx, node)
         else:
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
 
@@ -49,12 +59,7 @@ def convert_color_texture_node(export_ctx, socket):
         node = socket.links[0].from_node
 
         if node.type == "TEX_IMAGE":
-            params = {
-                'plugin': 'texture',
-                'type': 'bitmap',
-            }
-            params['filename'] = node.image.filepath_from_user()#absolute path to texture
-            #TODO: copy the image in the mitsuba scene folder
+            params = export_texture_node(export_ctx, node)
 
         elif node.type == "RGB": 
             #input rgb node
