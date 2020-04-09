@@ -31,6 +31,12 @@ def export_texture_node(export_ctx, tex_node):
                        (0,0,1,0),
                        (0,0,0,1)))
     params['to_uv'] = export_ctx.transform_matrix(flip_tex)
+    if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw']:
+        #non color data, tell mitsuba not to apply gamma conversion to it
+        params['raw'] = True
+    elif tex_node.image.colorspace_settings.name != 'sRGB':
+        print("Warning: Mitsuba only supports sRGB textures for color data.")
+
     return params
 
 def convert_float_texture_node(export_ctx, socket):
