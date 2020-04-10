@@ -3,6 +3,7 @@ from collections import OrderedDict
 import os
 import sys
 import subprocess
+from shutil import copy2
 
 mitsuba_props = {
     'ref',
@@ -34,14 +35,17 @@ mitsuba_tags = {
     'transform'
 }
 
-class MixedMaterialsCache:
+class ExportedMaterialsCache:
     '''
+    Store a set of exported textures
     Store a list of the exported materials, that have both a BSDF and an emitter
     We need it to add 2 refs to each shape using this material
     This is useless when a material is only one bsdf/emitter, so we won't add those.
     '''
     def __init__(self):
-        self.mats = {}
+        self.mats = {} # the mixed materials (1 BSDF, 1 emitter)
+        self.textures = {} # {tex_path:tex_id}
+        self.tex_count = 0 # counter to give a unique name to each texture
 
     def add_material(self, mat_dict, mat_id):
         """
@@ -52,11 +56,23 @@ class MixedMaterialsCache:
         """
         self.mats[mat_id] = mat_dict
 
-    def has(self, mat_id):
+    def has_mat(self, mat_id):
         """
         Determine if the given material is in the cache or not
         """
         return mat_id in self.mats.keys()
+
+    def get_tex_id(self, tex_path):
+        """
+        If the texture is already in the dict, return its unique name.
+        If not, add it and return its unique name.
+        """
+        try:
+            return self.textures[tex_path]
+        except KeyError:
+            self.textures[tex_path] = "tex-%d" % self.tex_count
+            self.tex_count += 1
+            return self.textures[tex_path]
 
 
 class Files:
@@ -83,7 +99,7 @@ class FileExportContext:
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0
-        self.mixed_mats = MixedMaterialsCache()
+        self.exported_mats = ExportedMaterialsCache()
 
     # Function to add new elements to the scene dict.
     # If a name is provided it will be used as the key of the element.
@@ -162,6 +178,9 @@ class FileExportContext:
         self.directory = os.path.dirname(name)
         print('Scene File: %s' % self.file_names[Files.MAIN])
         print('Scene Folder: %s' % self.directory)
+
+        #Set texture directory name
+        self.textures_folder = os.path.join(self.directory, "Textures")
 
         #TODO: splitting in different files does not work, fix that
         if split_files:
@@ -357,6 +376,23 @@ class FileExportContext:
         for f in self.files:
             if f is not None:
                 f.close()
+
+    def export_texture(self, tex_path):
+        """
+        Copy a texture file to the Mitsuba scene folder.
+        Create the subfolder the first time this method is called
+
+        tex_path : the full path to the texture
+        """
+        if not os.path.isdir(self.textures_folder):
+            os.mkdir(self.textures_folder)
+
+        tex_id = self.exported_mats.get_tex_id(tex_path)
+        _, ext = os.path.splitext(tex_path) # get the file extension
+        new_name = tex_id + ext
+        copy2(tex_path, os.path.join(self.textures_folder, new_name))
+
+        return os.path.join("Textures", new_name)
 
     def point(self, point):
         #convert a point to a dict

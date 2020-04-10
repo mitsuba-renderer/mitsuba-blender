@@ -105,8 +105,8 @@ class GeometryExporter:
                 params['bsdf'] = {'plugin':'bsdf', 'type':'diffuse'}
             else:
                 mat_id = b_mesh.data.materials[mat_nr].name
-                if export_ctx.mixed_mats.has(mat_id):#add one emitter *and* one bsdf
-                    mixed_mat = export_ctx.mixed_mats.mats[mat_id]
+                if export_ctx.exported_mats.has_mat(mat_id):#add one emitter *and* one bsdf
+                    mixed_mat = export_ctx.exported_mats.mats[mat_id]
                     params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
                     params['emitter'] = mixed_mat['emitter']
                 else:

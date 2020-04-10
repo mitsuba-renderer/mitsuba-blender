@@ -23,9 +23,9 @@ def export_texture_node(export_ctx, tex_node):
         'plugin':'texture',
         'type':'bitmap'
     }
-    params['filename'] = tex_node.image.filepath_from_user()#abs path to texture
+    #get the relative path to the copied texture from the full path to the original texture
+    params['filename'] = export_ctx.export_texture(tex_node.image.filepath_from_user())
     #TODO: texture transform (mapping node)
-    #TODO: save textures in the scene directory
     flip_tex = Matrix(((1,0,0,0),
                        (0,-1,0,0),
                        (0,0,1,0),
@@ -341,7 +341,7 @@ def export_material(export_ctx, material):
                 export_ctx.data_add(mat)
             else:#emitter
                 mats['emitter'] = mat#directly store the emitter, we don't reference emitters
-        export_ctx.mixed_mats.add_material(mats, name)
+        export_ctx.exported_mats.add_material(mats, name)
     else:
         if mat_params['plugin'] == 'bsdf':#usual case
             mat_params['id'] = name
@@ -359,7 +359,7 @@ def export_material(export_ctx, material):
                 export_ctx.data_add(empty_bsdf)
             mats['bsdf'] = 'empty-emitter-bsdf'
             mats['emitter'] = mat_params
-            export_ctx.mixed_mats.add_material(mats, name)
+            export_ctx.exported_mats.add_material(mats, name)
     """
     if mat_params['plugin']=='bsdf' and mat_params['type'] != 'null':
         bsdf_params = OrderedDict([('id', '%s-bsdf' % name)])
@@ -398,7 +398,7 @@ def convert_world(export_ctx, surface_node):
             if color_node.type == 'TEX_ENVIRONMENT':
                 params.update({
                     'type': 'envmap',
-                    'filename': color_node.image.filepath_from_user(),
+                    'filename': export_ctx.export_texture(color_node.image.filepath_from_user()),
                     'scale': strength
                 })
                 coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))
