@@ -181,6 +181,10 @@ class FileExportContext:
 
         #Set texture directory name
         self.textures_folder = os.path.join(self.directory, "Textures")
+        #create geometry export directory
+        geometry_folder = os.path.join(self.directory, "Geometry")
+        if not os.path.isdir(geometry_folder):
+            os.mkdir(geometry_folder)
 
         #TODO: splitting in different files does not work, fix that
         if split_files:
