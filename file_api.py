@@ -159,26 +159,26 @@ class FileExportContext:
         self.file_stack.append([])
         self.writeHeader(Files.MAIN, '# Main Scene File')
 
-        self.directory = '%s/' % ('/'.join(name.split('/')[:-1]))#extract directory from file path  TODO: windows paths
+        self.directory = os.path.dirname(name)
         print('Scene File: %s' % self.file_names[Files.MAIN])
         print('Scene Folder: %s' % self.directory)
 
         #TODO: splitting in different files does not work, fix that
         if split_files:
 
-            self.file_names.append('%s/Mitsuba-Materials.xml' % self.directory)
+            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Materials.xml'))
             self.files.append(open(self.file_names[Files.MATS], 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
             self.writeHeader(Files.MATS, '# Materials File')
 
-            self.file_names.append('%s/Mitsuba-Geometry.xml' % self.directory)
+            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Geometry.xml'))
             self.files.append(open(self.file_names[Files.GEOM], 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
             self.writeHeader(Files.GEOM, '# Geometry File')
 
-            self.file_names.append('%s/Mitsuba-Volumes.xml' % self.directory)
+            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Volumes.xml'))
             self.files.append(open(self.file_names[Files.VOLM], 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
