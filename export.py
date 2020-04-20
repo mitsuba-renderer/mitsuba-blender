@@ -19,10 +19,14 @@ from .geometry import GeometryExporter
 from .lights import export_light
 from .camera import export_camera
 
-class MitsubaFileExport(bpy.types.Operator):
+from bpy_extras.io_utils import ExportHelper
+
+class MitsubaFileExport(bpy.types.Operator, ExportHelper):
     """Export as a Mitsuba 2 scene"""
     bl_idname = "export_scene.mitsuba2"
     bl_label = "Mitsuba 2 Export"
+
+    filename_ext = ".xml"
 
     def __init__(self):
         self.reset()
@@ -32,16 +36,16 @@ class MitsubaFileExport(bpy.types.Operator):
         self.geometry_exporter = GeometryExporter()
 
     def execute(self, context):
-        path = "/home/bathal/Documents/EPFL/scenes/Test/Test.xml"
-        self.export_ctx.set_filename(path)
+
+        self.export_ctx.set_filename(self.filepath)
         #TODO: move this
         integrator = {'plugin':'integrator', 'type':'path'}
         self.export_ctx.data_add(integrator)
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?
-        #main export loop
         export_world(self.export_ctx, b_scene.world)
 
+        #main export loop
         for object_instance in depsgraph.object_instances:
             evaluated_obj = object_instance.object
             object_type = evaluated_obj.type
