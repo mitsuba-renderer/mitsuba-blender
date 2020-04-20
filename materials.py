@@ -434,6 +434,8 @@ def convert_world(export_ctx, surface_node):
                 params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
             elif color_node.type == 'RGB':
                 color = color_node.color
+            else:
+                raise NotImplementedError("Node type %s is not supported. Consider using an environment texture or RGB node instead." % color_node.bl_idname)
         else:
             color = socket.default_value
         if 'type' not in params:
