@@ -1,7 +1,3 @@
-import mitsuba
-mitsuba.set_variant('scalar_rgb')
-from mitsuba.render import Mesh
-from mitsuba.core import FileStream, Matrix4f
 import warnings
 from .materials import export_material
 import os
@@ -21,6 +17,8 @@ class GeometryExporter:
             self.exported_meshes.update({name:[mat_nr]})
 
     def save_mesh(self, b_mesh, file_path, mat_nr):
+        from mitsuba.render import Mesh
+        from mitsuba.core import FileStream, Matrix4f
         #create a mitsuba mesh
         b_mesh.data.calc_loop_triangles()#compute the triangle tesselation
         if mat_nr == -1:

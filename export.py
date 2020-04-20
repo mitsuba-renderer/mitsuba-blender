@@ -1,17 +1,10 @@
 import xml.etree.ElementTree as ET
 import bpy
+from bpy.types import Operator, AddonPreferences
+from bpy.props import StringProperty
 from os import getenv
 import sys
 import warnings
-
-python_path = getenv('PYTHONPATH', 'NONE')#TODO other default value
-
-if python_path == 'NONE':
-    raise ImportError("Environment variable PYTHONPATH not set.")
-
-tokens = python_path.split(':')
-for token in tokens: #add the paths to python path
-    sys.path.append(token)
 
 from .file_api import FileExportContext
 from .materials import export_world
@@ -21,7 +14,21 @@ from .camera import export_camera
 
 from bpy_extras.io_utils import ExportHelper
 
-class MitsubaFileExport(bpy.types.Operator, ExportHelper):
+class MitsubaPrefs(AddonPreferences):
+
+    bl_idname = __package__
+
+    python_path: StringProperty(
+        name="Path to Mitsuba 2 python library",
+        subtype='DIR_PATH',
+        default=""
+        )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "python_path")
+
+class MitsubaFileExport(Operator, ExportHelper):
     """Export as a Mitsuba 2 scene"""
     bl_idname = "export_scene.mitsuba2"
     bl_label = "Mitsuba 2 Export"
@@ -35,7 +42,25 @@ class MitsubaFileExport(bpy.types.Operator, ExportHelper):
         self.export_ctx = FileExportContext()
         self.geometry_exporter = GeometryExporter()
 
+    def set_python_path(self, context):
+        # set path to mitsuba
+        prefs = bpy.context.preferences.addons[__package__].preferences
+        if prefs.python_path != "":
+            sys.path.append(bpy.path.abspath(prefs.python_path))
+        elif getenv('PYTHONPATH'):
+            tokens = getenv('PYTHONPATH').split(':')
+            for token in tokens: #add the paths to python path
+                sys.path.append(token)
+
     def execute(self, context):
+        # Make sure we can load mitsuba from blender
+        self.set_python_path(context)
+        try:
+            import mitsuba
+            mitsuba.set_variant('scalar_rgb')
+        except ModuleNotFoundError:
+            self.report({'ERROR'}, "Importing Mitsuba failed. Please verify the path to the library.")
+            return {'CANCELLED'}
 
         self.export_ctx.set_filename(self.filepath)
         #TODO: move this
