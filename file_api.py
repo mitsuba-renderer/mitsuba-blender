@@ -87,19 +87,19 @@ class FileExportContext:
     '''
 
     EXPORT_API_TYPE = 'FILE'
-    files = []
-    file_names = []
-    file_tabs = []
-    file_stack = []
-    current_file = Files.MAIN
-    exported_ids = set()
     color_mode = 'rgb'
-    directory = ''
 
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0
         self.exported_mats = ExportedMaterialsCache()
+        self.exported_ids = set()
+        self.files = []
+        self.file_names = []
+        self.file_tabs = []
+        self.file_stack = []
+        self.current_file = Files.MAIN
+        self.directory = ''
 
     # Function to add new elements to the scene dict.
     # If a name is provided it will be used as the key of the element.

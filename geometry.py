@@ -3,7 +3,7 @@ mitsuba.set_variant('scalar_rgb')
 from mitsuba.render import Mesh
 from mitsuba.core import FileStream, Matrix4f
 import warnings
-from materials import export_material
+from .materials import export_material
 import os
 
 class GeometryExporter:
