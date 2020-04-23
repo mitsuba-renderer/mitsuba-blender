@@ -391,6 +391,9 @@ def convert_world(export_ctx, surface_node):
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
     strength = surface_node.inputs['Strength'].default_value
 
+    if strength == 0:#don't add an emitter if it emits nothing
+        return
+
     if surface_node.type in ['BACKGROUND', 'EMISSION']:
         socket = surface_node.inputs["Color"]
         if socket.is_linked:
@@ -438,7 +441,7 @@ def convert_world(export_ctx, surface_node):
                 raise NotImplementedError("Node type %s is not supported. Consider using an environment texture or RGB node instead." % color_node.bl_idname)
         else:
             color = socket.default_value
-        if 'type' not in params:
+        if 'type' not in params: # Not an envmap
             radiance = [x * strength for x in color[:]]
             params.update({
                 'type': 'constant',
@@ -448,7 +451,7 @@ def convert_world(export_ctx, surface_node):
     else:
         raise NotImplementedError("Node type %s is not supported" % surface_node.type)
 
-    return params
+    export_ctx.data_add(params)
 
 def export_world(export_ctx, world):
 
@@ -457,7 +460,6 @@ def export_world(export_ctx, world):
         return
     surface_node = output_node.inputs["Surface"].links[0].from_node
     try:
-        params = convert_world(export_ctx, surface_node)
-        export_ctx.data_add(params)
+        convert_world(export_ctx, surface_node)
     except NotImplementedError as err:
         print("Error while exporting world: %s. Not exporting it." % err.args[0])
