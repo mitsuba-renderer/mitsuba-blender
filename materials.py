@@ -24,7 +24,7 @@ def export_texture_node(export_ctx, tex_node):
         'type':'bitmap'
     }
     #get the relative path to the copied texture from the full path to the original texture
-    params['filename'] = export_ctx.export_texture(tex_node.image.filepath_from_user())
+    params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
     flip_tex = Matrix(((1,0,0,0),
                        (0,-1,0,0),
@@ -401,7 +401,7 @@ def convert_world(export_ctx, surface_node):
             if color_node.type == 'TEX_ENVIRONMENT':
                 params.update({
                     'type': 'envmap',
-                    'filename': export_ctx.export_texture(color_node.image.filepath_from_user()),
+                    'filename': export_ctx.export_texture(color_node.image),
                     'scale': strength
                 })
                 coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))

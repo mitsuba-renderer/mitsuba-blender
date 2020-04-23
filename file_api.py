@@ -35,6 +35,25 @@ mitsuba_tags = {
     'transform'
 }
 
+texture_exts = {
+    'BMP': '.bmp',
+    'HDR': '.hdr',
+    'JPEG': '.jpg',
+    'JPEG2000': '.jpg',
+    'PNG': '.png',
+    'OPEN_EXR': '.exr',
+    'OPEN_EXR_MULTILAYER': '.exr',
+    'TARGA': '.tga',
+    'TARGA_RAW': '.tga',
+}
+
+convert_format = {
+    'CINEON': 'EXR',
+    'DPX': 'EXR',
+    'TIFF': 'PNG',
+    'IRIS': 'PNG'
+}
+
 class ExportedMaterialsCache:
     '''
     Store a set of exported textures
@@ -62,17 +81,33 @@ class ExportedMaterialsCache:
         """
         return mat_id in self.mats.keys()
 
-    def get_tex_id(self, tex_path):
+    def get_tex_id(self, image, path):
         """
         If the texture is already in the dict, return its unique name.
-        If not, add it and return its unique name.
+        If not, save it, add it and return its unique name.
         """
+        key = image.as_pointer()
         try:
-            return self.textures[tex_path]
+            return self.textures[key]
         except KeyError:
-            self.textures[tex_path] = "tex-%d" % self.tex_count
+            if image.file_format in convert_format.keys():
+                print("Image format of '%s' not supported. Converting it to %s." % (image.name, convert_format[image.file_format]))
+                image.file_format = convert_format[image.file_format]
+
+            name = "tex-%d%s" % (self.tex_count, texture_exts[image.file_format])
             self.tex_count += 1
-            return self.textures[tex_path]
+            self.textures[key] = name
+
+            target_path = os.path.join(path, name)
+            if image.packed_file: # File is packed in the blend file
+                old_filepath = image.filepath
+                image.filepath = target_path
+                image.save()
+                image.filepath = old_filepath
+            else: # File is stored.we prefer this to avoid "no image data" errors when saving
+                copy2(image.filepath_from_user(), target_path)
+            print("Saved image '%s' as '%s'." % (image.name, name))
+            return name
 
 
 class Files:
@@ -408,7 +443,7 @@ class FileExportContext:
             if f is not None:
                 f.close()
 
-    def export_texture(self, tex_path):
+    def export_texture(self, image):
         """
         Copy a texture file to the Mitsuba scene folder.
         Create the subfolder the first time this method is called
@@ -418,12 +453,8 @@ class FileExportContext:
         if not os.path.isdir(self.textures_folder):
             os.mkdir(self.textures_folder)
 
-        tex_id = self.exported_mats.get_tex_id(tex_path)
-        _, ext = os.path.splitext(tex_path) # get the file extension
-        new_name = tex_id + ext
-        copy2(tex_path, os.path.join(self.textures_folder, new_name))
-
-        return os.path.join("Textures", new_name)
+        img_name = self.exported_mats.get_tex_id(image, self.textures_folder)
+        return os.path.join("Textures", img_name)
 
     def point(self, point):
         #convert a point to a dict
