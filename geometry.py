@@ -84,7 +84,7 @@ class GeometryExporter:
         else:
             name = "%s-%d" %(b_mesh.name_full, mat_nr)
 
-        relative_path = os.path.join("Meshes", "%s.ply" % name)
+        relative_path = os.path.join("meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
 
         if not mesh_instance.is_instance or b_mesh.name_full not in self.exported_meshes.keys() or mat_nr not in self.exported_meshes[b_mesh.name_full]:
@@ -136,8 +136,8 @@ class GeometryExporter:
         nb_mats = len(self.exported_meshes[name])
         if nb_mats == 1:
             mat_id = self.exported_meshes[name][0]
-            new_name = os.path.join("Meshes", "%s.ply" % name)
-            old_name = os.path.join("Meshes", "%s-%d.ply" % (name, mat_id))
+            new_name = os.path.join("meshes", "%s.ply" % name)
+            old_name = os.path.join("meshes", "%s-%d.ply" % (name, mat_id))
 
             old_path = os.path.join(export_ctx.directory, old_name)
             #make sure we rename the mesh only once

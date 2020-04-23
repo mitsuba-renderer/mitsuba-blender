@@ -216,9 +216,9 @@ class FileExportContext:
         print('Scene Folder: %s' % self.directory)
 
         #Set texture directory name
-        self.textures_folder = os.path.join(self.directory, "Textures")
+        self.textures_folder = os.path.join(self.directory, "textures")
         #create geometry export directory
-        geometry_folder = os.path.join(self.directory, "Meshes")
+        geometry_folder = os.path.join(self.directory, "meshes")
         if not os.path.isdir(geometry_folder):
             os.mkdir(geometry_folder)
 
@@ -454,7 +454,7 @@ class FileExportContext:
             os.mkdir(self.textures_folder)
 
         img_name = self.exported_mats.get_tex_id(image, self.textures_folder)
-        return os.path.join("Textures", img_name)
+        return os.path.join("textures", img_name)
 
     def point(self, point):
         #convert a point to a dict
