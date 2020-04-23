@@ -173,7 +173,8 @@ class FileExportContext:
         self.files.append(open(self.file_names[Files.MAIN], 'w', encoding='utf-8', newline="\n"))
         self.file_tabs.append(0)
         self.file_stack.append([])
-        self.writeHeader(Files.MAIN, '# Main Scene File')
+        if split_files:
+            self.writeHeader(Files.MAIN, '# Main Scene File')
 
         self.directory = os.path.dirname(name)
         print('Scene File: %s' % self.file_names[Files.MAIN])
