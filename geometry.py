@@ -16,7 +16,7 @@ class GeometryExporter:
         else:
             self.exported_meshes.update({name:[mat_nr]})
 
-    def save_mesh(self, b_mesh, file_path, mat_nr):
+    def save_mesh(self, export_ctx, b_mesh, file_path, mat_nr):
         from mitsuba.render import Mesh
         from mitsuba.core import FileStream, Matrix4f
         #create a mitsuba mesh
@@ -56,7 +56,8 @@ class GeometryExporter:
         poly_ptr = b_mesh.data.polygons[0].as_pointer()
         vert_ptr = b_mesh.data.vertices[0].as_pointer()
         vert_count = len(b_mesh.data.vertices)#TODO: maybe avoid calling len()
-        mat = b_mesh.matrix_world
+        #apply coordinate change
+        mat = export_ctx.axis_mat @ b_mesh.matrix_world
         to_world = Matrix4f(mat[0][0], mat[0][1], mat[0][2], mat[0][3],
                             mat[1][0], mat[1][1], mat[1][2], mat[1][3],
                             mat[2][0], mat[2][1], mat[2][2], mat[2][3],
@@ -86,7 +87,7 @@ class GeometryExporter:
         relative_path = os.path.join("Meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
         if not mesh_instance.is_instance:
-            if self.save_mesh(b_mesh, abs_path, mat_nr) and mat_nr >= 0:
+            if self.save_mesh(export_ctx, b_mesh, abs_path, mat_nr) and mat_nr >= 0:
                 export_material(export_ctx, b_mesh.data.materials[mat_nr])
         if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
@@ -96,7 +97,9 @@ class GeometryExporter:
             params['filename'] = relative_path
             if(mesh_instance.is_instance):
                 #instance, load referenced object saved before with another transform matrix
-                params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ b_mesh.matrix_world.inverted())
+                original_transform = export_ctx.axis_mat @ b_mesh.matrix_world
+                # remove the instancer object transform, apply the instance transform and shift coordinates
+                params['to_world'] = export_ctx.transform_matrix(export_ctx.axis_mat @ mesh_instance.matrix_world @ original_transform.inverted())
             #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
 
             if mat_nr == -1:#default bsdf

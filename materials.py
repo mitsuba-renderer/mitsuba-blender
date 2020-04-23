@@ -434,7 +434,8 @@ def convert_world(export_ctx, surface_node):
                         to_world[i][3] = location[i]
                     to_world = to_world
                 #TODO: support other types of mappings (vector, point...)
-                params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
+                #change default position, apply transform and change coordinates
+                params['to_world'] = export_ctx.transform_matrix(export_ctx.axis_mat @ to_world @ coordinate_mat)
             elif color_node.type == 'RGB':
                 color = color_node.color
             else:

@@ -18,9 +18,10 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
     #TODO: check that distance units are consistent everywhere (e.g. mm everywhere)
     #TODO enable focus thin lens / cam.dof
 
-    #matrix used to transform the camera, since they have different default position in blender and mitsuba (mitsuba is y up, blender is z up)
-    coordinate_mat = Matrix(((-1,0,0,0),(0,1,0,0),(0,0,-1,0),(0,0,0,1)))
-    params['to_world'] = export_ctx.transform_matrix(b_camera.matrix_world @ coordinate_mat)
+    #matrix used to transform the camera, since they have different default position in blender and mitsuba
+    init_mat = Matrix(((-1,0,0,0),(0,1,0,0),(0,0,-1,0),(0,0,0,1)))
+    #apply the change of default position, the rigid transform and the coordinate change
+    params['to_world'] = export_ctx.transform_matrix(export_ctx.axis_mat @ b_camera.matrix_world @ init_mat)
 
     sampler = {'plugin':'sampler'}
     sampler['type'] = 'independent'

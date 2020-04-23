@@ -12,7 +12,7 @@ from .geometry import GeometryExporter
 from .lights import export_light
 from .camera import export_camera
 
-from bpy_extras.io_utils import ExportHelper
+from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
 class MitsubaPrefs(AddonPreferences):
 
@@ -28,6 +28,7 @@ class MitsubaPrefs(AddonPreferences):
         layout = self.layout
         layout.prop(self, "python_path")
 
+@orientation_helper(axis_forward='-Z', axis_up='Y')
 class MitsubaFileExport(Operator, ExportHelper):
     """Export as a Mitsuba 2 scene"""
     bl_idname = "export_scene.mitsuba2"
@@ -62,10 +63,18 @@ class MitsubaFileExport(Operator, ExportHelper):
             self.report({'ERROR'}, "Importing Mitsuba failed. Please verify the path to the library.")
             return {'CANCELLED'}
 
+        # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
+        axis_mat = axis_conversion(
+	            to_forward=self.axis_forward,
+	            to_up=self.axis_up,
+	        ).to_4x4()
+        self.export_ctx.axis_mat = axis_mat
+
         self.export_ctx.set_filename(self.filepath)
         #TODO: move this
         integrator = {'plugin':'integrator', 'type':'path'}
         self.export_ctx.data_add(integrator)
+
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?
         export_world(self.export_ctx, b_scene.world)
