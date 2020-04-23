@@ -86,9 +86,12 @@ class GeometryExporter:
 
         relative_path = os.path.join("Meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
-        if not mesh_instance.is_instance:
+
+        if not mesh_instance.is_instance or b_mesh.name_full not in self.exported_meshes.keys() or mat_nr not in self.exported_meshes[b_mesh.name_full]:
+            #save the mesh once, if it's not an instance, or if it's an instance and the original object was not exported
             if self.save_mesh(export_ctx, b_mesh, abs_path, mat_nr) and mat_nr >= 0:
                 export_material(export_ctx, b_mesh.data.materials[mat_nr])
+
         if mesh_instance.is_instance or not b_mesh.parent or not b_mesh.parent.is_instancer:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
             if mat_nr!=-1 and mat_nr not in self.exported_meshes[b_mesh.name_full]:
@@ -136,10 +139,10 @@ class GeometryExporter:
             new_name = os.path.join("Meshes", "%s.ply" % name)
             old_name = os.path.join("Meshes", "%s-%d.ply" % (name, mat_id))
 
+            old_path = os.path.join(export_ctx.directory, old_name)
             #make sure we rename the mesh only once
-            if not mesh_instance.is_instance:
+            if os.path.exists(old_path):
                 new_path = os.path.join(export_ctx.directory, new_name)
-                old_path = os.path.join(export_ctx.directory, old_name)
                 os.rename(old_path, new_path)
 
             #only rename in the XML if the object is not an instancer (instancers are not saved in the XML file)

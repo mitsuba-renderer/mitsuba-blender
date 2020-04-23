@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 import bpy
 from bpy.types import Operator, AddonPreferences
-from bpy.props import StringProperty
+from bpy.props import StringProperty, BoolProperty
 from os import getenv
 import sys
 import warnings
@@ -35,6 +35,12 @@ class MitsubaFileExport(Operator, ExportHelper):
     bl_label = "Mitsuba 2 Export"
 
     filename_ext = ".xml"
+
+    use_selection: BoolProperty(
+	        name="Selection Only",
+	        description="Export selected objects only",
+	        default=False,
+	    )
 
     def __init__(self):
         self.reset()
@@ -81,6 +87,13 @@ class MitsubaFileExport(Operator, ExportHelper):
 
         #main export loop
         for object_instance in depsgraph.object_instances:
+            if self.use_selection:
+                #skip if it's not selected or if it's an instance and the parent object is not selected
+                if not object_instance.is_instance and not object_instance.object.original.select_get():
+                    continue
+                if object_instance.is_instance and not object_instance.object.parent.original.select_get():
+                    continue
+
             evaluated_obj = object_instance.object
             object_type = evaluated_obj.type
             #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
