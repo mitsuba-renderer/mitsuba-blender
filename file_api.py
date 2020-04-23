@@ -182,7 +182,7 @@ class FileExportContext:
         #Set texture directory name
         self.textures_folder = os.path.join(self.directory, "Textures")
         #create geometry export directory
-        geometry_folder = os.path.join(self.directory, "Geometry")
+        geometry_folder = os.path.join(self.directory, "Meshes")
         if not os.path.isdir(geometry_folder):
             os.mkdir(geometry_folder)
 

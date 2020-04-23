@@ -83,7 +83,7 @@ class GeometryExporter:
         else:
             name = "%s-%d" %(b_mesh.name_full, mat_nr)
 
-        relative_path = os.path.join("Geometry", "%s.ply" % name)
+        relative_path = os.path.join("Meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
         if not mesh_instance.is_instance:
             if self.save_mesh(b_mesh, abs_path, mat_nr) and mat_nr >= 0:
