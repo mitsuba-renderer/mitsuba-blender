@@ -272,6 +272,32 @@ class FileExportContext:
 
         self.wf(self.current_file, '/>\n')
 
+    def preprocess_scene(self):
+        '''
+        Re-order the elements of the scene_data dict, for more readability.
+        We sort the scene data such that the resulting XML file writes the camera data, then the emitters,
+        then the BSDFs and finally the meshes.
+        '''
+        keys = list(self.scene_data.keys())
+        del keys[0] # ignore the "scene" tag
+        emitters = []
+        mats = []
+        meshes = []
+        for key in keys:
+            plugin = self.scene_data[key]['plugin']
+            if plugin == 'shape':
+                meshes.append(key)
+            elif plugin == 'emitter':
+                emitters.append(key)
+            elif plugin == 'bsdf':
+                mats.append(key)
+
+        #re order the plugins such that we read first the emitters, then the materials, and finally the meshes
+        for key in emitters + mats + meshes:
+            #re add the plugin at the end of the scene data list
+            plug = self.scene_data.pop(key)
+            self.scene_data[key] = plug
+
     # Funtions to emulate Mitsuba extension API
     #TODO: redo all this, it is weird and unobvious
     def pmgr_create(self, mts_dict=None, args={}):
@@ -363,11 +389,11 @@ class FileExportContext:
         '''
         Special handling of configure API.
         '''
-
-        self.pmgr_create(self.scene_data)
+        self.preprocess_scene() # Re order elements
+        self.pmgr_create(self.scene_data) # write XML file
 
         # Close files
-        print('Wrote scene files')
+        print('Wrote scene files.')
         for f in self.files:
             if f is not None:
                 f.close()
