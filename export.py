@@ -78,8 +78,11 @@ class MitsubaFileExport(Operator, ExportHelper):
 
         self.export_ctx.set_filename(self.filepath)
         #TODO: move this
+        self.export_ctx.add_comment("Integrator")
         integrator = {'plugin':'integrator', 'type':'path'}
         self.export_ctx.data_add(integrator)
+        #even though cameras are not added here, we add the comment here because the rest will be moved when writing the XML file
+        self.export_ctx.add_comment("Cameras")
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?

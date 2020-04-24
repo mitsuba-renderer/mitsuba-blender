@@ -156,6 +156,9 @@ class FileExportContext:
 
         return True
 
+    def add_comment(self, comment):
+        self.data_add({'type':'comment', 'value': comment})
+
     def wf(self, ind, st, tabs=0):
         '''
         ind                 int
@@ -210,6 +213,8 @@ class FileExportContext:
         self.file_stack.append([])
         if split_files:
             self.writeHeader(Files.MAIN, '# Main Scene File')
+        else:
+            self.writeHeader(Files.MAIN)
 
         self.directory = os.path.dirname(name)
         print('Scene File: %s' % self.file_names[Files.MAIN])
@@ -256,9 +261,15 @@ class FileExportContext:
 
         self.current_file = file
 
-    def writeHeader(self, file, comment):
-        self.wf(file, '<?xml version="1.0" encoding="utf-8"?>\n')
+    def writeComment(self, file, comment):
+        self.wf(file, '\n')
         self.wf(file, '<!-- %s -->\n' % comment)
+        self.wf(file, '\n')
+
+    def writeHeader(self, file, comment=None):
+        self.wf(file, '<?xml version="1.0" encoding="utf-8"?>\n')
+        if comment:
+            self.writeComment(file, comment)
 
     def openElement(self, name, attributes={}, file=None):
         if file is not None:
@@ -319,7 +330,10 @@ class FileExportContext:
         mats = []
         meshes = []
         for key in keys:
-            plugin = self.scene_data[key]['plugin']
+            try:
+                plugin = self.scene_data[key]['plugin']
+            except KeyError: # not a plugin, ignore
+                continue
             if plugin == 'shape':
                 meshes.append(key)
             elif plugin == 'emitter':
@@ -327,8 +341,19 @@ class FileExportContext:
             elif plugin == 'bsdf':
                 mats.append(key)
 
+        self.add_comment("Emitters")
         #re order the plugins such that we read first the emitters, then the materials, and finally the meshes
-        for key in emitters + mats + meshes:
+        for key in emitters:
+            #re add the plugin at the end of the scene data list
+            plug = self.scene_data.pop(key)
+            self.scene_data[key] = plug
+        self.add_comment("Materials")
+        for key in mats:
+            #re add the plugin at the end of the scene data list
+            plug = self.scene_data.pop(key)
+            self.scene_data[key] = plug
+        self.add_comment("Shapes")
+        for key in meshes:
             #re add the plugin at the end of the scene data list
             plug = self.scene_data.pop(key)
             self.scene_data[key] = plug
@@ -352,6 +377,10 @@ class FileExportContext:
 
         if plugin == 'scene':
             args['version'] = '2.0.0'
+
+        elif plugin == 'comment':
+            self.writeComment(Files.MAIN, param_dict['value'])
+            return
 
         elif plugin in mitsuba_props:
             args.update(param_dict)
