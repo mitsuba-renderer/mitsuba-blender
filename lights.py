@@ -1,5 +1,6 @@
 from mathutils import Matrix
 import numpy as np
+from .file_api import Files
 
 def export_light(light_instance, export_ctx):
     #light
@@ -27,4 +28,4 @@ def export_light(light_instance, export_ctx):
     else:
         raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
 
-    export_ctx.data_add(params)
+    export_ctx.data_add(params, file=Files.EMIT)

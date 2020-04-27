@@ -16,6 +16,7 @@ mitsuba_props = {
     'srgb',
     'blackbody',
     'spectrum',
+    'include'
 }
 #TODO: figure out if spectrum is a plugin or a property
 mitsuba_tags = {
@@ -114,7 +115,9 @@ class Files:
     MAIN = 0
     MATS = 1
     GEOM = 2
-    VOLM = 3
+    EMIT = 3
+    CAMS = 4
+    #TODO: Volumes
 
 class FileExportContext:
     '''
@@ -125,22 +128,31 @@ class FileExportContext:
     color_mode = 'rgb'
 
     def __init__(self):
-        self.scene_data = OrderedDict([('type','scene')])
-        self.counter = 0
+        #one dict per 'file'. We merge them if not splitting.
+        #this is useful to export some things under the right category (e.g. area lights, encapsulated in a shape)
+        self.scene_data = [OrderedDict([('type','scene')]),
+            OrderedDict([('type','scene')]),
+            OrderedDict([('type','scene')]),
+            OrderedDict([('type','scene')]),
+            OrderedDict([('type','scene')])]
+        self.counter = 0 #counter to create unique IDs. It is common to all dicts, since we may merge them if not splitting files
         self.exported_mats = ExportedMaterialsCache()
         self.exported_ids = set()
         self.files = []
-        self.file_names = []
+        self.file_names = [] #relative paths to the fragment files
         self.file_tabs = []
         self.file_stack = []
         self.current_file = Files.MAIN
         self.directory = ''
 
-    # Function to add new elements to the scene dict.
-    # If a name is provided it will be used as the key of the element.
-    # Otherwise the Id of the element is used if it exists
-    # or a new key is generated incrementally.
-    def data_add(self, mts_dict, name=''):
+    def data_add(self, mts_dict, name='', file=Files.MAIN):
+        '''
+        Function to add new elements to the scene dict.
+        If a name is provided it will be used as the key of the element.
+        Otherwise the Id of the element is used if it exists
+        or a new key is generated incrementally.
+        We add it to the specified scene subdict, corresponding to the plugin's nature.
+        '''
         if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
             return False
 
@@ -151,13 +163,16 @@ class FileExportContext:
             except:
                 name = 'elm%i' % self.counter
 
-        self.scene_data.update([(name, mts_dict)])
+        self.scene_data[file].update([(name, mts_dict)])
         self.counter += 1
 
         return True
 
-    def add_comment(self, comment):
-        self.data_add({'type':'comment', 'value': comment})
+    def data_get(self, name, file=Files.MAIN):
+        return self.scene_data[file].get(name)
+
+    def add_comment(self, comment, file=Files.MAIN):
+        self.data_add({'type':'comment', 'value': comment}, file=file)
 
     def wf(self, ind, st, tabs=0):
         '''
@@ -193,7 +208,6 @@ class FileExportContext:
 
         Returns None
         '''
-
         # If any files happen to be open, close them and start again
         for f in self.files:
             if f is not None:
@@ -204,9 +218,6 @@ class FileExportContext:
         self.file_tabs = []
         self.file_stack = []
 
-        if name[-4:] != '.xml':
-            name += '.xml'
-
         self.file_names.append(name)
         self.files.append(open(self.file_names[Files.MAIN], 'w', encoding='utf-8', newline="\n"))
         self.file_tabs.append(0)
@@ -216,7 +227,9 @@ class FileExportContext:
         else:
             self.writeHeader(Files.MAIN)
 
-        self.directory = os.path.dirname(name)
+        self.directory, main_file = os.path.split(name)
+        base_name = os.path.splitext(main_file)[0] #remove the extension
+
         print('Scene File: %s' % self.file_names[Files.MAIN])
         print('Scene Folder: %s' % self.directory)
 
@@ -227,26 +240,36 @@ class FileExportContext:
         if not os.path.isdir(geometry_folder):
             os.mkdir(geometry_folder)
 
+        self.split_files = split_files
         #TODO: splitting in different files does not work, fix that
         if split_files:
+            fragments_folder = os.path.join(self.directory, "fragments")
+            if not os.path.isdir(fragments_folder):
+                os.mkdir(fragments_folder)
 
-            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Materials.xml'))
-            self.files.append(open(self.file_names[Files.MATS], 'w', encoding='utf-8', newline="\n"))
+            self.file_names.append('fragments/%s-materials.xml' % base_name)
+            self.files.append(open(os.path.join(self.directory, self.file_names[Files.MATS]), 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
             self.writeHeader(Files.MATS, '# Materials File')
 
-            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Geometry.xml'))
-            self.files.append(open(self.file_names[Files.GEOM], 'w', encoding='utf-8', newline="\n"))
+            self.file_names.append('fragments/%s-geometry.xml' % base_name)
+            self.files.append(open(os.path.join(self.directory, self.file_names[Files.GEOM]), 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
             self.writeHeader(Files.GEOM, '# Geometry File')
 
-            self.file_names.append(os.path.join(self.directory, 'Mitsuba-Volumes.xml'))
-            self.files.append(open(self.file_names[Files.VOLM], 'w', encoding='utf-8', newline="\n"))
+            self.file_names.append('fragments/%s-emitters.xml' % base_name)
+            self.files.append(open(os.path.join(self.directory, self.file_names[Files.EMIT]), 'w', encoding='utf-8', newline="\n"))
             self.file_tabs.append(0)
             self.file_stack.append([])
-            self.writeHeader(Files.VOLM, '# Volume File')
+            self.writeHeader(Files.EMIT, '# Emitters File')
+
+            self.file_names.append('fragments/%s-render.xml' % base_name)
+            self.files.append(open(os.path.join(self.directory, self.file_names[Files.CAMS]), 'w', encoding='utf-8', newline="\n"))
+            self.file_tabs.append(0)
+            self.file_stack.append([])
+            self.writeHeader(Files.CAMS, '# Cameras and Render Parameters File')
 
         self.set_output_file(Files.MAIN)
 
@@ -261,7 +284,9 @@ class FileExportContext:
 
         self.current_file = file
 
-    def writeComment(self, file, comment):
+    def writeComment(self, comment, file=None):
+        if not file:
+            file = self.current_file
         self.wf(file, '\n')
         self.wf(file, '<!-- %s -->\n' % comment)
         self.wf(file, '\n')
@@ -269,7 +294,7 @@ class FileExportContext:
     def writeHeader(self, file, comment=None):
         self.wf(file, '<?xml version="1.0" encoding="utf-8"?>\n')
         if comment:
-            self.writeComment(file, comment)
+            self.writeComment(comment, file)
 
     def openElement(self, name, attributes={}, file=None):
         if file is not None:
@@ -320,43 +345,41 @@ class FileExportContext:
 
     def preprocess_scene(self):
         '''
-        Re-order the elements of the scene_data dict, for more readability.
-        We sort the scene data such that the resulting XML file writes the camera data, then the emitters,
-        then the BSDFs and finally the meshes.
+        Preprocess the scene dicts before writing them to XML files.
+        If splitting files, we add comments and includes in the main file.
+        If not, we add each type dict one after the other, for more readability.
         '''
-        keys = list(self.scene_data.keys())
-        del keys[0] # ignore the "scene" tag
-        emitters = []
-        mats = []
-        meshes = []
-        for key in keys:
-            try:
-                plugin = self.scene_data[key]['plugin']
-            except KeyError: # not a plugin, ignore
-                continue
-            if plugin == 'shape':
-                meshes.append(key)
-            elif plugin == 'emitter':
-                emitters.append(key)
-            elif plugin == 'bsdf':
-                mats.append(key)
+
+        if self.split_files:
+            self.add_comment("Render Parameters and Cameras")
+            self.data_add({'type':'include', 'filename':self.file_names[Files.CAMS]})
+        else:
+            self.scene_data[Files.CAMS].popitem(last=False) #remove the "scene" tag
+            self.scene_data[Files.MAIN].update(self.scene_data[Files.CAMS])
 
         self.add_comment("Emitters")
         #re order the plugins such that we read first the emitters, then the materials, and finally the meshes
-        for key in emitters:
-            #re add the plugin at the end of the scene data list
-            plug = self.scene_data.pop(key)
-            self.scene_data[key] = plug
+        if self.split_files:
+            self.data_add({'type':'include', 'filename':self.file_names[Files.EMIT]})
+        else:
+            self.scene_data[Files.EMIT].popitem(last=False) #remove the "scene" tag
+            self.scene_data[Files.MAIN].update(self.scene_data[Files.EMIT])
+
         self.add_comment("Materials")
-        for key in mats:
-            #re add the plugin at the end of the scene data list
-            plug = self.scene_data.pop(key)
-            self.scene_data[key] = plug
+        if self.split_files:
+            self.data_add({'type':'include', 'filename':self.file_names[Files.MATS]})
+        else:
+            self.scene_data[Files.MATS].popitem(last=False) #remove the "scene" tag
+            self.scene_data[Files.MAIN].update(self.scene_data[Files.MATS])
+
         self.add_comment("Shapes")
-        for key in meshes:
-            #re add the plugin at the end of the scene data list
-            plug = self.scene_data.pop(key)
-            self.scene_data[key] = plug
+        if self.split_files:
+            self.data_add({'type':'include', 'filename':self.file_names[Files.GEOM]})
+        else:
+            self.scene_data[Files.GEOM].popitem(last=False) #remove the "scene" tag
+            self.scene_data[Files.MAIN].update(self.scene_data[Files.GEOM])
+
+        self.set_output_file(Files.MAIN)
 
     # Funtions to emulate Mitsuba extension API
     #TODO: redo all this, it is weird and unobvious
@@ -379,7 +402,7 @@ class FileExportContext:
             args['version'] = '2.0.0'
 
         elif plugin == 'comment':
-            self.writeComment(Files.MAIN, param_dict['value'])
+            self.writeComment(param_dict['value'])
             return
 
         elif plugin in mitsuba_props:
@@ -390,7 +413,7 @@ class FileExportContext:
                 print('************** Reference ID - %s - exported before referencing **************' % (args['id']))
                 return
 
-            elif plugin in {'matrix', 'lookat', 'scale'}:
+            elif plugin in {'matrix', 'lookat', 'scale', 'include'}:
                 del args['name']
 
         else:
@@ -454,7 +477,13 @@ class FileExportContext:
         Special handling of configure API.
         '''
         self.preprocess_scene() # Re order elements
-        self.pmgr_create(self.scene_data) # write XML file
+
+        if self.split_files:
+            for file in [Files.MAIN, Files.CAMS, Files.MATS, Files.GEOM, Files.EMIT]:
+                self.set_output_file(file)
+                self.pmgr_create(self.scene_data[file])
+        else:
+            self.pmgr_create(self.scene_data[Files.MAIN])
 
         # Close files
         print('Wrote scene files.')

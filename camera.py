@@ -1,5 +1,6 @@
 from mathutils import Matrix
 import numpy as np
+from .file_api import Files
 
 def export_camera(C, camera_instance, b_scene, export_ctx):
     #camera
@@ -37,4 +38,4 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
     film['height'] = height
     params['film'] = film
     #TODO: reconstruction filter
-    export_ctx.data_add(params)
+    export_ctx.data_add(params, file=Files.CAMS)

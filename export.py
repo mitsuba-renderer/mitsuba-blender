@@ -6,7 +6,7 @@ from os import getenv
 import sys
 import warnings
 
-from .file_api import FileExportContext
+from .file_api import FileExportContext, Files
 from .materials import export_world
 from .geometry import GeometryExporter
 from .lights import export_light
@@ -42,8 +42,15 @@ class MitsubaFileExport(Operator, ExportHelper):
 	        default=False,
 	    )
 
+    split_files: BoolProperty(
+            name = "Split File",
+            description = "Split scene XML file in smaller fragments",
+            default=False
+    )
+
     def __init__(self):
         self.reset()
+        self.prefs = bpy.context.preferences.addons[__package__].preferences
 
     def reset(self):
         self.export_ctx = FileExportContext()
@@ -51,9 +58,8 @@ class MitsubaFileExport(Operator, ExportHelper):
 
     def set_python_path(self, context):
         # set path to mitsuba
-        prefs = bpy.context.preferences.addons[__package__].preferences
-        if prefs.python_path != "":
-            sys.path.append(bpy.path.abspath(prefs.python_path))
+        if self.prefs.python_path != "":
+            sys.path.append(bpy.path.abspath(self.prefs.python_path))
         elif getenv('PYTHONPATH'):
             tokens = getenv('PYTHONPATH').split(':')
             for token in tokens: #add the paths to python path
@@ -76,13 +82,13 @@ class MitsubaFileExport(Operator, ExportHelper):
 	        ).to_4x4()
         self.export_ctx.axis_mat = axis_mat
 
-        self.export_ctx.set_filename(self.filepath)
+        self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
         #TODO: move this
-        self.export_ctx.add_comment("Integrator")
+        self.export_ctx.add_comment("Integrator", file=Files.CAMS)
         integrator = {'plugin':'integrator', 'type':'path'}
-        self.export_ctx.data_add(integrator)
-        #even though cameras are not added here, we add the comment here because the rest will be moved when writing the XML file
-        self.export_ctx.add_comment("Cameras")
+        self.export_ctx.data_add(integrator, file=Files.CAMS)
+        #even though cameras are not added here, we add the comment here because the rest will be written elsewhere
+        self.export_ctx.add_comment("Cameras", file=Files.CAMS)
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?

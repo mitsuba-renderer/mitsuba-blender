@@ -1,5 +1,6 @@
 from numpy import pi
 from mathutils import Matrix
+from file_api import Files
 
 def linear_to_srgb(x):
     if x > 0.0031308:
@@ -328,7 +329,7 @@ def export_material(export_ctx, material):
     mat_params = b_material_to_dict(export_ctx, material)
 
     #TODO: hide emitters
-    if export_ctx.scene_data.get(name) is not None:
+    if export_ctx.data_get(name, Files.MATS) is not None:
         #material was already exported
         return
 
@@ -338,47 +339,28 @@ def export_material(export_ctx, material):
             if mat['plugin'] == 'bsdf':
                 mat['id'] = name#only bsdfs need IDs for referencing
                 mats['bsdf'] = name
-                export_ctx.data_add(mat)
+                export_ctx.data_add(mat, file=Files.MATS)
             else:#emitter
                 mats['emitter'] = mat#directly store the emitter, we don't reference emitters
         export_ctx.exported_mats.add_material(mats, name)
     else:
         if mat_params['plugin'] == 'bsdf':#usual case
             mat_params['id'] = name
-            export_ctx.data_add(mat_params)
+            export_ctx.data_add(mat_params, file=Files.MATS)
         else:#emitter with no bsdf
             mats = {}
             #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
-            if 'empty-emitter-bsdf' not in export_ctx.scene_data:#we only need to add one of this, but we may have multiple emitter materials
+            if not export_ctx.data_get('empty-emitter-bsdf', Files.MATS):#we only need to add one of this, but we may have multiple emitter materials
                 empty_bsdf = {
                     'plugin':'bsdf',
                     'type':'diffuse',
                     'reflectance':export_ctx.spectrum(0),#no interaction with light
                     'id':'empty-emitter-bsdf'
                 }
-                export_ctx.data_add(empty_bsdf)
+                export_ctx.data_add(empty_bsdf, file=Files.MATS)
             mats['bsdf'] = 'empty-emitter-bsdf'
             mats['emitter'] = mat_params
             export_ctx.exported_mats.add_material(mats, name)
-    """
-    if mat_params['plugin']=='bsdf' and mat_params['type'] != 'null':
-        bsdf_params = OrderedDict([('id', '%s-bsdf' % name)])
-        bsdf_params.update(mat_params['bsdf'])
-        export_ctx.data_add(bsdf_params)
-        mat_params.update({'bsdf': {'type': 'ref', 'id': '%s-bsdf' % name}})
-
-    if 'interior' in mat_params:
-        interior_params = {'id': '%s-medium' % name}
-        interior_params.update(mat_params['interior'])
-
-        if interior_params['type'] == 'ref':
-            mat_params.update({'interior': interior_params})
-
-        else:
-            export_ctx.data_add(interior_params)
-            mat_params.update({'interior': {'type': 'ref', 'id': '%s-medium' % name}})
-    return mat_params
-    """
 
 def convert_world(export_ctx, surface_node):
     """
@@ -452,7 +434,7 @@ def convert_world(export_ctx, surface_node):
     else:
         raise NotImplementedError("Node type %s is not supported" % surface_node.type)
 
-    export_ctx.data_add(params)
+    export_ctx.data_add(params, file=Files.EMIT)
 
 def export_world(export_ctx, world):
 

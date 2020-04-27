@@ -1,5 +1,6 @@
 import warnings
 from .materials import export_material
+from .file_api import Files
 import os
 
 class GeometryExporter:
@@ -116,7 +117,7 @@ class GeometryExporter:
                 else:
                     params['bsdf'] = {'type':'ref', 'id':mat_id}
 
-            export_ctx.data_add(params)
+            export_ctx.data_add(params, file=Files.GEOM)
 
     def export_mesh(self, mesh_instance, export_ctx):
         mat_count = len(mesh_instance.object.data.materials)
@@ -147,6 +148,6 @@ class GeometryExporter:
 
             #only rename in the XML if the object is not an instancer (instancers are not saved in the XML file)
             if mesh_instance.is_instance or not mesh_instance.object.parent or not mesh_instance.object.parent.is_instancer:
-                last_key = next(reversed(export_ctx.scene_data)) # get the last added key
-                assert(export_ctx.scene_data[last_key]['type'] == 'ply')
-                export_ctx.scene_data[last_key]['filename'] = new_name
+                last_key = next(reversed(export_ctx.scene_data[Files.GEOM])) # get the last added key
+                assert(export_ctx.scene_data[Files.GEOM][last_key]['type'] == 'ply')
+                export_ctx.scene_data[Files.GEOM][last_key]['filename'] = new_name
