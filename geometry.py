@@ -107,7 +107,15 @@ class GeometryExporter:
             #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
 
             if mat_nr == -1:#default bsdf
-                params['bsdf'] = {'plugin':'bsdf', 'type':'diffuse'}
+                if not export_ctx.data_get('default-bsdf', Files.MATS):#we only need to add one of this, but we may have multiple emitter materials
+                    default_bsdf = {
+                        'plugin': 'bsdf',
+                        'type': 'twosided',
+                        'id': 'default-bsdf',
+                        'bsdf': {'plugin':'bsdf', 'type':'diffuse'}
+                    }
+                    export_ctx.data_add(default_bsdf, file=Files.MATS)
+                params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
                 mat_id = b_mesh.data.materials[mat_nr].name
                 if export_ctx.exported_mats.has_mat(mat_id):#add one emitter *and* one bsdf
