@@ -1,10 +1,8 @@
-import xml.etree.ElementTree as ET
 import bpy
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, BoolProperty
 from os import getenv
 import sys
-import warnings
 
 from .file_api import FileExportContext, Files
 from .materials import export_world

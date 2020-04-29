@@ -1,4 +1,3 @@
-import warnings
 from .materials import export_material
 from .file_api import Files
 import os

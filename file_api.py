@@ -1,8 +1,5 @@
 from collections import OrderedDict
-
 import os
-import sys
-import subprocess
 from shutil import copy2
 
 mitsuba_props = {
