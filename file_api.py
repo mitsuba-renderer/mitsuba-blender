@@ -17,7 +17,12 @@ mitsuba_props = {
     'srgb',
     'blackbody',
     'spectrum',
-    'include'
+    'include',
+    'default',
+    'integer',
+    'float',
+    'string',
+    'boolean'
 }
 #TODO: figure out if spectrum is a plugin or a property
 mitsuba_tags = {

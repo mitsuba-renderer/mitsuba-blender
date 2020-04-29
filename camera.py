@@ -24,16 +24,48 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
 
     sampler = {'plugin':'sampler'}
     sampler['type'] = 'independent'
-    sampler['sample_count'] = b_scene.cycles.samples
+    sampler['sample_count'] = {
+        'type': 'integer',
+        'value': '$spp' # CLI set or default tag
+    }
     params['sampler'] = sampler
 
     film = {'plugin':'film'}
     film['type'] = 'hdrfilm'
-    scale = C.scene.render.resolution_percentage / 100
-    width = int(C.scene.render.resolution_x * scale)
-    film['width'] = width
-    height = int(C.scene.render.resolution_y * scale)
-    film['height'] = height
+    film['width'] = {
+        'type': 'integer',
+        'value': '$resx' # CLI set or default tag
+    }
+    film['height'] = {
+        'type': 'integer',
+        'value': '$resy' # CLI set or default tag
+    }
     params['film'] = film
+    # if 'default' tags are not set, set them
+    if not export_ctx.data_get('spp'):
+
+        default_spp = {
+                'type': 'default',
+                'name': 'spp',
+                'value': b_scene.cycles.samples
+            }
+        export_ctx.data_add(default_spp, name='spp', file=Files.CAMS)
+
+        scale = C.scene.render.resolution_percentage / 100
+        width = int(C.scene.render.resolution_x * scale)
+        height = int(C.scene.render.resolution_y * scale)
+        default_resx = {
+                'type': 'default',
+                'name': 'resx',
+                'value': width
+            }
+        export_ctx.data_add(default_resx, name='resx', file=Files.CAMS)
+        default_resy = {
+                'type': 'default',
+                'name': 'resy',
+                'value': height
+            }
+        export_ctx.data_add(default_resy, name='resy', file=Files.CAMS)
+
     #TODO: reconstruction filter
     export_ctx.data_add(params, file=Files.CAMS)
