@@ -81,7 +81,9 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx.axis_mat = axis_mat
 
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
-        #TODO: move this
+        #helper comment to figure out which rotations/translations to play with
+        self.export_ctx.add_comment("This scene is %s Up and %s Forward." % (self.axis_up, self.axis_forward), file=Files.CAMS)
+
         self.export_ctx.add_comment("Integrator", file=Files.CAMS)
         integrator = {'plugin':'integrator', 'type':'path'}
         self.export_ctx.data_add(integrator, file=Files.CAMS)

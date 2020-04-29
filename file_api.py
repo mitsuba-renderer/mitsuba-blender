@@ -1,11 +1,15 @@
 from collections import OrderedDict
 import os
 from shutil import copy2
+from numpy import pi
+from mathutils import Matrix
 
 mitsuba_props = {
     'ref',
     'lookat',
     'scale',
+    'translate',
+    'rotate',
     'matrix',
     'point',
     'vector',
@@ -141,6 +145,7 @@ class FileExportContext:
         self.file_stack = []
         self.current_file = Files.MAIN
         self.directory = ''
+        self.axis_mat = Matrix()#overwritten in main export method
 
     def data_add(self, mts_dict, name='', file=Files.MAIN):
         '''
@@ -410,7 +415,7 @@ class FileExportContext:
                 print('************** Reference ID - %s - exported before referencing **************' % (args['id']))
                 return
 
-            elif plugin in {'matrix', 'lookat', 'scale', 'include'}:
+            elif plugin in {'matrix', 'lookat', 'scale', 'rotate', 'translate', 'include'}:
                 del args['name']
 
         else:
@@ -600,4 +605,40 @@ class FileExportContext:
                 'value': value,
             }
         }
+        return params
+
+    def camera_transform(self, camera):
+        '''
+        Export the camera's transform as a combination of rotation, scale and translation.
+        This helps manually modifying the transform after export (for cameras for instance)
+        '''
+        params = {
+            'type': 'transform'
+        }
+
+        init_rot = Matrix.Rotation(pi, 4, 'Y')
+        transform = self.axis_mat @ camera.matrix_world @ init_rot
+        rot = transform.to_euler('XYZ')
+        tr = transform.to_translation()
+
+        params['rotate_x'] = {
+            'type': 'rotate',
+            'x': '1',
+            'angle': rot[0] * 180 / pi
+        }
+        params['rotate_y'] = {
+            'type': 'rotate',
+            'y': '1',
+            'angle': rot[1] * 180 / pi
+        }
+        params['rotate_z'] = {
+            'type': 'rotate',
+            'z': '1',
+            'angle': rot[2] * 180 / pi
+        }
+        params['translate'] = {
+            'type': 'translate',
+            'value': "%f %f %f" % tuple(tr)
+        }
+
         return params
