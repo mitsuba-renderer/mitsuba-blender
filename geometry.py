@@ -57,11 +57,7 @@ class GeometryExporter:
         vert_ptr = b_mesh.data.vertices[0].as_pointer()
         vert_count = len(b_mesh.data.vertices)#TODO: maybe avoid calling len()
         #apply coordinate change
-        mat = export_ctx.axis_mat @ b_mesh.matrix_world
-        to_world = Matrix4f(mat[0][0], mat[0][1], mat[0][2], mat[0][3],
-                            mat[1][0], mat[1][1], mat[1][2], mat[1][3],
-                            mat[2][0], mat[2][1], mat[2][2], mat[2][3],
-                            mat[3][0], mat[3][1], mat[3][2], mat[3][3])
+        to_world = export_ctx.transform_matrix(b_mesh.matrix_world)
         m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr,
                         vert_count, vert_ptr, poly_ptr,
                         uv_ptr, col_ptr, mat_nr, to_world)
@@ -96,24 +92,23 @@ class GeometryExporter:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
             if mat_nr!=-1 and mat_nr not in self.exported_meshes[b_mesh.name_full]:
                 return
-            params = {'plugin':'shape', 'type':'ply'}
-            params['filename'] = relative_path
+            params = {'type':'ply'}
+            params['filename'] = abs_path
             if(mesh_instance.is_instance):
                 #instance, load referenced object saved before with another transform matrix
                 original_transform = export_ctx.axis_mat @ b_mesh.matrix_world
                 # remove the instancer object transform, apply the instance transform and shift coordinates
-                params['to_world'] = export_ctx.transform_matrix(export_ctx.axis_mat @ mesh_instance.matrix_world @ original_transform.inverted())
+                params['to_world'] = export_ctx.transform_matrix(mesh_instance.matrix_world @ original_transform.inverted())
             #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
 
             if mat_nr == -1:#default bsdf
-                if not export_ctx.data_get('default-bsdf', Files.MATS):#we only need to add one of this, but we may have multiple emitter materials
+                if not export_ctx.data_get('default-bsdf'):#we only need to add one of this, but we may have multiple emitter materials
                     default_bsdf = {
-                        'plugin': 'bsdf',
                         'type': 'twosided',
                         'id': 'default-bsdf',
-                        'bsdf': {'plugin':'bsdf', 'type':'diffuse'}
+                        'bsdf': {'type':'diffuse'}
                     }
-                    export_ctx.data_add(default_bsdf, file=Files.MATS)
+                    export_ctx.data_add(default_bsdf)
                 params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
                 mat_id = b_mesh.data.materials[mat_nr].name
@@ -124,7 +119,7 @@ class GeometryExporter:
                 else:
                     params['bsdf'] = {'type':'ref', 'id':mat_id}
 
-            export_ctx.data_add(params, file=Files.GEOM)
+            export_ctx.data_add(params)
 
     def export_mesh(self, mesh_instance, export_ctx):
         mat_count = len(mesh_instance.object.data.materials)
@@ -148,13 +143,17 @@ class GeometryExporter:
             old_name = os.path.join("meshes", "%s-%d.ply" % (name, mat_id))
 
             old_path = os.path.join(export_ctx.directory, old_name)
-            #make sure we rename the mesh only once
-            if os.path.exists(old_path):
-                new_path = os.path.join(export_ctx.directory, new_name)
+            new_path = os.path.join(export_ctx.directory, new_name)
+
+            # we can't check if the file exists already as it may be an old file with the same name,
+            # so we do it like this:
+            try:
                 os.rename(old_path, new_path)
+            except FileNotFoundError: #the mesh was already renamed
+                pass
 
             #only rename in the XML if the object is not an instancer (instancers are not saved in the XML file)
             if mesh_instance.is_instance or not mesh_instance.object.parent or not mesh_instance.object.parent.is_instancer:
-                last_key = next(reversed(export_ctx.scene_data[Files.GEOM])) # get the last added key
-                assert(export_ctx.scene_data[Files.GEOM][last_key]['type'] == 'ply')
-                export_ctx.scene_data[Files.GEOM][last_key]['filename'] = new_name
+                last_key = next(reversed(export_ctx.scene_data)) # get the last added key
+                assert(export_ctx.scene_data[last_key]['type'] == 'ply')
+                export_ctx.scene_data[last_key]['filename'] = new_path

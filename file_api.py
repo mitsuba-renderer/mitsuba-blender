@@ -3,44 +3,7 @@ import os
 from shutil import copy2
 from numpy import pi
 from mathutils import Matrix
-
-mitsuba_props = {
-    'ref',
-    'lookat',
-    'scale',
-    'translate',
-    'rotate',
-    'matrix',
-    'point',
-    'vector',
-    'rgb',
-    'srgb',
-    'blackbody',
-    'spectrum',
-    'include',
-    'default',
-    'integer',
-    'float',
-    'string',
-    'boolean'
-}
-#TODO: figure out if spectrum is a plugin or a property
-mitsuba_tags = {
-    'scene',
-    'shape',
-    'sampler',
-    'film',
-    'integrator',
-    'texture',
-    'sensor',
-    'emitter',
-    'subsurface',
-    'medium',
-    'phase',
-    'bsdf',
-    'rfilter',
-    'transform'
-}
+from .dict_to_xml import WriteXML
 
 texture_exts = {
     'BMP': '.bmp',
@@ -130,35 +93,23 @@ class FileExportContext:
     File API
     '''
 
-    EXPORT_API_TYPE = 'FILE'
     color_mode = 'rgb'
 
     def __init__(self):
-        #one dict per 'file'. We merge them if not splitting.
-        #this is useful to export some things under the right category (e.g. area lights, encapsulated in a shape)
-        self.scene_data = [OrderedDict([('type','scene')]),
-            OrderedDict([('type','scene')]),
-            OrderedDict([('type','scene')]),
-            OrderedDict([('type','scene')]),
-            OrderedDict([('type','scene')])]
-        self.counter = 0 #counter to create unique IDs. It is common to all dicts, since we may merge them if not splitting files
+        self.xml_writer = WriteXML()
+        self.scene_data = OrderedDict([('type','scene')])
+        self.counter = 0 #counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
         self.exported_ids = set()
-        self.files = []
-        self.file_names = [] #relative paths to the fragment files
-        self.file_tabs = []
-        self.file_stack = []
-        self.current_file = Files.MAIN
         self.directory = ''
         self.axis_mat = Matrix()#overwritten in main export method
 
-    def data_add(self, mts_dict, name='', file=Files.MAIN):
+    def data_add(self, mts_dict, name=''):
         '''
         Function to add new elements to the scene dict.
         If a name is provided it will be used as the key of the element.
         Otherwise the Id of the element is used if it exists
         or a new key is generated incrementally.
-        We add it to the specified scene subdict, corresponding to the plugin's nature.
         '''
         if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
             return False
@@ -166,347 +117,39 @@ class FileExportContext:
         if not name:
             try:
                 name = mts_dict['id']
+                #remove the corresponding entry
+                del mts_dict['id']
 
-            except:
-                name = 'elm%i' % self.counter
+            except KeyError:
+                name = '__elm__%i' % self.counter
 
-        self.scene_data[file].update([(name, mts_dict)])
+        self.scene_data.update([(name, mts_dict)])
         self.counter += 1
 
         return True
 
-    def data_get(self, name, file=Files.MAIN):
-        return self.scene_data[file].get(name)
-
-    def add_comment(self, comment, file=Files.MAIN):
-        self.data_add({'type':'comment', 'value': comment}, file=file)
-
-    def wf(self, ind, st, tabs=0):
-        '''
-        ind                 int
-        st                  string
-        tabs                int
-
-        Write a string to file index ind.
-        Optionally indent the string by a number of tabs
-
-        Returns None
-        '''
-
-        if len(self.files) == 0:
-            scene = object()
-            scene.name = 'untitled'
-            scene.frame_current = 1
-            self.set_filename(scene, 'default')
-
-        # Prevent trying to write to a file that isn't open
-        if self.files[ind] is None:
-            ind = 0
-
-        self.files[ind].write('%s%s' % ('\t' * tabs, st))
-        self.files[ind].flush()
+    def data_get(self, name):
+        return self.scene_data.get(name)
 
     def set_filename(self, name, split_files=False):
-        '''
-        name                string
-
-        Open the main, materials, and geometry files for output,
-        using filenames based on the given name.
-
-        Returns None
-        '''
-        # If any files happen to be open, close them and start again
-        for f in self.files:
-            if f is not None:
-                f.close()
-
-        self.files = []
-        self.file_names = []
-        self.file_tabs = []
-        self.file_stack = []
-
-        self.file_names.append(name)
-        self.files.append(open(self.file_names[Files.MAIN], 'w', encoding='utf-8', newline="\n"))
-        self.file_tabs.append(0)
-        self.file_stack.append([])
-        if split_files:
-            self.writeHeader(Files.MAIN, '# Main Scene File')
-        else:
-            self.writeHeader(Files.MAIN)
-
-        self.directory, main_file = os.path.split(name)
-        base_name = os.path.splitext(main_file)[0] #remove the extension
-
-        print('Scene File: %s' % self.file_names[Files.MAIN])
-        print('Scene Folder: %s' % self.directory)
-
-        #Set texture directory name
-        self.textures_folder = os.path.join(self.directory, "textures")
-        #create geometry export directory
-        geometry_folder = os.path.join(self.directory, "meshes")
-        if not os.path.isdir(geometry_folder):
-            os.mkdir(geometry_folder)
-
-        self.split_files = split_files
-        #TODO: splitting in different files does not work, fix that
-        if split_files:
-            fragments_folder = os.path.join(self.directory, "fragments")
-            if not os.path.isdir(fragments_folder):
-                os.mkdir(fragments_folder)
-
-            self.file_names.append('fragments/%s-materials.xml' % base_name)
-            self.files.append(open(os.path.join(self.directory, self.file_names[Files.MATS]), 'w', encoding='utf-8', newline="\n"))
-            self.file_tabs.append(0)
-            self.file_stack.append([])
-            self.writeHeader(Files.MATS, '# Materials File')
-
-            self.file_names.append('fragments/%s-geometry.xml' % base_name)
-            self.files.append(open(os.path.join(self.directory, self.file_names[Files.GEOM]), 'w', encoding='utf-8', newline="\n"))
-            self.file_tabs.append(0)
-            self.file_stack.append([])
-            self.writeHeader(Files.GEOM, '# Geometry File')
-
-            self.file_names.append('fragments/%s-emitters.xml' % base_name)
-            self.files.append(open(os.path.join(self.directory, self.file_names[Files.EMIT]), 'w', encoding='utf-8', newline="\n"))
-            self.file_tabs.append(0)
-            self.file_stack.append([])
-            self.writeHeader(Files.EMIT, '# Emitters File')
-
-            self.file_names.append('fragments/%s-render.xml' % base_name)
-            self.files.append(open(os.path.join(self.directory, self.file_names[Files.CAMS]), 'w', encoding='utf-8', newline="\n"))
-            self.file_tabs.append(0)
-            self.file_stack.append([])
-            self.writeHeader(Files.CAMS, '# Cameras and Render Parameters File')
-
-        self.set_output_file(Files.MAIN)
-
-    def set_output_file(self, file):
-        '''
-        file                int
-
-        Switch next output to the given file index
-
-        Returns None
-        '''
-
-        self.current_file = file
-
-    def writeComment(self, comment, file=None):
-        if not file:
-            file = self.current_file
-        self.wf(file, '\n')
-        self.wf(file, '<!-- %s -->\n' % comment)
-        self.wf(file, '\n')
-
-    def writeHeader(self, file, comment=None):
-        self.wf(file, '<?xml version="1.0" encoding="utf-8"?>\n')
-        if comment:
-            self.writeComment(comment, file)
-
-    def openElement(self, name, attributes={}, file=None):
-        if file is not None:
-            self.set_output_file(file)
-
-        self.wf(self.current_file, '<%s' % name, self.file_tabs[self.current_file])
-
-        for (k, v) in attributes.items():
-            self.wf(self.current_file, ' %s=\"%s\"' % (k, v.replace('"', '')))
-
-        self.wf(self.current_file, '>\n')
-
-        # Indent
-        self.file_tabs[self.current_file] = self.file_tabs[self.current_file] + 1
-        self.file_stack[self.current_file].append(name)
-
-    def closeElement(self, file=None):
-        if file is not None:
-            self.set_output_file(file)
-
-        # Un-indent
-        self.file_tabs[self.current_file] = self.file_tabs[self.current_file] - 1
-        name = self.file_stack[self.current_file].pop()
-
-        self.wf(self.current_file, '</%s>\n' % name, self.file_tabs[self.current_file])
-
-    def element(self, name, attributes={}, file=None):
-        if file is not None:
-            self.set_output_file(file)
-
-        self.wf(self.current_file, '<%s' % name, self.file_tabs[self.current_file])
-
-        for (k, v) in attributes.items():
-            self.wf(self.current_file, ' %s=\"%s\"' % (k, v))
-
-        self.wf(self.current_file, '/>\n')
-
-    def parameter(self, paramType, paramName, attributes={}, file=None):
-        if file is not None:
-            self.set_output_file(file)
-
-        self.wf(self.current_file, '<%s name="%s"' % (paramType, paramName), self.file_tabs[self.current_file])
-
-        for (k, v) in attributes.items():
-            self.wf(self.current_file, ' %s=\"%s\"' % (k, v))
-
-        self.wf(self.current_file, '/>\n')
-
-    def preprocess_scene(self):
-        '''
-        Preprocess the scene dicts before writing them to XML files.
-        If splitting files, we add comments and includes in the main file.
-        If not, we add each type dict one after the other, for more readability.
-        '''
-
-        if self.split_files:
-            self.add_comment("Render Parameters and Cameras")
-            self.data_add({'type':'include', 'filename':self.file_names[Files.CAMS]})
-        else:
-            self.scene_data[Files.CAMS].popitem(last=False) #remove the "scene" tag
-            self.scene_data[Files.MAIN].update(self.scene_data[Files.CAMS])
-
-        self.add_comment("Emitters")
-        #re order the plugins such that we read first the emitters, then the materials, and finally the meshes
-        if self.split_files:
-            self.data_add({'type':'include', 'filename':self.file_names[Files.EMIT]})
-        else:
-            self.scene_data[Files.EMIT].popitem(last=False) #remove the "scene" tag
-            self.scene_data[Files.MAIN].update(self.scene_data[Files.EMIT])
-
-        self.add_comment("Materials")
-        if self.split_files:
-            self.data_add({'type':'include', 'filename':self.file_names[Files.MATS]})
-        else:
-            self.scene_data[Files.MATS].popitem(last=False) #remove the "scene" tag
-            self.scene_data[Files.MAIN].update(self.scene_data[Files.MATS])
-
-        self.add_comment("Shapes")
-        if self.split_files:
-            self.data_add({'type':'include', 'filename':self.file_names[Files.GEOM]})
-        else:
-            self.scene_data[Files.GEOM].popitem(last=False) #remove the "scene" tag
-            self.scene_data[Files.MAIN].update(self.scene_data[Files.GEOM])
-
-        self.set_output_file(Files.MAIN)
-
-    # Funtions to emulate Mitsuba extension API
-    #TODO: redo all this, it is weird and unobvious
-    def pmgr_create(self, mts_dict=None, args={}):
-        if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
-            return
-
-        param_dict = mts_dict.copy()
-        plugin_type = param_dict.pop('type')
-        #plugin = get_plugin_tag(plugin_type)
-        try:
-            plugin = param_dict.pop('plugin')
-        except KeyError:
-            plugin = plugin_type
-
-        if plugin != plugin_type:
-            args['type'] = plugin_type
-
-        if plugin == 'scene':
-            args['version'] = '2.0.0'
-
-        elif plugin == 'comment':
-            self.writeComment(param_dict['value'])
-            return
-
-        elif plugin in mitsuba_props:
-            args.update(param_dict)
-            param_dict = {}
-
-            if plugin == 'ref' and 'id' in args and args['id'] not in self.exported_ids:
-                print('************** Reference ID - %s - exported before referencing **************' % (args['id']))
-                return
-
-            elif plugin in {'matrix', 'lookat', 'scale', 'rotate', 'translate', 'include'}:
-                del args['name']
-
-        else:
-            if plugin != plugin_type and plugin != 'texture':
-                del args['name']#plugins except textures don't need their inherited name
-            if 'name' in param_dict:
-                args['name'] = param_dict['name']
-                del param_dict['name']
-
-            if 'id' in param_dict:
-                args['id'] = param_dict.pop('id')
-
-                if args['id'] not in self.exported_ids:
-                    self.exported_ids.add(args['id'])
-
-                else:
-                    print('************** Plugin - %s - ID - %s - already exported **************' % (plugin_type, args['id']))
-                    return
-
-        try:
-            if args['name'] == args['id']:
-                del(args['name'])
-
-        except:
-            pass
-
-        if len(param_dict) > 0 and plugin in mitsuba_tags:
-            self.openElement(plugin, args)
-
-            for param, value in param_dict.items():
-                if isinstance(value, dict) and 'type' in value:
-                    self.pmgr_create(value, {'name': param})
-
-                elif isinstance(value, str):
-                    self.parameter('string', param, {'value': value})
-
-                elif isinstance(value, bool):
-                    self.parameter('boolean', param, {'value': str(value).lower()})
-
-                elif isinstance(value, int):
-                    self.parameter('integer', param, {'value': '%d' % value})
-
-                elif isinstance(value, float):
-                    self.parameter('float', param, {'value': '%f' % value})
-
-                else:
-                    print('************** %s param not supported: %s **************' % (plugin_type, param))
-                    print(value)
-
-            self.closeElement()
-
-        elif len(param_dict) == 0:
-            self.element(plugin, args)
-
-        else:
-            print('************** Plugin not supported: %s **************' % plugin_type)
-            print(param_dict)
+        self.xml_writer.set_filename(name, split_files)
+        self.directory = self.xml_writer.directory
 
     def configure(self):
         '''
         Special handling of configure API.
         '''
-        self.preprocess_scene() # Re order elements
-
-        if self.split_files:
-            for file in [Files.MAIN, Files.CAMS, Files.MATS, Files.GEOM, Files.EMIT]:
-                self.set_output_file(file)
-                self.pmgr_create(self.scene_data[file])
-        else:
-            self.pmgr_create(self.scene_data[Files.MAIN])
-
-        # Close files
-        print('Wrote scene files.')
-        for f in self.files:
-            if f is not None:
-                f.close()
-                print(' %s' % f.name)
-
-    def cleanup(self):
-        self.exit()
-
-    def exit(self):
-        # If any files happen to be open, close them and start again
-        for f in self.files:
-            if f is not None:
-                f.close()
+        #temporary tests TODO: remove when thoroughly tested
+        print(self.scene_data)
+        from mitsuba.core.xml import load_dict
+        scene = load_dict(self.scene_data)
+        sensor = scene.sensors()[0]
+        scene.integrator().render(scene, sensor)
+        film = sensor.film()
+        film.set_destination_file(os.path.join(self.directory, "python.exr"))
+        film.develop()
+        #the only line to keep:
+        self.xml_writer.configure(self.scene_data)
 
     def export_texture(self, image):
         """
@@ -515,18 +158,11 @@ class FileExportContext:
 
         tex_path : the full path to the texture
         """
-        if not os.path.isdir(self.textures_folder):
-            os.mkdir(self.textures_folder)
+        if not os.path.isdir(self.xml_writer.textures_folder):
+            os.mkdir(self.xml_writer.textures_folder)
 
-        img_name = self.exported_mats.get_tex_id(image, self.textures_folder)
-        return os.path.join("textures", img_name)
-
-    def point(self, point):
-        #convert a point to a dict
-        return {
-            'type' : 'point',
-            'x' : point[0] , 'y' :  point[1] , 'z' :  point[2]
-        }
+        img_name = self.exported_mats.get_tex_id(image, self.xml_writer.textures_folder)
+        return os.path.join(self.xml_writer.textures_folder, img_name)
 
     def spectrum(self, value, mode=''):
         if not mode:
@@ -543,7 +179,7 @@ class FileExportContext:
                     spec = value
 
         elif isinstance(value, (float, int)):
-            spec = {'value': "%f" % value, 'type': 'spectrum'}
+            spec = {'value': value, 'type': 'spectrum'}
 
         elif isinstance(value, (str)):
             spec = {'filename': value, 'type': 'spectrum'}#TODO: export path
@@ -564,7 +200,7 @@ class FileExportContext:
 
                 if isinstance(items[0], (float, int)):
                     if totitems == 3 or totitems == 4:
-                        spec = {'value': "%f %f %f" % (items[0], items[1], items[2])}
+                        spec = {'value': items[:3]}
 
                         if mode == 'srgb':
                             spec.update({'type': 'srgb'})
@@ -573,7 +209,7 @@ class FileExportContext:
                             spec.update({'type': 'rgb'})
 
                     elif totitems == 1:
-                        spec = {'value': "%f" % items[0], 'type': 'spectrum'}
+                        spec = {'value': items[0], 'type': 'spectrum'}
 
                     else:
                         print('Expected spectrum items to be 1, 3 or 4, got %d.' % len(items), type(items), items)
@@ -596,54 +232,13 @@ class FileExportContext:
         return spec
 
     def transform_matrix(self, matrix):
-        l = []
-        for row in matrix:
-            for val in row:
-                l.append(val)
-
-        value = " ".join(["%f" % f for f in l])
-
-        params = {
-            'type': 'transform',
-            'matrix': {
-                'type': 'matrix',
-                'value': value,
-            }
-        }
-        return params
-
-    def camera_transform(self, camera):
         '''
-        Export the camera's transform as a combination of rotation, scale and translation.
-        This helps manually modifying the transform after export (for cameras for instance)
+        Apply coordinate shift and convert to a mitsuba Transform 4f
         '''
-        params = {
-            'type': 'transform'
-        }
+        from mitsuba.core import Transform4f
 
-        init_rot = Matrix.Rotation(pi, 4, 'Y')
-        transform = self.axis_mat @ camera.matrix_world @ init_rot
-        rot = transform.to_euler('XYZ')
-        tr = transform.to_translation()
-
-        params['rotate_x'] = {
-            'type': 'rotate',
-            'x': '1',
-            'angle': rot[0] * 180 / pi
-        }
-        params['rotate_y'] = {
-            'type': 'rotate',
-            'y': '1',
-            'angle': rot[1] * 180 / pi
-        }
-        params['rotate_z'] = {
-            'type': 'rotate',
-            'z': '1',
-            'angle': rot[2] * 180 / pi
-        }
-        params['translate'] = {
-            'type': 'translate',
-            'value': "%f %f %f" % tuple(tr)
-        }
-
-        return params
+        if len(matrix) == 4:
+            mat = self.axis_mat @ matrix
+        else: #3x3
+            mat = matrix.to_4x4() # TODO: actually write a 3x3
+        return Transform4f(list([list(x) for x in mat]))

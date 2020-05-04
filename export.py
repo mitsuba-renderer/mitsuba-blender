@@ -82,14 +82,9 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx.axis_mat = axis_mat
 
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
-        #helper comment to figure out which rotations/translations to play with
-        self.export_ctx.add_comment("This scene is %s Up and %s Forward." % (self.axis_up, self.axis_forward), file=Files.CAMS)
 
-        self.export_ctx.add_comment("Integrator", file=Files.CAMS)
-        integrator = {'plugin':'integrator', 'type':'path'}
-        self.export_ctx.data_add(integrator, file=Files.CAMS)
-        #even though cameras are not added here, we add the comment here because the rest will be written elsewhere
-        self.export_ctx.add_comment("Cameras", file=Files.CAMS)
+        integrator = {'type':'path'}
+        self.export_ctx.data_add(integrator)
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?

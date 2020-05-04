@@ -21,7 +21,6 @@ RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beck
 
 def export_texture_node(export_ctx, tex_node):
     params = {
-        'plugin':'texture',
         'type':'bitmap'
     }
     #get the relative path to the copied texture from the full path to the original texture
@@ -81,7 +80,6 @@ def convert_color_texture_node(export_ctx, socket):
 
 def two_sided_bsdf(bsdf):
     params = {
-             'plugin':'bsdf',
              'type':'twosided',
              'bsdf': bsdf
     }
@@ -102,7 +100,6 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
         print("Warning: rough diffuse BSDF is currently not supported in Mitsuba 2. Ignoring alpha parameter.")
     #Rough diffuse BSDF is currently not supported in Mitsuba
     params.update({
-        'plugin': 'bsdf',
         'type': 'diffuse'
     })
 
@@ -116,7 +113,7 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
     return two_sided_bsdf(params)
 
 def convert_glossy_materials_cycles(export_ctx, current_node):
-    params = {'plugin':'bsdf'}
+    params = {}
 
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
@@ -142,7 +139,7 @@ def convert_glossy_materials_cycles(export_ctx, current_node):
     return two_sided_bsdf(params)
 
 def convert_glass_materials_cycles(export_ctx, current_node):
-    params = {'plugin': 'bsdf'}
+    params = {}
 
     if current_node.inputs['IOR'].is_linked:
         raise NotImplementedError("Only default IOR value is supported in Mitsuba 2.")
@@ -190,7 +187,6 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         radiance = [x * radiance for x in current_node.inputs["Color"].default_value[:]]
 
     params = {
-        'plugin': 'emitter',
         'type': 'area',
         'radiance': export_ctx.spectrum(radiance),
     }
@@ -217,7 +213,6 @@ def convert_add_materials_cycles(export_ctx, current_node):
 
         sum_radiance = [radiance_I[i] + radiance_II[i] for i in range(3)]
         params = {
-            'plugin': 'emitter',
             'type': 'area',
             'radiance': export_ctx.spectrum(sum_radiance),
         }
@@ -244,7 +239,6 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         w = current_node.inputs['Fac'].default_value
         weighted_radiance = [(1.0-w)*radiance_I[i] + w*radiance_II[i] for i in range(3)]
         params = {
-            'plugin': 'emitter',
             'type': 'area',
             'radiance': export_ctx.spectrum(weighted_radiance),
         }
@@ -255,7 +249,6 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         weight = current_node.inputs['Fac'].default_value#TODO: texture weight
 
         params = {
-            'plugin': 'bsdf',
             'type': 'blendbsdf',
             'weight': weight
         }
@@ -308,11 +301,11 @@ def b_material_to_dict(export_ctx, b_mat):
 
         except NotImplementedError as err:
             print("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]))
-            mat_params = {'plugin':'bsdf', 'type':'diffuse'}
+            mat_params = {'type':'diffuse'}
             mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3], 'rgb')
 
     else:
-        mat_params = {'plugin':'bsdf', 'type':'diffuse'}
+        mat_params = {'type':'diffuse'}
         mat_params['reflectance'] = export_ctx.spectrum(b_mat.diffuse_color, 'rgb')
 
     return mat_params
@@ -328,46 +321,43 @@ def export_material(export_ctx, material):
     mat_params = b_material_to_dict(export_ctx, material)
 
     #TODO: hide emitters
-    if export_ctx.data_get(name, Files.MATS) is not None:
+    if export_ctx.data_get(name) is not None:
         #material was already exported
         return
 
     if isinstance(mat_params, list):#Add/mix shader
         mats = {}
         for mat in mat_params:
-            if mat['plugin'] == 'bsdf':
+            if mat['type'] == 'area':#emitter
+                mats['emitter'] = mat#directly store the emitter, we don't reference emitters
+            else:#bsdf
                 mat['id'] = name#only bsdfs need IDs for referencing
                 mats['bsdf'] = name
-                export_ctx.data_add(mat, file=Files.MATS)
-            else:#emitter
-                mats['emitter'] = mat#directly store the emitter, we don't reference emitters
+                export_ctx.data_add(mat)
         export_ctx.exported_mats.add_material(mats, name)
     else:
-        if mat_params['plugin'] == 'bsdf':#usual case
-            mat_params['id'] = name
-            export_ctx.data_add(mat_params, file=Files.MATS)
-        else:#emitter with no bsdf
+        if mat_params['type'] == 'area': # emitter with no bsdf
             mats = {}
             #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
-            if not export_ctx.data_get('empty-emitter-bsdf', Files.MATS):#we only need to add one of this, but we may have multiple emitter materials
+            if not export_ctx.data_get('empty-emitter-bsdf'):#we only need to add one of this, but we may have multiple emitter materials
                 empty_bsdf = {
-                    'plugin':'bsdf',
                     'type':'diffuse',
-                    'reflectance':export_ctx.spectrum(0),#no interaction with light
+                    'reflectance':export_ctx.spectrum(0.0),#no interaction with light
                     'id':'empty-emitter-bsdf'
                 }
-                export_ctx.data_add(empty_bsdf, file=Files.MATS)
+                export_ctx.data_add(empty_bsdf)
             mats['bsdf'] = 'empty-emitter-bsdf'
             mats['emitter'] = mat_params
             export_ctx.exported_mats.add_material(mats, name)
+        else: # usual case
+            mat_params['id'] = name
+            export_ctx.data_add(mat_params)
 
 def convert_world(export_ctx, surface_node):
     """
     convert environment lighting. Constant emitter and envmaps are supported
     """
-    params = {
-            'plugin':'emitter',
-            }
+    params = {}
     if surface_node.inputs['Strength'].is_linked:
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
     strength = surface_node.inputs['Strength'].default_value
@@ -416,7 +406,7 @@ def convert_world(export_ctx, surface_node):
                     to_world = to_world
                 #TODO: support other types of mappings (vector, point...)
                 #change default position, apply transform and change coordinates
-                params['to_world'] = export_ctx.transform_matrix(export_ctx.axis_mat @ to_world @ coordinate_mat)
+                params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
             elif color_node.type == 'RGB':
                 color = color_node.color
             else:
@@ -433,7 +423,7 @@ def convert_world(export_ctx, surface_node):
     else:
         raise NotImplementedError("Node type %s is not supported" % surface_node.type)
 
-    export_ctx.data_add(params, file=Files.EMIT)
+    export_ctx.data_add(params)
 
 def export_world(export_ctx, world):
 
