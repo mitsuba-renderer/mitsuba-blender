@@ -1,7 +1,7 @@
 import bpy
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, BoolProperty
-from os import getenv
+import os
 import sys
 
 from .file_api import FileExportContext, Files
@@ -12,6 +12,15 @@ from .camera import export_camera
 
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
+def get_python_path():
+    #try to get the path to mitsuba python lib with the env var
+    tokens = os.getenv('PYTHONPATH')
+    if tokens:
+        for token in tokens.split(':'):
+            if os.path.isdir(token):
+                return token
+    return ""
+
 class MitsubaPrefs(AddonPreferences):
 
     bl_idname = __package__
@@ -19,7 +28,7 @@ class MitsubaPrefs(AddonPreferences):
     python_path: StringProperty(
         name="Path to Mitsuba 2 python library",
         subtype='DIR_PATH',
-        default=""
+        default=get_python_path()
         )
 
     def draw(self, context):
@@ -54,23 +63,15 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx = FileExportContext()
         self.geometry_exporter = GeometryExporter()
 
-    def set_python_path(self, context):
-        # set path to mitsuba
-        if self.prefs.python_path != "":
-            sys.path.append(bpy.path.abspath(self.prefs.python_path))
-        elif getenv('PYTHONPATH'):
-            tokens = getenv('PYTHONPATH').split(':')
-            for token in tokens: #add the paths to python path
-                sys.path.append(token)
-
     def execute(self, context):
+        # set path to mitsuba
+        sys.path.append(bpy.path.abspath(self.prefs.python_path))
         # Make sure we can load mitsuba from blender
-        self.set_python_path(context)
         try:
             import mitsuba
             mitsuba.set_variant('scalar_rgb')
         except ModuleNotFoundError:
-            self.report({'ERROR'}, "Importing Mitsuba failed. Please verify the path to the library.")
+            self.report({'ERROR'}, "Importing Mitsuba failed. Please verify the path to the library in the addon preferences.")
             return {'CANCELLED'}
 
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
