@@ -255,12 +255,47 @@ class WriteXML:
 
         self.wf(self.current_file, '/>\n')
 
+    def configure_defaults(self, scene_dict):
+        '''
+        Traverse the scene graph and look for properties in the defaults dict.
+        For such properties, store their value in a default tag and replace the value by $name in the prop.
+        '''
+        for key, value in scene_dict.items():
+            if isinstance(value, dict):
+                self.configure_defaults(value)
+            elif key in self.defaults:
+                if '$%s'%self.defaults[key] in self.scene_data[Files.MAIN]:
+                    print("****** Already exported default for : %s ******" % key)
+                    continue
+                params = {
+                    'type': 'default',
+                    'name': self.defaults[key],
+                    'value': value
+                }
+                self.data_add('$%s'%self.defaults[key], params)
+                if isinstance(value, int):
+                    scene_dict[key] = {'type': 'integer'}
+                elif isinstance(value, float):
+                    scene_dict[key] = {'type': 'float'}
+                elif isinstance(value, str):
+                    scene_dict[key] = {'type': 'string'}
+                elif isinstance(value, bool):
+                    scene_dict[key] = {'type': 'boolean'}
+                else:
+                    raise ValueError("Unsupported default type: %s" % value)
+                #TODO: for now, the only supported defaults are ints, so that works. This may not always be the case though
+                scene_dict[key]['value'] = '$%s' % self.defaults[key]
+
     def preprocess_scene(self, scene_dict):
         '''
-        Reorder and format the scene dict before writing it to file.
+        Add default properties.
+        Reorder the scene dict before writing it to file.
         Separate the dict into different category-specific subdicts.
         If not splitting files, merge them in the end.
         '''
+        # add defaults to MAIN file
+        self.add_comment("Defaults, these can be set via the command line: -Darg=value")
+        self.configure_defaults(scene_dict)
 
         if self.split_files:
             for dic in self.scene_data[1:]:
@@ -410,7 +445,7 @@ class WriteXML:
                 print('************** Reference ID - %s - exported before referencing **************' % (args['id']))
                 return
 
-            elif plugin in {'matrix', 'lookat', 'scale', 'rotate', 'translate', 'include', 'default'}:
+            elif plugin in {'matrix', 'lookat', 'scale', 'rotate', 'translate', 'include'}:
                 del args['name']
 
         else:
