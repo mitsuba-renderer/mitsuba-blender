@@ -141,6 +141,7 @@ class FileExportContext:
         '''
         #temporary tests TODO: remove when thoroughly tested
         print(self.scene_data)
+        '''
         from mitsuba.core.xml import load_dict
         scene = load_dict(self.scene_data)
         sensor = scene.sensors()[0]
@@ -148,6 +149,7 @@ class FileExportContext:
         film = sensor.film()
         film.set_destination_file(os.path.join(self.directory, "python.exr"))
         film.develop()
+        '''
         #the only line to keep:
         self.xml_writer.configure(self.scene_data)
 

@@ -356,7 +356,8 @@ class WriteXML:
             if len(entry.keys()) != 2:
                 raise ValueError("Dict of type 'spectrum': %s has to many entries!" % entry)
             if 'filename' in entry:
-                pass#no formatting is needed #TODO: relative paths
+                if self.directory in entry['filename']:
+                    entry['filename'] = os.path.relpath(entry['filename'], self.directory)
             elif 'value' in entry:
                 spval = entry['value']
                 if isinstance(spval, float):
@@ -473,6 +474,8 @@ class WriteXML:
                         self.pmgr_create(self.transform_matrix(value), {'name': param})
 
                 elif isinstance(value, str):
+                    if os.path.exists(value) and self.directory in value:
+                        value = os.path.relpath(value, self.directory) #simplify path
                     self.parameter('string', param, {'value': value})
 
                 elif isinstance(value, bool):
