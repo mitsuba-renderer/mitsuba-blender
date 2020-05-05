@@ -2,43 +2,6 @@ from collections import OrderedDict
 from numpy import pi
 import os
 
-mitsuba_props = {
-    'ref',
-    'lookat',
-    'scale',
-    'translate',
-    'rotate',
-    'matrix',
-    'vector',
-    'rgb',
-    'srgb',
-    'blackbody',
-    'spectrum',
-    'include',
-    'default',
-    'integer',
-    'float',
-    'string',
-    'boolean',
-    'comment'
-}
-#TODO: figure out if spectrum is a plugin or a property
-mitsuba_tags = {
-    'scene',
-    'shape',
-    'sampler',
-    'film',
-    'integrator',
-    'texture',
-    'sensor',
-    'emitter',
-    'subsurface',
-    'medium',
-    'phase',
-    'bsdf',
-    'rfilter',
-    'transform'
-}
 class Files:
     MAIN = 0
     MATS = 1
@@ -255,6 +218,21 @@ class WriteXML:
 
         self.wf(self.current_file, '/>\n')
 
+    def get_plugin_tag(self, plugin_type):
+        from mitsuba.core import PluginManager
+        from mitsuba import variant
+        try:
+            pmgr = PluginManager.instance()
+            class_ =  pmgr.get_plugin_class(plugin_type, variant()).parent()
+            while class_.alias() == class_.name():
+                class_ = class_.parent()
+            return class_.alias()
+        except RuntimeError: #not a plugin, but a property
+            return None
+
+    def current_tag(self):
+        return self.file_stack[self.current_file][-1]
+
     def configure_defaults(self, scene_dict):
         '''
         Traverse the scene graph and look for properties in the defaults dict.
@@ -284,6 +262,8 @@ class WriteXML:
                 else:
                     raise ValueError("Unsupported default type: %s" % value)
                 #TODO: for now, the only supported defaults are ints, so that works. This may not always be the case though
+                if 'name' not in scene_dict[key]:
+                    scene_dict[key]['name'] = key
                 scene_dict[key]['value'] = '$%s' % self.defaults[key]
 
     def preprocess_scene(self, scene_dict):
@@ -360,27 +340,16 @@ class WriteXML:
 
         self.set_output_file(Files.MAIN)
 
-    def get_plugin_tag(self, plugin_type):
-        from mitsuba.core import PluginManager
-        from mitsuba import variant
-        try:
-            if not any(plugin_type in x for x in [mitsuba_props, mitsuba_tags]):
-                pmgr = PluginManager.instance()
-                class_ =  pmgr.get_plugin_class(plugin_type, variant()).parent()
-                while class_.alias() == class_.name():
-                    class_ = class_.parent()
-                return class_.alias()
-            else:
-                return None
-        except RuntimeError: #not a plugin, but a property
-            return None
-
-    def format_spectrum(self, entry):
+    def format_spectrum(self, entry, entry_type):
         '''
         format rgb or spectrum tags to the proper XML output.
+
+        Params
+        ------
+
+        entry: the dict containing the spectrum
+        entry_type: either 'spectrum' or 'rgb'
         '''
-        entry_type = entry['type']
-        del entry['type']
         if entry_type == 'rgb':
             if len(entry.keys()) != 2 or not entry.get('value') or not isinstance(entry['value'], list) or len(entry['value']) != 3:
                 raise ValueError("Invalid entry of type rgb: %s" % entry)
@@ -411,129 +380,75 @@ class WriteXML:
 
         return entry_type, entry
 
-    def pmgr_create(self, mts_dict=None, args={}):
-        '''
-        This method writes a given dict to file.
-        It mimics mitsuba's load_dict method.
-        '''
+    def write_dict(self, data):
         from mitsuba.core import Transform4f
 
-        if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
-            return
+        if 'type' in data:#scene tag
+            self.open_element(data.pop('type'), {'version': '2.0.0'})
 
-        param_dict = mts_dict.copy()
-        plugin_type = param_dict.pop('type')
-        plugin = self.get_plugin_tag(plugin_type)
+        for key, value in data.items():
+            if isinstance(value, dict):
+                value_type = value.pop('type')
+                if value_type in {'rgb', 'spectrum'}:
+                    value['name'] = key
+                    name, args = self.format_spectrum(value, value_type)
+                    self.element(name, args)
+                elif value_type == 'comment':
+                    self.write_comment(value['value'])
+                elif value_type in {'scale', 'rotate', 'translate', 'matrix', 'ref', 'default', 'include', 'integer', 'string', 'boolean', 'float'}:
+                    self.element(value_type, value)
+                else:#plugin
+                    tag = self.get_plugin_tag(value_type)
+                    args = {'type': value_type}
+                    if tag == 'texture':
+                        args['name'] = key
+                    if 'id' in value:
+                        args['id'] = value.pop('id')
+                    elif key[:7] != '__elm__' and self.current_tag() == 'scene':
+                        args['id'] = key #top level keys are IDs, lower level ones are param names
 
-        if plugin:
-            args['type'] = plugin_type
-        else:
-            plugin = plugin_type
-
-        if plugin == 'scene':
-            args['version'] = '2.0.0'
-
-        elif plugin == 'comment':
-            self.write_comment(param_dict['value'])
-            return
-
-        elif plugin in mitsuba_props:
-            args.update(param_dict)
-            param_dict = {}
-
-            if plugin == 'ref' and 'id' in args and args['id'] not in self.exported_ids:
-                print('************** Reference ID - %s - exported before referencing **************' % (args['id']))
-                return
-
-            elif plugin in {'matrix', 'lookat', 'scale', 'rotate', 'translate', 'include'}:
-                del args['name']
-
-        else:
-            if args['name'][:7] != '__elm__' and self.file_stack[self.current_file][-1] == 'scene':
-                # assume that top-level entries with non-default keys have ids
-                args['id'] = args['name']
-
-            if plugin != plugin_type and plugin != 'texture':
-                del args['name']#plugins except textures don't need their inherited name
-
-            if 'name' in param_dict:
-                args['name'] = param_dict['name']
-                del param_dict['name']
-
-            if 'id' in param_dict:
-                args['id'] = param_dict.pop('id')
-
-            if 'id' in args:
-                if args['id'] not in self.exported_ids:
-                    self.exported_ids.add(args['id'])
+                    if len(value) > 0: #open a tag if there is still stuff to write
+                        self.open_element(tag, args)
+                        self.write_dict(value)
+                        self.close_element()
+                    else:
+                        self.element(tag, args) #write dict in one line (e.g. integrator)
+            elif isinstance(value, str):
+                if os.path.exists(value) and self.directory in value:
+                    value = os.path.relpath(value, self.directory) #simplify path
+                self.element('string', {'name':key, 'value': '%s' % value})
+            elif isinstance(value, bool):
+                self.element('boolean', {'name':key, 'value': str(value).lower()})
+            elif isinstance(value, int):
+                self.element('integer', {'name':key, 'value': '%d' % value})
+            elif isinstance(value, float):
+                self.element('float', {'name':key, 'value': '%f' % value})
+            elif isinstance(value, list):
+                #cast to point
+                if len(value) == 3:
+                    args = {'name': key, 'x' : value[0] , 'y' :  value[1] , 'z' :  value[2]}
+                    self.element('point', args)
                 else:
-                    print('************** Plugin - %s - ID - %s - already exported **************' % (plugin_type, args['id']))
-                    return
-
-        try:
-            if args['name'] == args['id']:
-                del(args['name'])
-
-        except:
-            pass
-
-        if len(param_dict) > 0 and plugin in mitsuba_tags:
-            self.open_element(plugin, args)
-
-            for param, value in param_dict.items():
-
-                if isinstance(value, dict) and 'type' in value:
-                    if value['type'] in ['rgb', 'spectrum']:
-                        value['name'] = param
-                        name, args = self.format_spectrum(value)
-                        self.element(name, args)
-                    else:
-                        self.pmgr_create(value, {'name': param})
-
-                elif isinstance(value, list):
-                    #cast to point
-                    if len(value) == 3:
-                        args = {'name': param, 'x' : value[0] , 'y' :  value[1] , 'z' :  value[2]}
-                        self.element('point', args)
-                    else:
-                        raise ValueError("Expected 3 values for a point. Got %d instead." % len(value))
-
-                elif isinstance(value, Transform4f):
-                    # in which plugin are we adding a transform?
-                    parent_plugin = self.file_stack[self.current_file][-1]
-                    if parent_plugin == 'sensor':
-                        #decompose into rotation and translation
-                        self.pmgr_create(self.decompose_transform(value), {'name': param})
-                    else:
-                        #simply write the matrix to file
-                        self.pmgr_create(self.transform_matrix(value), {'name': param})
-
-                elif isinstance(value, str):
-                    if os.path.exists(value) and self.directory in value:
-                        value = os.path.relpath(value, self.directory) #simplify path
-                    self.parameter('string', param, {'value': value})
-
-                elif isinstance(value, bool):
-                    self.parameter('boolean', param, {'value': str(value).lower()})
-
-                elif isinstance(value, int):
-                    self.parameter('integer', param, {'value': '%d' % value})
-
-                elif isinstance(value, float):
-                    self.parameter('float', param, {'value': '%f' % value})
-
+                    raise ValueError("Expected 3 values for a point. Got %d instead." % len(value))
+            elif isinstance(value, Transform4f):
+                # in which plugin are we adding a transform?
+                parent_plugin = self.current_tag()
+                if parent_plugin == 'sensor':
+                    #decompose into rotation and translation
+                    params = self.decompose_transform(value)
                 else:
-                    print('************** %s param not supported: %s **************' % (plugin_type, param))
-                    print(value)
+                    #simply write the matrix
+                    params = self.transform_matrix(value)
+                self.open_element('transform', {'name': key})
+                params.pop('type')
+                self.write_dict(params)
+                self.close_element()
+            else:
+                print("****** Unsupported entry: (%s,%s) ******" % (key,value))
 
+        if len(self.file_stack[self.current_file]) == 1:
+            #close scene tag
             self.close_element()
-
-        elif len(param_dict) == 0:
-            self.element(plugin, args)
-
-        else:
-            print('************** Plugin not supported: %s **************' % plugin_type)
-            print(param_dict)
 
     def configure(self, scene_dict):
         '''
@@ -544,9 +459,9 @@ class WriteXML:
         if self.split_files:
             for file in [Files.MAIN, Files.CAMS, Files.MATS, Files.GEOM, Files.EMIT]:
                 self.set_output_file(file)
-                self.pmgr_create(self.scene_data[file])
+                self.write_dict(self.scene_data[file])
         else:
-            self.pmgr_create(self.scene_data[Files.MAIN])
+            self.write_dict(self.scene_data[Files.MAIN])
 
         # Close files
         print('Wrote scene files.')
