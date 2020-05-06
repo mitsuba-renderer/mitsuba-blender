@@ -1,7 +1,8 @@
 from collections import OrderedDict
-from numpy import pi
+import numpy as np
 import os
 from shutil import copy2
+import math
 
 class Files:
     MAIN = 0
@@ -476,7 +477,6 @@ class WriteXML:
                     #simply write the matrix
                     params = self.transform_matrix(value)
                 self.open_element('transform', {'name': key})
-                params.pop('type')
                 self.write_dict(params)
                 self.close_element()
             else:
@@ -523,7 +523,6 @@ class WriteXML:
         value = " ".join(["%f" % x for x in transform.matrix.numpy().flatten()])
 
         params = {
-            'type': 'transform',
             'matrix': {
                 'type': 'matrix',
                 'value': value,
@@ -536,32 +535,31 @@ class WriteXML:
         Export a transform as a combination of rotation, scale and translation.
         This helps manually modifying the transform after export (for cameras for instance)
         '''
-        from mathutils import Matrix #TODO don't use blender here
-        #convert Mitsuba mat to blender mat
-        transform = Matrix(transform.matrix.numpy())
+        transform = transform.matrix.numpy()
 
-        params = {
-            'type': 'transform'
-        }
+        params = {}
 
-        rot = transform.to_euler('XYZ')
-        tr = transform.to_translation()
-        sc = transform.to_scale()
+        tr = transform[:3,3]
+        scale = [np.linalg.norm(transform[:3,j]) for j in range(3)]
+        rot_mat = transform[:3, :3]
+        for j in range(3):
+            rot_mat[:3,j] *= 1.0 / scale[j]
+        rot = mat_to_euler(rot_mat)
 
         params['rotate_x'] = {
             'type': 'rotate',
             'x': '1',
-            'angle': rot[0] * 180 / pi
+            'angle': rot[0] * 180 / np.pi
         }
         params['rotate_y'] = {
             'type': 'rotate',
             'y': '1',
-            'angle': rot[1] * 180 / pi
+            'angle': rot[1] * 180 / np.pi
         }
         params['rotate_z'] = {
             'type': 'rotate',
             'z': '1',
-            'angle': rot[2] * 180 / pi
+            'angle': rot[2] * 180 / np.pi
         }
         params['translate'] = {
             'type': 'translate',
@@ -570,7 +568,28 @@ class WriteXML:
         if export_scale:
             params['scale'] = { #TODO: remove this for cameras
                 'type': 'scale',
-                'value': "%f %f %f" % tuple(sc)
+                'value': "%f %f %f" % tuple(scale)
             }
 
         return params
+
+def mat_to_euler(mat):
+    '''
+    Inspired from a paper by Gregory G. Slabaugh
+    https://www.gregslabaugh.net/publications/euler.pdf
+    '''
+    sin_theta = mat[2,0]
+    theta = - math.asin(sin_theta)
+    cos_theta = math.cos(theta)
+    if cos_theta > 1e-6:
+        psi = math.atan2(mat[2,1]/cos_theta, mat[2,2]/cos_theta)
+        phi = math.atan2(mat[1,0]/cos_theta, mat[0,0]/cos_theta)
+    else:
+        phi = 0
+        if mat[2,0] + 1 < 1e-6:
+            theta = math.pi / 2.0
+            psi = math.atan2(mat[0,1], mat[0,2])
+        else:
+            theta = - math.pi / 2.0
+            psi = math.atan2(-mat[0,1], -mat[0,2])
+    return psi, theta, phi
