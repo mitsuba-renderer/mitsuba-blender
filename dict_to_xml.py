@@ -1,6 +1,7 @@
 from collections import OrderedDict
 from numpy import pi
 import os
+from shutil import copy2
 
 class Files:
     MAIN = 0
@@ -29,6 +30,8 @@ class WriteXML:
                       OrderedDict()] #CAMS
         self.com_count = 0 #counter for comment ids
         self.exported_ids = set()
+        self.copy_count = {'tex': 0, 'mesh': 0, 'spectrum': 0}#counters for giving unique names to copied files
+        self.copied_paths = {}
         self.files = []
         self.file_names = [] #relative paths to the fragment files
         self.file_tabs = []
@@ -360,8 +363,7 @@ class WriteXML:
             if len(entry.keys()) != 2:
                 raise ValueError("Dict of type 'spectrum': %s has to many entries!" % entry)
             if 'filename' in entry:
-                if self.directory in entry['filename']:
-                    entry['filename'] = os.path.relpath(entry['filename'], self.directory)
+                entry['filename'] = self.format_path(entry['filename'], 'spectrum')
             elif 'value' in entry:
                 spval = entry['value']
                 if isinstance(spval, float):
@@ -379,6 +381,39 @@ class WriteXML:
                 raise ValueError("Invalid key in 'spectrum' dict: %s" % entry)
 
         return entry_type, entry
+
+    def format_path(self, filepath, tag):
+        '''
+        Given a filepath, either copy it in the scene folder (in the corresponding directory)
+        or convert it to a relative path.
+
+        Params
+        ------
+
+        filepath: the path to the given file
+        tag: the tag this path property belongs to in (shape, texture, spectrum)
+        '''
+        #TODO: centralize subdir names somewhere
+        subfolders = {'texture': 'textures', 'emitter': 'textures', 'shape': 'meshes', 'spectrum': 'spectra'}
+        prefixes = {'texture': 'tex', 'emitter':'tex', 'shape': 'mesh', 'spectrum': 'spectrum'}
+
+        if tag not in subfolders:
+            raise ValueError("Unsupported tag for a filename: %s" % tag)
+        abs_path = os.path.join(self.directory, subfolders[tag])
+        if abs_path in filepath: # The file is at the proper place already
+            return os.path.relpath(filepath, self.directory)
+        else: # We need to copy the file in the scene directory
+            if filepath in self.copied_paths: # file was already copied, don't copy it again
+                return self.copied_paths[filepath]
+            if not os.path.isdir(abs_path):
+                os.mkdir(abs_path)
+            _, ext = os.path.splitext(filepath)
+            target_path = os.path.join(abs_path, "%s-%d%s" % (prefixes[tag], self.copy_count[prefixes[tag]], ext))
+            self.copy_count[prefixes[tag]] += 1
+            copy2(filepath, target_path)
+            rel_path = os.path.relpath(target_path, self.directory)
+            self.copied_paths[filepath] = rel_path
+            return rel_path
 
     def write_dict(self, data):
         from mitsuba.core import Transform4f
@@ -414,8 +449,9 @@ class WriteXML:
                     else:
                         self.element(tag, args) #write dict in one line (e.g. integrator)
             elif isinstance(value, str):
-                if os.path.exists(value) and self.directory in value:
-                    value = os.path.relpath(value, self.directory) #simplify path
+                if os.path.exists(value):
+                    # copy path if necessary and convert it to relative
+                    value = self.format_path(value, self.current_tag())
                 self.element('string', {'name':key, 'value': '%s' % value})
             elif isinstance(value, bool):
                 self.element('boolean', {'name':key, 'value': str(value).lower()})
