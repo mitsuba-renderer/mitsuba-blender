@@ -23,7 +23,10 @@ class WriteXML:
         'height': 'resy'
     }
 
-    def __init__(self):
+    def __init__(self, path, split_files=False):
+        from mitsuba.core import PluginManager
+        self.pmgr = PluginManager.instance()
+        self.split_files = split_files
         self.scene_data = [OrderedDict([('type','scene')]), #MAIN
                       OrderedDict(), #MATS
                       OrderedDict(), #GEOM
@@ -39,6 +42,7 @@ class WriteXML:
         self.file_stack = []
         self.current_file = Files.MAIN
         self.directory = ''
+        self.set_filename(path)
 
     def data_add(self, key, value, file=Files.MAIN):
         self.scene_data[file].update([(key, value)])
@@ -78,7 +82,7 @@ class WriteXML:
         self.files[ind].write('%s%s' % ('\t' * tabs, st))
         self.files[ind].flush()
 
-    def set_filename(self, name, split_files=False):
+    def set_filename(self, name):
         '''
         name                string
 
@@ -101,7 +105,7 @@ class WriteXML:
         self.files.append(open(self.file_names[Files.MAIN], 'w', encoding='utf-8', newline="\n"))
         self.file_tabs.append(0)
         self.file_stack.append([])
-        if split_files:
+        if self.split_files:
             self.write_header(Files.MAIN, '# Main Scene File')
         else:
             self.write_header(Files.MAIN)
@@ -119,9 +123,8 @@ class WriteXML:
         if not os.path.isdir(geometry_folder):
             os.mkdir(geometry_folder)
 
-        self.split_files = split_files
         #TODO: splitting in different files does not work, fix that
-        if split_files:
+        if self.split_files:
             fragments_folder = os.path.join(self.directory, "fragments")
             if not os.path.isdir(fragments_folder):
                 os.mkdir(fragments_folder)
@@ -223,11 +226,9 @@ class WriteXML:
         self.wf(self.current_file, '/>\n')
 
     def get_plugin_tag(self, plugin_type):
-        from mitsuba.core import PluginManager
         from mitsuba import variant
         try:
-            pmgr = PluginManager.instance()
-            class_ =  pmgr.get_plugin_class(plugin_type, variant()).parent()
+            class_ =  self.pmgr.get_plugin_class(plugin_type, variant()).parent()
             while class_.alias() == class_.name():
                 class_ = class_.parent()
             return class_.alias()
@@ -277,14 +278,20 @@ class WriteXML:
         Separate the dict into different category-specific subdicts.
         If not splitting files, merge them in the end.
         '''
-        # add defaults to MAIN file
-        self.add_comment("Defaults, these can be set via the command line: -Darg=value")
-        self.configure_defaults(scene_dict)
 
         if self.split_files:
             for dic in self.scene_data[1:]:
                 dic.update([('type','scene')])
 
+        if 'type' not in scene_dict:
+            raise ValueError("Missing key: 'type'!")
+        if scene_dict['type'] != 'scene': #we try to save a plugin, not a scene
+            self.data_add('plugin', scene_dict, Files.MAIN) # in this case, don't bother with multiple files
+            return
+
+        # add defaults to MAIN file
+        self.add_comment("Defaults, these can be set via the command line: -Darg=value")
+        self.configure_defaults(scene_dict)
         for key, value in scene_dict.items():
             if key == 'type':
                 continue #ignore 'scene' tag
@@ -308,7 +315,7 @@ class WriteXML:
                 else:
                     self.data_add(key, value, Files.MAIN)
             else:
-                raise NotImplementedError("Unsupported item: %s:%s" % (key,value))
+                raise ValueError("Unsupported item: %s:%s" % (key,value))
 
 
         #add defaults to MAIN file
@@ -354,8 +361,9 @@ class WriteXML:
         entry: the dict containing the spectrum
         entry_type: either 'spectrum' or 'rgb'
         '''
+        from mitsuba.core import Color3f
         if entry_type == 'rgb':
-            if len(entry.keys()) != 2 or not entry.get('value') or not isinstance(entry['value'], list) or len(entry['value']) != 3:
+            if len(entry.keys()) != 2 or not entry.get('value') or not any(isinstance(entry['value'], x) for x in [list, Color3f, np.ndarray]) or len(entry['value']) != 3:
                 raise ValueError("Invalid entry of type rgb: %s" % entry)
             else:
                 entry['value'] = "%f %f %f" % tuple(entry['value'])
@@ -417,38 +425,50 @@ class WriteXML:
             return rel_path
 
     def write_dict(self, data):
-        from mitsuba.core import Transform4f
+        from mitsuba.core import Transform4f, Point3f
 
         if 'type' in data:#scene tag
             self.open_element(data.pop('type'), {'version': '2.0.0'})
 
         for key, value in data.items():
             if isinstance(value, dict):
-                value_type = value.pop('type')
+                try:
+                    value_type = value.pop('type')
+                except KeyError:
+                    raise ValueError("Missing key 'type'!")
                 if value_type in {'rgb', 'spectrum'}:
                     value['name'] = key
                     name, args = self.format_spectrum(value, value_type)
                     self.element(name, args)
                 elif value_type == 'comment':
                     self.write_comment(value['value'])
-                elif value_type in {'scale', 'rotate', 'translate', 'matrix', 'ref', 'default', 'include', 'integer', 'string', 'boolean', 'float'}:
-                    self.element(value_type, value)
-                else:#plugin
+                elif self.get_plugin_tag(value_type):#plugin
                     tag = self.get_plugin_tag(value_type)
                     args = {'type': value_type}
-                    if tag == 'texture':
+                    if tag == 'texture' and self.current_tag() != 'scene':
                         args['name'] = key
                     if 'id' in value:
                         args['id'] = value.pop('id')
                     elif key[:7] != '__elm__' and self.current_tag() == 'scene':
                         args['id'] = key #top level keys are IDs, lower level ones are param names
-
+                    if 'id' in args:
+                        if args['id'] in self.exported_ids:
+                            raise ValueError("Id: %s is already used!" % args['id'])
+                        self.exported_ids.add(args['id'])
                     if len(value) > 0: #open a tag if there is still stuff to write
                         self.open_element(tag, args)
                         self.write_dict(value)
                         self.close_element()
                     else:
                         self.element(tag, args) #write dict in one line (e.g. integrator)
+                #elif value_type in {'scale', 'rotate', 'translate', 'matrix', 'ref', 'default', 'include', 'integer', 'string', 'boolean', 'float'}:
+                else:
+                    if value_type == 'ref':
+                        if 'name' not in value:
+                            value['name'] = key
+                        if value['id'] not in self.exported_ids:
+                            raise ValueError("Id: %s referenced before export." % value['id'])
+                    self.element(value_type, value)
             elif isinstance(value, str):
                 if os.path.exists(value):
                     # copy path if necessary and convert it to relative
@@ -460,7 +480,7 @@ class WriteXML:
                 self.element('integer', {'name':key, 'value': '%d' % value})
             elif isinstance(value, float):
                 self.element('float', {'name':key, 'value': '%f' % value})
-            elif isinstance(value, list):
+            elif any(isinstance(value, x) for x in [list, Point3f, np.ndarray]):
                 #cast to point
                 if len(value) == 3:
                     args = {'name': key, 'x' : value[0] , 'y' :  value[1] , 'z' :  value[2]}
@@ -480,7 +500,7 @@ class WriteXML:
                 self.write_dict(params)
                 self.close_element()
             else:
-                print("****** Unsupported entry: (%s,%s) ******" % (key,value))
+                raise ValueError("Unsupported entry: (%s,%s)" % (key,value))
 
         if len(self.file_stack[self.current_file]) == 1:
             #close scene tag
@@ -490,8 +510,8 @@ class WriteXML:
         '''
         Special handling of configure API.
         '''
-        self.preprocess_scene(scene_dict) # Re order elements
-
+        self.preprocess_scene(scene_dict.copy()) # Re order elements
+        #TODO: open files only here
         if self.split_files:
             for file in [Files.MAIN, Files.CAMS, Files.MATS, Files.GEOM, Files.EMIT]:
                 self.set_output_file(file)

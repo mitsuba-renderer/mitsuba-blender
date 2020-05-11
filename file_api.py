@@ -3,7 +3,6 @@ import os
 from shutil import copy2
 from numpy import pi
 from mathutils import Matrix
-from .dict_to_xml import WriteXML
 
 texture_exts = {
     'BMP': '.bmp',
@@ -96,7 +95,6 @@ class FileExportContext:
     color_mode = 'rgb'
 
     def __init__(self):
-        self.xml_writer = WriteXML()
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0 #counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
@@ -132,7 +130,8 @@ class FileExportContext:
         return self.scene_data.get(name)
 
     def set_filename(self, name, split_files=False):
-        self.xml_writer.set_filename(name, split_files)
+        from .dict_to_xml import WriteXML
+        self.xml_writer = WriteXML(name)
         self.directory = self.xml_writer.directory
 
     def configure(self):
