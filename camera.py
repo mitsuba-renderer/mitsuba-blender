@@ -36,4 +36,7 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
     params['film'] = film
 
     #TODO: reconstruction filter
-    export_ctx.data_add(params)
+    if export_ctx.export_ids:
+        export_ctx.data_add(params, name=b_camera.name_full)
+    else:
+        export_ctx.data_add(params)

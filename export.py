@@ -44,15 +44,21 @@ class MitsubaFileExport(Operator, ExportHelper):
     filename_ext = ".xml"
 
     use_selection: BoolProperty(
-	        name="Selection Only",
+	        name = "Selection Only",
 	        description="Export selected objects only",
-	        default=False,
+	        default = False,
 	    )
 
     split_files: BoolProperty(
             name = "Split File",
             description = "Split scene XML file in smaller fragments",
-            default=False
+            default = False
+    )
+
+    export_ids: BoolProperty(
+            name = "Export IDs",
+            description = "Add an 'id' field for each object (shape, emitter, camera...)",
+            default = False
     )
 
     def __init__(self):
@@ -80,7 +86,7 @@ class MitsubaFileExport(Operator, ExportHelper):
 	            to_up=self.axis_up,
 	        ).to_4x4()
         self.export_ctx.axis_mat = axis_mat
-
+        self.export_ctx.export_ids = self.export_ids
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
 
         integrator = {'type':'path'}

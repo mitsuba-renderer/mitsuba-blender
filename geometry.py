@@ -118,8 +118,10 @@ class GeometryExporter:
                     params['emitter'] = mixed_mat['emitter']
                 else:
                     params['bsdf'] = {'type':'ref', 'id':mat_id}
-
-            export_ctx.data_add(params)
+            if mesh_instance.is_instance or not export_ctx.export_ids:
+                export_ctx.data_add(params)
+            else:
+                export_ctx.data_add(params, name=name)
 
     def export_mesh(self, mesh_instance, export_ctx):
         mat_count = len(mesh_instance.object.data.materials)

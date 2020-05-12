@@ -422,8 +422,10 @@ def convert_world(export_ctx, surface_node):
 
     else:
         raise NotImplementedError("Node type %s is not supported" % surface_node.type)
-
-    export_ctx.data_add(params)
+    if export_ctx.export_ids:
+        export_ctx.data_add(params, "World")
+    else:
+        export_ctx.data_add(params)
 
 def export_world(export_ctx, world):
 

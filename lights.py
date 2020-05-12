@@ -91,6 +91,9 @@ def export_light(light_instance, export_ctx):
     b_light = light_instance.object
     try:
         params = light_converters[b_light.data.type](b_light, export_ctx)
-        export_ctx.data_add(params)
+        if export_ctx.export_ids:
+            export_ctx.data_add(params, name=b_light.name_full)
+        else:
+            export_ctx.data_add(params)
     except KeyError:
         raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
