@@ -130,8 +130,8 @@ class FileExportContext:
         return self.scene_data.get(name)
 
     def set_filename(self, name, split_files=False):
-        from .dict_to_xml import WriteXML
-        self.xml_writer = WriteXML(name)
+        from mitsuba.python.dict_to_xml import WriteXML
+        self.xml_writer = WriteXML(name, split_files)
         self.directory = self.xml_writer.directory
 
     def configure(self):
@@ -150,7 +150,7 @@ class FileExportContext:
         film.develop()
         '''
         #the only line to keep:
-        self.xml_writer.configure(self.scene_data)
+        self.xml_writer.process(self.scene_data)
 
     def export_texture(self, image):
         """
