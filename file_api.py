@@ -130,7 +130,7 @@ class FileExportContext:
         return self.scene_data.get(name)
 
     def set_filename(self, name, split_files=False):
-        from mitsuba.python.dict_to_xml import WriteXML
+        from mitsuba.python.xml import WriteXML
         self.xml_writer = WriteXML(name, split_files)
         self.directory = self.xml_writer.directory
 
