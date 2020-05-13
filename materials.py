@@ -1,4 +1,4 @@
-from numpy import pi
+import numpy as np
 from mathutils import Matrix
 from .file_api import Files
 
@@ -353,9 +353,16 @@ def export_material(export_ctx, material):
             mat_params['id'] = name
             export_ctx.data_add(mat_params)
 
-def convert_world(export_ctx, surface_node):
+def convert_world(export_ctx, surface_node, ignore_background):
     """
     convert environment lighting. Constant emitter and envmaps are supported
+
+    Params
+    ------
+
+    export_ctx: the export context
+    surface_node: the final node of the shader
+    ignore_background: whether we want to export blender's default background or not
     """
     params = {}
     if surface_node.inputs['Strength'].is_linked:
@@ -414,7 +421,10 @@ def convert_world(export_ctx, surface_node):
         else:
             color = socket.default_value
         if 'type' not in params: # Not an envmap
-            radiance = [x * strength for x in color[:]]
+            radiance = [x * strength for x in color[:3]]
+            if ignore_background and radiance == [0.05087608844041824]*3:
+                print("Ignoring Blender's default background...")
+                return
             params.update({
                 'type': 'constant',
                 'radiance': export_ctx.spectrum(radiance)
@@ -427,13 +437,17 @@ def convert_world(export_ctx, surface_node):
     else:
         export_ctx.data_add(params)
 
-def export_world(export_ctx, world):
-
+def export_world(export_ctx, world, ignore_background):
+    '''
+    export_ctx: export context
+    world: blender 'world' object
+    ignore_background: whether we ignore blender's default grey background or not.
+    '''
     output_node = world.node_tree.nodes['World Output']
     if not output_node.inputs["Surface"].is_linked:
         return
     surface_node = output_node.inputs["Surface"].links[0].from_node
     try:
-        convert_world(export_ctx, surface_node)
+        convert_world(export_ctx, surface_node, ignore_background)
     except NotImplementedError as err:
         print("Error while exporting world: %s. Not exporting it." % err.args[0])

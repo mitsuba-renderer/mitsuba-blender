@@ -61,6 +61,12 @@ class MitsubaFileExport(Operator, ExportHelper):
             default = False
     )
 
+    ignore_background: BoolProperty(
+            name = "Ignore Default Background",
+            description = "Ignore blender's default constant gray background when exporting to Mitsuba.",
+            default = True
+    )
+
     def __init__(self):
         self.reset()
         self.prefs = bpy.context.preferences.addons[__package__].preferences
@@ -94,7 +100,7 @@ class MitsubaFileExport(Operator, ExportHelper):
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
         b_scene = context.scene #TODO: what if there are multiple scenes?
-        export_world(self.export_ctx, b_scene.world)
+        export_world(self.export_ctx, b_scene.world, self.ignore_background)
 
         #main export loop
         for object_instance in depsgraph.object_instances:
