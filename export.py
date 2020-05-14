@@ -128,7 +128,7 @@ class MitsubaFileExport(Operator, ExportHelper):
                 raise NotImplementedError("Object type {} is not supported".format(object_type))
 
         #write data to scene .xml file
-        self.export_ctx.configure()
+        self.export_ctx.write()
         #reset the exporter
         self.reset()
         return {'FINISHED'}

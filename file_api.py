@@ -134,22 +134,7 @@ class FileExportContext:
         self.xml_writer = WriteXML(name, split_files)
         self.directory = self.xml_writer.directory
 
-    def configure(self):
-        '''
-        Special handling of configure API.
-        '''
-        #temporary tests TODO: remove when thoroughly tested
-        print(self.scene_data)
-        '''
-        from mitsuba.core.xml import load_dict
-        scene = load_dict(self.scene_data)
-        sensor = scene.sensors()[0]
-        scene.integrator().render(scene, sensor)
-        film = sensor.film()
-        film.set_destination_file(os.path.join(self.directory, "python.exr"))
-        film.develop()
-        '''
-        #the only line to keep:
+    def write(self):
         self.xml_writer.process(self.scene_data)
 
     def export_texture(self, image):

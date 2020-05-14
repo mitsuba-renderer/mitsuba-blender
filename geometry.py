@@ -28,7 +28,7 @@ class GeometryExporter:
             name = "%s-%d" %(b_mesh.name_full, mat_nr)
         loop_tri_count = len(b_mesh.data.loop_triangles)
         if loop_tri_count == 0:
-            warnings.warn("Mesh: {} has no faces. Skipping.".format(name), Warning)
+            print("Mesh: {} has no faces. Skipping.".format(name))
             return
 
         if not b_mesh.data.uv_layers:
