@@ -80,10 +80,28 @@ def convert_sun_light(b_light, export_ctx):
     params['to_world'] = export_ctx.transform_matrix(b_light.matrix_world @ init_mat)
     return params
 
+def convert_spot_light(b_light, export_ctx):
+    params = {
+        'type': 'spot'
+    }
+    intensity = b_light.data.energy * b_light.data.color / (4.0 * np.pi)
+    params['intensity'] = export_ctx.spectrum(intensity, 'spectrum')
+    alpha = b_light.data.spot_size / 2.0
+    params['cutoff_angle'] = alpha * 180 / np.pi
+    b = b_light.data.spot_blend
+    # interior angle, computed according to this code : https://developer.blender.org/diffusion/B/browse/master/intern/cycles/kernel/kernel_light.h$149
+    params['beam_width'] = np.degrees(np.arccos(b + (1.0-b) * np.cos(alpha)))
+    init_mat = Matrix.Rotation(np.pi, 4, 'X')
+    #change default position, apply transform and change coordinates
+    params['to_world'] = export_ctx.transform_matrix(b_light.matrix_world @ init_mat)
+    #TODO: look_at
+    return params
+
 light_converters = {
     'AREA': convert_area_light,
     'POINT': convert_point_light,
-    'SUN': convert_sun_light
+    'SUN': convert_sun_light,
+    'SPOT': convert_spot_light
 }
 
 def export_light(light_instance, export_ctx):
