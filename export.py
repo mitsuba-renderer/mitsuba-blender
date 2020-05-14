@@ -118,8 +118,8 @@ class MitsubaFileExport(Operator, ExportHelper):
                 print("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name))
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
 
-            if object_type == 'MESH':
-                self.geometry_exporter.export_mesh(object_instance, self.export_ctx)
+            if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
+                self.geometry_exporter.export_object(object_instance, self.export_ctx)
             elif object_type == 'CAMERA':#TODO: export only scene.camera
                 export_camera(context, object_instance, b_scene, self.export_ctx)#TODO: investigate multiple scenes and multiple cameras at same time
             elif object_type == 'LIGHT':
