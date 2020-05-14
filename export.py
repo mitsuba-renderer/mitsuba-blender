@@ -114,7 +114,7 @@ class MitsubaFileExport(Operator, ExportHelper):
             evaluated_obj = object_instance.object
             object_type = evaluated_obj.type
             #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
-            if evaluated_obj.hide_render:
+            if evaluated_obj.hide_render or object_instance.is_instance and evaluated_obj.parent.original.hide_render:
                 print("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name))
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
 
