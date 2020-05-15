@@ -28,14 +28,14 @@ class GeometryExporter:
             name = "%s-%d" %(b_name, mat_nr)
         loop_tri_count = len(b_mesh.loop_triangles)
         if loop_tri_count == 0:
-            print("Mesh: {} has no faces. Skipping.".format(name))
+            export_ctx.log("Mesh: {} has no faces. Skipping.".format(name), 'WARN')
             return
 
         if not b_mesh.uv_layers:
             uv_ptr = 0#nullptr
         else:
             if len(b_mesh.uv_layers) > 1:
-                print("Mesh: '%s' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render."%name)
+                export_ctx.log("Mesh: '%s' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render."%name, 'WARN')
             for uv_layer in b_mesh.uv_layers:
                 if uv_layer.active_render:#if there is only 1 UV layer, it is always active
                     uv_ptr = uv_layer.data[0].as_pointer()
@@ -45,7 +45,7 @@ class GeometryExporter:
             col_ptr = 0#nullptr
         else:
             if len(b_mesh.vertex_colors) > 1:
-                print("Mesh: '%s' has multiple vertex color layers. Mitsuba only supports one. Exporting the one set active for render."%name)
+                export_ctx.log("Mesh: '%s' has multiple vertex color layers. Mitsuba only supports one. Exporting the one set active for render."%name, 'WARN')
             for color_layer in b_mesh.vertex_colors:
                 if color_layer.active_render:#if there is only 1 UV layer, it is always active
                     col_ptr = color_layer.data[0].as_pointer()

@@ -115,7 +115,7 @@ class MitsubaFileExport(Operator, ExportHelper):
             object_type = evaluated_obj.type
             #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
             if evaluated_obj.hide_render or object_instance.is_instance and evaluated_obj.parent.original.hide_render:
-                print("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name))
+                self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
 
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
@@ -125,7 +125,7 @@ class MitsubaFileExport(Operator, ExportHelper):
             elif object_type == 'LIGHT':
                 export_light(object_instance, self.export_ctx)
             else:
-                raise NotImplementedError("Object type {} is not supported".format(object_type))
+                self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 
         #write data to scene .xml file
         self.export_ctx.write()

@@ -60,7 +60,8 @@ class ExportedMaterialsCache:
             return self.textures[key]
         except KeyError:
             if image.file_format in convert_format.keys():
-                print("Image format of '%s' not supported. Converting it to %s." % (image.name, convert_format[image.file_format]))
+                msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
+                FileExportContext.log(msg, 'WARN')
                 image.file_format = convert_format[image.file_format]
 
             name = "tex-%d%s" % (self.tex_count, texture_exts[image.file_format])
@@ -75,7 +76,7 @@ class ExportedMaterialsCache:
                 image.filepath = old_filepath
             else: # File is stored.we prefer this to avoid "no image data" errors when saving
                 copy2(image.filepath_from_user(), target_path)
-            print("Saved image '%s' as '%s'." % (image.name, name))
+            FileExportContext.log("Saved image '%s' as '%s'." % (image.name, name), 'INFO')
             return name
 
 
@@ -137,6 +138,29 @@ class FileExportContext:
     def write(self):
         self.xml_writer.process(self.scene_data)
 
+    @staticmethod
+    def log(message, level='INFO'):
+        '''
+        Log something using mitsuba's logging API
+
+        Params
+        ------
+
+        message: What to write
+        level: Level of logging
+        '''
+        from mitsuba.core import Log, LogLevel
+        log_level = {
+            'DEBUG': LogLevel.Debug,
+            'INFO': LogLevel.Info,
+            'WARN': LogLevel.Warn,
+            'ERROR': LogLevel.Error,
+            'TRACE': LogLevel.Trace
+            }
+        if level not in log_level:
+            raise ValueError("Invalid logging level '%s'!" % level)
+        Log(log_level[level], message)
+
     def export_texture(self, image):
         """
         Copy a texture file to the Mitsuba scene folder.
@@ -176,7 +200,7 @@ class FileExportContext:
 
                 for i in items:
                     if not isinstance(i, (float, int, tuple)):
-                        raise Exception('Error: spectrum list contains an unknown type')
+                        raise ValueError('Error: spectrum list contains an unknown type')
 
             except:
                 items = None
@@ -198,7 +222,7 @@ class FileExportContext:
                         spec = {'value': items[0], 'type': 'spectrum'}
 
                     else:
-                        print('Expected spectrum items to be 1, 3 or 4, got %d.' % len(items), type(items), items)
+                        raise ValueError('Expected spectrum items to be 1, 3 or 4, got %d.' % len(items), type(items), items)
 
                 else:
                     contspec = []
@@ -210,7 +234,7 @@ class FileExportContext:
                     spec = {'value': ", ".join(contspec), 'type': 'spectrum'}
 
             else:
-                print('Unknown spectrum type.', type(value), value)
+                raise ValueError('Unknown spectrum type: %s, %s' % type(value), value)
 
         if not spec:
             spec = {'value': "0.0", 'type': 'spectrum'}

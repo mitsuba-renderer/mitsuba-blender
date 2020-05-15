@@ -34,7 +34,7 @@ def export_texture_node(export_ctx, tex_node):
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
     elif tex_node.image.colorspace_settings.name != 'sRGB':
-        print("Warning: Mitsuba only supports sRGB textures for color data.")
+        export_ctx.log("Mitsuba only supports sRGB textures for color data.", 'WARN')
 
     return params
 
@@ -97,7 +97,7 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
         })
     """
     if current_node.inputs['Roughness'].is_linked or current_node.inputs['Roughness'].default_value != 0.0:
-        print("Warning: rough diffuse BSDF is currently not supported in Mitsuba 2. Ignoring alpha parameter.")
+        export_ctx.log("Warning: rough diffuse BSDF is currently not supported in Mitsuba 2. Ignoring alpha parameter.", 'WARN')
     #Rough diffuse BSDF is currently not supported in Mitsuba
     params.update({
         'type': 'diffuse'
@@ -300,7 +300,7 @@ def b_material_to_dict(export_ctx, b_mat):
             mat_params = cycles_material_to_dict(export_ctx, surface_node)
 
         except NotImplementedError as err:
-            print("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]))
+            export_ctx.log("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]), 'WARN')
             mat_params = {'type':'diffuse'}
             mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3], 'rgb')
 
@@ -423,7 +423,7 @@ def convert_world(export_ctx, surface_node, ignore_background):
         if 'type' not in params: # Not an envmap
             radiance = [x * strength for x in color[:3]]
             if ignore_background and radiance == [0.05087608844041824]*3:
-                print("Ignoring Blender's default background...")
+                export_ctx.log("Ignoring Blender's default background...", 'INFO')
                 return
             params.update({
                 'type': 'constant',
@@ -450,4 +450,4 @@ def export_world(export_ctx, world, ignore_background):
     try:
         convert_world(export_ctx, surface_node, ignore_background)
     except NotImplementedError as err:
-        print("Error while exporting world: %s. Not exporting it." % err.args[0])
+        export_ctx.log("Error while exporting world: %s. Not exporting it." % err.args[0], 'WARN')

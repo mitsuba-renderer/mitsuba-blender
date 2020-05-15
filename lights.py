@@ -61,8 +61,9 @@ def convert_point_light(b_light, export_ctx):
     params = {
         'type': 'point'
     }
+    if b_light.data.shadow_soft_size:
+        export_ctx.log("Light '%s' has a non-zero soft shadow radius. It will be ignored." % b_light.name_full, 'WARN')
     #apply coordinate change to location
-    #params['position'] = export_ctx.point(export_ctx.axis_mat @ b_light.location)
     params['position'] = list(export_ctx.axis_mat @ b_light.location)
     energy = b_light.data.energy / (4*np.pi) #normalize by the solid angle of a sphere
     intensity = energy * b_light.data.color
@@ -84,6 +85,8 @@ def convert_spot_light(b_light, export_ctx):
     params = {
         'type': 'spot'
     }
+    if b_light.data.shadow_soft_size:
+        export_ctx.log("Light '%s' has a non-zero soft shadow radius. It will be ignored." % b_light.name_full, 'WARN')
     intensity = b_light.data.energy * b_light.data.color / (4.0 * np.pi)
     params['intensity'] = export_ctx.spectrum(intensity, 'spectrum')
     alpha = b_light.data.spot_size / 2.0
@@ -114,4 +117,6 @@ def export_light(light_instance, export_ctx):
         else:
             export_ctx.data_add(params)
     except KeyError:
-        raise NotImplementedError("Light type {} is not supported".format(b_light.data.type))
+        export_ctx.log("Could not export '%s', light type %s is not supported" % (b_light.name_full, b_light.data.type), 'WARN')
+    except NotImplementedError as err:
+        export_ctx.log("Error while exporting light: '%s': %s" % (b_light.name_full, err.args[0]), 'WARN')
