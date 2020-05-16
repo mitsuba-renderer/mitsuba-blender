@@ -20,6 +20,7 @@ class GeometryExporter:
         from mitsuba.render import Mesh
         from mitsuba.core import FileStream, Matrix4f
         #create a mitsuba mesh
+        b_mesh.calc_normals()
         b_mesh.calc_loop_triangles()#compute the triangle tesselation
         if mat_nr == -1:
             name = b_name
