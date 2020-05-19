@@ -93,8 +93,6 @@ class FileExportContext:
     File API
     '''
 
-    color_mode = 'rgb'
-
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0 #counter to create unique IDs.
@@ -174,70 +172,48 @@ class FileExportContext:
         img_name = self.exported_mats.get_tex_id(image, self.xml_writer.textures_folder)
         return os.path.join(self.xml_writer.textures_folder, img_name)
 
-    def spectrum(self, value, mode=''):
-        if not mode:
-            mode = self.color_mode
+    def spectrum(self, value, mode='rgb'):
+        '''
+        Given a spectrum value, format it for the scene dict.
 
+        Params
+        ------
+
+        value: value of the spectrum: can be a list, a rgb triplet, a single number or a filename
+        mode: rgb or spectrum, defaults to rgb
+        '''
         spec = {}
 
-        if isinstance(value, (dict)):
-            if 'type' in value:
-                if value['type'] in {'rgb', 'srgb', 'spectrum'}:
-                    spec = self.spectrum(value['value'], value['type'])
-
-                else:
-                    spec = value
-
-        elif isinstance(value, (float, int)):
-            spec = {'value': value, 'type': 'spectrum'}
+        if isinstance(value, (float, int)):
+            spec = {'value': value, 'type': mode}
 
         elif isinstance(value, (str)):
-            spec = {'filename': value, 'type': 'spectrum'}#TODO: export path
-        #TODO: handle all types of spectra (blackbody, uniform, d65...)
+            spec = {'filename': value, 'type': 'spectrum'}
+
         else:
-            try:
-                items = list(value)
-
-                for i in items:
-                    if not isinstance(i, (float, int, tuple)):
-                        raise ValueError('Error: spectrum list contains an unknown type')
-
-            except:
-                items = None
-
-            if items:
-                totitems = len(items)
-
-                if isinstance(items[0], (float, int)):
-                    if totitems == 3 or totitems == 4:
-                        spec = {'value': items[:3]}
-
-                        if mode == 'srgb':
-                            spec.update({'type': 'srgb'})
-
-                        else:
-                            spec.update({'type': 'rgb'})
-
-                    elif totitems == 1:
-                        spec = {'value': items[0], 'type': 'spectrum'}
-
-                    else:
-                        raise ValueError('Expected spectrum items to be 1, 3 or 4, got %d.' % len(items), type(items), items)
-
+            value = list(value)
+            if any(not isinstance(x, (float, int, tuple)) for x in value):
+                raise ValueError("Unknown spectrum entry: %s" % value)
+            if any(type(value[i]) != type(value[i+1]) for i in range(len(value)-1)):
+                raise ValueError("Mixed types in spectrum entry %s" % value)
+            totitems = len(value)
+            if isinstance(value[0], (float, int)):
+                if totitems == 3 or totitems == 4:
+                    spec = {
+                        'type': 'rgb',
+                        'value': value[:3]
+                        }
+                elif totitems == 1:
+                    spec = {'value': value[0], 'type': mode}
                 else:
-                    contspec = []
-
-                    for spd in items:
-                        (wlen, val) = spd
-                        contspec.append('%d:%f' % (wlen, val))
-
-                    spec = {'value': ", ".join(contspec), 'type': 'spectrum'}
+                    raise ValueError('Expected spectrum items to be 1,3 or 4 got %d: %s' % (len(value), value))
 
             else:
-                raise ValueError('Unknown spectrum type: %s, %s' % type(value), value)
+                #wavelength list
+                spec = {'value': value, 'type': 'spectrum'}
 
         if not spec:
-            spec = {'value': "0.0", 'type': 'spectrum'}
+            spec = {'value': 0.0, 'type': 'spectrum'}
 
         return spec
 

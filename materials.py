@@ -68,7 +68,7 @@ def convert_color_texture_node(export_ctx, socket):
 
         elif node.type == "RGB": 
             #input rgb node
-            params = export_ctx.spectrum(node.color, 'rgb')
+            params = export_ctx.spectrum(node.color)
         
         else:
             raise NotImplementedError("Node type %s is not supported. Only texture & RGB nodes are supported for color inputs" % node.type)
@@ -302,11 +302,11 @@ def b_material_to_dict(export_ctx, b_mat):
         except NotImplementedError as err:
             export_ctx.log("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]), 'WARN')
             mat_params = {'type':'diffuse'}
-            mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3], 'rgb')
+            mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3])
 
     else:
         mat_params = {'type':'diffuse'}
-        mat_params['reflectance'] = export_ctx.spectrum(b_mat.diffuse_color, 'rgb')
+        mat_params['reflectance'] = export_ctx.spectrum(b_mat.diffuse_color)
 
     return mat_params
 
