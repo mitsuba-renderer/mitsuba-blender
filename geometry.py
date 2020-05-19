@@ -63,9 +63,7 @@ class GeometryExporter:
                         vert_count, vert_ptr, poly_ptr,
                         uv_ptr, col_ptr, mat_nr, to_world)
         if m_mesh.face_count() > 0:#only save complete meshes
-            mesh_fs = FileStream(file_path, FileStream.ETruncReadWrite)
-            m_mesh.write_ply(mesh_fs)#save as binary ply
-            mesh_fs.close()
+            m_mesh.write_ply(file_path)#save as binary ply
             self.add_exported_mesh(b_name, mat_nr)
             return True
         return False
