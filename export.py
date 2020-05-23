@@ -95,7 +95,10 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx.export_ids = self.export_ids
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
 
-        integrator = {'type':'path'}
+        integrator = {
+            'type':'path',
+            'max_depth': context.scene.cycles.max_bounces
+            }
         self.export_ctx.data_add(integrator)
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
