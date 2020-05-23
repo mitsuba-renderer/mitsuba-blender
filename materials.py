@@ -69,7 +69,11 @@ def convert_color_texture_node(export_ctx, socket):
         elif node.type == "RGB": 
             #input rgb node
             params = export_ctx.spectrum(node.color)
-        
+        elif node.type == "VERTEX_COLOR":
+            params = {
+                'type': 'mesh_attribute',
+                'name': 'vertex_%s' % node.layer_name
+            }
         else:
             raise NotImplementedError("Node type %s is not supported. Only texture & RGB nodes are supported for color inputs" % node.type)
 
