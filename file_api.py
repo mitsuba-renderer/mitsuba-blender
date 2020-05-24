@@ -226,5 +226,5 @@ class FileExportContext:
         if len(matrix) == 4:
             mat = self.axis_mat @ matrix
         else: #3x3
-            mat = matrix.to_4x4() # TODO: actually write a 3x3
+            mat = matrix.to_4x4()
         return Transform4f(list([list(x) for x in mat]))
