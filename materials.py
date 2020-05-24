@@ -26,10 +26,6 @@ def export_texture_node(export_ctx, tex_node):
     #get the relative path to the copied texture from the full path to the original texture
     params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
-    flip_tex = Matrix(((1,0,0),
-                       (0,-1,0),
-                       (0,0,1)))
-    params['to_uv'] = export_ctx.transform_matrix(flip_tex)
     if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw']:
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
