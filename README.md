@@ -9,9 +9,12 @@ This Add-on allows to export a Blender scene to Mitsuba 2's file format.
 
 ## How to install the Add-on
 
-:warning: Before installing the add-on, make sure Mitsuba 2 was compiled with the **same version** of python that Blender uses (3.74 for Blender 2.82)
+:warning: Before installing the add-on, make sure that Mitsuba 2 was compiled with the **same version** of python that Blender uses (3.74 for Blender 2.82)
+
+There are two independent ways of installing the addon, depending on your needs:
 
 ### Option 1: In Blender.
+
 - Download the latest release or clone this repository as a `zip` archive.
 - In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**
 - Select the downloaded archive
