@@ -95,7 +95,10 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx.export_ids = self.export_ids
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
 
-        integrator = {'type':'path'}
+        integrator = {
+            'type':'path',
+            'max_depth': context.scene.cycles.max_bounces
+            }
         self.export_ctx.data_add(integrator)
 
         depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
@@ -120,7 +123,7 @@ class MitsubaFileExport(Operator, ExportHelper):
 
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
                 self.geometry_exporter.export_object(object_instance, self.export_ctx)
-            elif object_type == 'CAMERA':#TODO: export only scene.camera
+            elif object_type == 'CAMERA':
                 export_camera(context, object_instance, b_scene, self.export_ctx)#TODO: investigate multiple scenes and multiple cameras at same time
             elif object_type == 'LIGHT':
                 export_light(object_instance, self.export_ctx)

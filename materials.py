@@ -2,20 +2,6 @@ import numpy as np
 from mathutils import Matrix
 from .file_api import Files
 
-def linear_to_srgb(x):
-    if x > 0.0031308:
-        x = 1.055 * pow(x, 0.416) - 0.055
-    else:
-        x = 12.92 * x
-    return x
-
-def srgb_to_linear(x):
-    if x > 0.04045:
-        x = pow((x+0.055)/1.055, 2.4)
-    else:
-        x = x / 12.92
-    return x
-
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
@@ -26,10 +12,6 @@ def export_texture_node(export_ctx, tex_node):
     #get the relative path to the copied texture from the full path to the original texture
     params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
-    flip_tex = Matrix(((1,0,0),
-                       (0,-1,1),
-                       (0,0,1)))
-    params['to_uv'] = export_ctx.transform_matrix(flip_tex)
     if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw']:
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
@@ -69,7 +51,11 @@ def convert_color_texture_node(export_ctx, socket):
         elif node.type == "RGB": 
             #input rgb node
             params = export_ctx.spectrum(node.color)
-        
+        elif node.type == "VERTEX_COLOR":
+            params = {
+                'type': 'mesh_attribute',
+                'name': 'vertex_%s' % node.layer_name
+            }
         else:
             raise NotImplementedError("Node type %s is not supported. Only texture & RGB nodes are supported for color inputs" % node.type)
 
@@ -178,7 +164,7 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
 
     else:
-        radiance = current_node.inputs["Strength"].default_value#TODO: fix this
+        radiance = current_node.inputs["Strength"].default_value
 
     if current_node.inputs['Color'].is_linked:
         raise NotImplementedError("Only default emitter color is supported.")#TODO: rgb input

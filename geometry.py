@@ -17,53 +17,58 @@ class GeometryExporter:
             self.exported_meshes.update({name:[mat_nr]})
 
     def save_mesh(self, export_ctx, b_mesh, matrix_world, b_name, file_path, mat_nr):
-        from mitsuba.render import Mesh
-        from mitsuba.core import FileStream, Matrix4f
-        #create a mitsuba mesh
+        '''
+        This method creates a mitsuba mesh and save it as PLY.
+        It constructs a dictionary containing the necessary info such as pointers to blender's data strucures
+        and then loads the BlenderMesh plugin via load_dict.
+
+        Params
+        ------
+        export_ctx: The export context.
+        b_mesh: The blender mesh to export.
+        matrix_world: The mesh's transform matrix.
+        b_name: The mesh name in Blender.
+        file_path: The destination path to save the file to.
+        mat_nr: The material ID to export.
+        '''
+        from mitsuba.core.xml import load_dict
+        props = {'type': 'blender'}
         b_mesh.calc_normals()
-        b_mesh.calc_loop_triangles()#compute the triangle tesselation
+        b_mesh.calc_loop_triangles() # Compute the triangle tesselation
         if mat_nr == -1:
             name = b_name
-            mat_nr=0#default value for blender
+            mat_nr=0 # Default value for blender
         else:
             name = "%s-%d" %(b_name, mat_nr)
+        props['name'] = name
         loop_tri_count = len(b_mesh.loop_triangles)
         if loop_tri_count == 0:
             export_ctx.log("Mesh: {} has no faces. Skipping.".format(name), 'WARN')
             return
+        props['loop_tri_count'] = loop_tri_count
 
-        if not b_mesh.uv_layers:
-            uv_ptr = 0#nullptr
-        else:
-            if len(b_mesh.uv_layers) > 1:
-                export_ctx.log("Mesh: '%s' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render."%name, 'WARN')
-            for uv_layer in b_mesh.uv_layers:
-                if uv_layer.active_render:#if there is only 1 UV layer, it is always active
-                    uv_ptr = uv_layer.data[0].as_pointer()
-                    break
+        if len(b_mesh.uv_layers) > 1:
+            export_ctx.log("Mesh: '%s' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render."%name, 'WARN')
+        for uv_layer in b_mesh.uv_layers:
+            if uv_layer.active_render: # If there is only 1 UV layer, it is always active
+                props['uvs'] = uv_layer.data[0].as_pointer()
+                break
 
-        if not b_mesh.vertex_colors:
-            col_ptr = 0#nullptr
-        else:
-            if len(b_mesh.vertex_colors) > 1:
-                export_ctx.log("Mesh: '%s' has multiple vertex color layers. Mitsuba only supports one. Exporting the one set active for render."%name, 'WARN')
-            for color_layer in b_mesh.vertex_colors:
-                if color_layer.active_render:#if there is only 1 UV layer, it is always active
-                    col_ptr = color_layer.data[0].as_pointer()
-                    break
+        for color_layer in b_mesh.vertex_colors:
+            props['vertex_%s' % color_layer.name] = color_layer.data[0].as_pointer()
 
-        loop_tri_ptr = b_mesh.loop_triangles[0].as_pointer()
-        loop_ptr = b_mesh.loops[0].as_pointer()
-        poly_ptr = b_mesh.polygons[0].as_pointer()
-        vert_ptr = b_mesh.vertices[0].as_pointer()
-        vert_count = len(b_mesh.vertices)#TODO: maybe avoid calling len()
-        #apply coordinate change
-        to_world = export_ctx.transform_matrix(matrix_world)
-        m_mesh = Mesh(name, loop_tri_count, loop_tri_ptr, loop_ptr,
-                        vert_count, vert_ptr, poly_ptr,
-                        uv_ptr, col_ptr, mat_nr, to_world)
-        if m_mesh.face_count() > 0:#only save complete meshes
-            m_mesh.write_ply(file_path)#save as binary ply
+        props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
+        props['loops'] = b_mesh.loops[0].as_pointer()
+        props['polys'] = b_mesh.polygons[0].as_pointer()
+        props['verts'] = b_mesh.vertices[0].as_pointer()
+        props['vert_count'] = len(b_mesh.vertices)
+        # Apply coordinate change
+        props['to_world'] = export_ctx.transform_matrix(matrix_world)
+        props['mat_nr'] = mat_nr
+        m_mesh = load_dict(props)
+
+        if m_mesh.face_count() > 0: # Only save complete meshes
+            m_mesh.write_ply(file_path) # Save as binary ply
             self.add_exported_mesh(b_name, mat_nr)
             return True
         return False
