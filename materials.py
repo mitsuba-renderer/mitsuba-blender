@@ -302,42 +302,42 @@ def export_material(export_ctx, material):
     if material is None:
         return mat_params
 
-    name = material.name
+    mat_id = "mat-%s" % material.name
 
     mat_params = b_material_to_dict(export_ctx, material)
 
     #TODO: hide emitters
-    if export_ctx.data_get(name) is not None:
+    if export_ctx.data_get(mat_id) is not None:
         #material was already exported
         return
 
-    if isinstance(mat_params, list):#Add/mix shader
+    if isinstance(mat_params, list): # Add/mix shader
         mats = {}
         for mat in mat_params:
-            if mat['type'] == 'area':#emitter
-                mats['emitter'] = mat#directly store the emitter, we don't reference emitters
+            if mat['type'] == 'area': # Emitter
+                mats['emitter'] = mat # Directly store the emitter, we don't reference emitters
             else:#bsdf
-                mat['id'] = name#only bsdfs need IDs for referencing
-                mats['bsdf'] = name
+                mat['id'] = mat_id
+                mats['bsdf'] = mat_id
                 export_ctx.data_add(mat)
-        export_ctx.exported_mats.add_material(mats, name)
+        export_ctx.exported_mats.add_material(mats, mat_id)
     else:
-        if mat_params['type'] == 'area': # emitter with no bsdf
+        if mat_params['type'] == 'area': # Emitter with no bsdf
             mats = {}
-            #we want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
-            if not export_ctx.data_get('empty-emitter-bsdf'):#we only need to add one of this, but we may have multiple emitter materials
+            # We want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
+            if not export_ctx.data_get('empty-emitter-bsdf'): # We only need to add one of this, but we may have multiple emitter materials
                 empty_bsdf = {
                     'type':'diffuse',
-                    'reflectance':export_ctx.spectrum(0.0),#no interaction with light
+                    'reflectance':export_ctx.spectrum(0.0), # No interaction with light
                     'id':'empty-emitter-bsdf'
                 }
                 export_ctx.data_add(empty_bsdf)
             mats['bsdf'] = 'empty-emitter-bsdf'
             mats['emitter'] = mat_params
-            export_ctx.exported_mats.add_material(mats, name)
-        else: # usual case
-            mat_params['id'] = name
-            export_ctx.data_add(mat_params)
+            export_ctx.exported_mats.add_material(mats, mat_id)
+
+        else: # Usual case
+            export_ctx.data_add(mat_params, mat_id)
 
 def convert_world(export_ctx, surface_node, ignore_background):
     """

@@ -27,7 +27,7 @@ class GeometryExporter:
         export_ctx: The export context.
         b_mesh: The blender mesh to export.
         matrix_world: The mesh's transform matrix.
-        b_name: The mesh name in Blender.
+        b_name: The name of the mesh in Blender
         file_path: The destination path to save the file to.
         mat_nr: The material ID to export.
         '''
@@ -39,7 +39,7 @@ class GeometryExporter:
             name = b_name
             mat_nr=0 # Default value for blender
         else:
-            name = "%s-%d" %(b_name, mat_nr)
+            name = "%s-%s" %(b_name, b_mesh.materials[mat_nr].name)
         props['name'] = name
         loop_tri_count = len(b_mesh.loop_triangles)
         if loop_tri_count == 0:
@@ -82,7 +82,7 @@ class GeometryExporter:
         if mat_nr == -1:
             name = b_object.name_full
         else:
-            name = "%s-%d" %(b_object.name_full, mat_nr)
+            name = "%s-%s" %(b_object.name_full, b_object.data.materials[mat_nr].name)
 
         relative_path = os.path.join("meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
@@ -121,7 +121,7 @@ class GeometryExporter:
                     export_ctx.data_add(default_bsdf)
                 params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
-                mat_id = b_object.data.materials[mat_nr].name
+                mat_id = "mat-%s" % b_object.data.materials[mat_nr].name
                 if export_ctx.exported_mats.has_mat(mat_id):#add one emitter *and* one bsdf
                     mixed_mat = export_ctx.exported_mats.mats[mat_id]
                     params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
@@ -131,7 +131,10 @@ class GeometryExporter:
             if object_instance.is_instance or not export_ctx.export_ids:
                 export_ctx.data_add(params)
             else:
-                export_ctx.data_add(params, name=name)
+                mesh_id = "mesh-%s" % b_object.name_full
+                if mat_nr != -1:
+                    mesh_id += "-%d" % mat_nr
+                export_ctx.data_add(params, name=mesh_id)
 
     def export_object(self, object_instance, export_ctx):
         mat_count = len(object_instance.object.data.materials)
@@ -145,14 +148,14 @@ class GeometryExporter:
 
         '''
         To avoid clutter in the XML file, we rename the mesh file if it has only one material.
-        That way, we avoid having a bunch of 'Mesh-0.ply' in the file.
+        That way, we avoid having a bunch of 'MyMesh-MyMaterial.ply' in the file.
         '''
         name = object_instance.object.name_full
         nb_mats = len(self.exported_meshes[name])
         if nb_mats == 1:
             mat_id = self.exported_meshes[name][0]
             new_name = os.path.join("meshes", "%s.ply" % name)
-            old_name = os.path.join("meshes", "%s-%d.ply" % (name, mat_id))
+            old_name = os.path.join("meshes", "%s-%s.ply" % (name, object_instance.object.data.materials[mat_id].name))
 
             old_path = os.path.join(export_ctx.directory, old_name)
             new_path = os.path.join(export_ctx.directory, new_name)
@@ -169,3 +172,6 @@ class GeometryExporter:
                 last_key = next(reversed(export_ctx.scene_data)) # get the last added key
                 assert(export_ctx.scene_data[last_key]['type'] == 'ply')
                 export_ctx.scene_data[last_key]['filename'] = new_path
+                #also rename the ID, instances have no ID
+                if not object_instance.is_instance and export_ctx.export_ids:
+                    export_ctx.scene_data[last_key]['id'] = "mesh-%s" % object_instance.object.name_full
