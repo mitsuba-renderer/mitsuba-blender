@@ -417,7 +417,7 @@ def convert_world(export_ctx, surface_node, ignore_background):
             })
 
     else:
-        raise NotImplementedError("Node type %s is not supported" % surface_node.type)
+        raise NotImplementedError("Only Background and Emission nodes are supported as final nodes for World export, got '%s'" % surface_node.name)
     if export_ctx.export_ids:
         export_ctx.data_add(params, "World")
     else:
