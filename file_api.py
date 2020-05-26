@@ -25,15 +25,12 @@ convert_format = {
 
 class ExportedMaterialsCache:
     '''
-    Store a set of exported textures
     Store a list of the exported materials, that have both a BSDF and an emitter
     We need it to add 2 refs to each shape using this material
     This is useless when a material is only one bsdf/emitter, so we won't add those.
     '''
     def __init__(self):
         self.mats = {} # the mixed materials (1 BSDF, 1 emitter)
-        self.textures = {} # {tex_path:tex_id}
-        self.tex_count = 0 # counter to give a unique name to each texture
 
     def add_material(self, mat_dict, mat_id):
         """
@@ -49,36 +46,6 @@ class ExportedMaterialsCache:
         Determine if the given material is in the cache or not
         """
         return mat_id in self.mats.keys()
-
-    def get_tex_id(self, image, path):
-        """
-        If the texture is already in the dict, return its unique name.
-        If not, save it, add it and return its unique name.
-        """
-        key = image.as_pointer()
-        try:
-            return self.textures[key]
-        except KeyError:
-            if image.file_format in convert_format.keys():
-                msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
-                FileExportContext.log(msg, 'WARN')
-                image.file_format = convert_format[image.file_format]
-
-            name = "tex-%d%s" % (self.tex_count, texture_exts[image.file_format])
-            self.tex_count += 1
-            self.textures[key] = name
-
-            target_path = os.path.join(path, name)
-            if image.packed_file: # File is packed in the blend file
-                old_filepath = image.filepath
-                image.filepath = target_path
-                image.save()
-                image.filepath = old_filepath
-            else: # File is stored.we prefer this to avoid "no image data" errors when saving
-                copy2(image.filepath_from_user(), target_path)
-            FileExportContext.log("Saved image '%s' as '%s'." % (image.name, name), 'INFO')
-            return name
-
 
 class Files:
     MAIN = 0
@@ -161,16 +128,34 @@ class FileExportContext:
 
     def export_texture(self, image):
         """
-        Copy a texture file to the Mitsuba scene folder.
-        Create the subfolder the first time this method is called
+        Return the path to a texture.
+        Ensure the image is on disk and of a correct type
 
-        tex_path : the full path to the texture
+        image : The Blender Image object
         """
-        if not os.path.isdir(self.xml_writer.textures_folder):
-            os.mkdir(self.xml_writer.textures_folder)
+        if image.packed_file or image.file_format in convert_format:
+            if image.file_format in convert_format:
+                msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
+                FileExportContext.log(msg, 'WARN')
+                image.file_format = convert_format[image.file_format]
 
-        img_name = self.exported_mats.get_tex_id(image, self.xml_writer.textures_folder)
-        return os.path.join(self.xml_writer.textures_folder, img_name)
+            original_name = os.path.basename(image.filepath)
+            if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
+                base_name, _ = os.path.splitext(original_name)
+                name = image.name.replace(original_name, base_name, 1) # Remove the extension
+                name += texture_exts[image.file_format]
+            else:
+                name = "%s%s" % (image.name, texture_exts[image.file_format])
+            target_path = os.path.join(self.xml_writer.textures_folder, name)
+            if not os.path.isdir(self.xml_writer.textures_folder):
+                os.makedirs(self.xml_writer.textures_folder)
+            old_filepath = image.filepath
+            image.filepath = target_path
+            image.save()
+            image.filepath = old_filepath
+            return target_path
+        # If not packed or converted, just store it as is, it will be copied in the XMLWriter
+        return image.filepath_from_user()
 
     def spectrum(self, value, mode='rgb'):
         '''
