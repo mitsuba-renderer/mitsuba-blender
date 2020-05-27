@@ -163,7 +163,7 @@ class GeometryExporter:
             # we can't check if the file exists already as it may be an old file with the same name,
             # so we do it like this:
             try:
-                os.rename(old_path, new_path)
+                os.replace(old_path, new_path)
             except FileNotFoundError: #the mesh was already renamed
                 pass
 
