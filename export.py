@@ -111,6 +111,10 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx.export_ids = self.export_ids
         self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
 
+        # Switch to object mode before exporting stuff, so everything is defined properly
+        if bpy.ops.object.mode_set.poll():
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         integrator = {
             'type':'path',
             'max_depth': context.scene.cycles.max_bounces
