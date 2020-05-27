@@ -12,9 +12,9 @@ from .camera import export_camera
 
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
-def get_python_path():
-    #try to get the path to mitsuba python lib with the env var
-    tokens = os.getenv('PYTHONPATH')
+def get_mitsuba_path():
+    # Try to get the path to the Mitsuba 2 root folder
+    tokens = os.getenv('MITSUBA_DIR')
     if tokens:
         for token in tokens.split(':'):
             if os.path.isdir(token):
@@ -25,15 +25,16 @@ class MitsubaPrefs(AddonPreferences):
 
     bl_idname = __package__
 
-    python_path: StringProperty(
-        name="Path to Mitsuba 2 python library",
+    mitsuba_path: StringProperty(
+        name="Path",
+        description="Path to the Mitsuba 2 root folder",
         subtype='DIR_PATH',
-        default=get_python_path()
+        default=get_mitsuba_path()
         )
 
     def draw(self, context):
         layout = self.layout
-        layout.prop(self, "python_path")
+        layout.prop(self, "mitsuba_path")
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
 class MitsubaFileExport(Operator, ExportHelper):
@@ -75,9 +76,25 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx = FileExportContext()
         self.geometry_exporter = GeometryExporter()
 
+    def set_path(self, mts_root):
+        '''
+        Set the different variables necessary to run the addon properly.
+        Add the path to mitsuba binaries to the PATH env var.
+        Append the path to the python libs to sys.path
+
+        Params
+        ------
+
+        mts_root: Path to mitsuba 2 root folder.
+        '''
+        os.environ['PATH'] += os.pathsep + os.path.join(mts_root, 'dist')
+        os.environ['PATH'] += os.pathsep + os.path.join(mts_root, 'build', 'dist')
+        sys.path.append(os.path.join(mts_root, 'dist', 'python'))
+        sys.path.append(os.path.join(mts_root, 'build', 'dist', 'python'))
+
     def execute(self, context):
         # set path to mitsuba
-        sys.path.append(bpy.path.abspath(self.prefs.python_path))
+        self.set_path(bpy.path.abspath(self.prefs.mitsuba_path))
         # Make sure we can load mitsuba from blender
         try:
             import mitsuba
