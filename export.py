@@ -17,8 +17,9 @@ def get_mitsuba_path():
     tokens = os.getenv('MITSUBA_DIR')
     if tokens:
         for token in tokens.split(':'):
-            if os.path.isdir(token):
-                return token
+            path = os.path.join(token, 'build')
+            if os.path.isdir(path):
+                return path
     return ""
 
 class MitsubaPrefs(AddonPreferences):
@@ -26,8 +27,8 @@ class MitsubaPrefs(AddonPreferences):
     bl_idname = __package__
 
     mitsuba_path: StringProperty(
-        name="Path",
-        description="Path to the Mitsuba 2 root folder",
+        name="Build Path",
+        description="Path to the Mitsuba 2 build directory",
         subtype='DIR_PATH',
         default=get_mitsuba_path()
         )
@@ -76,7 +77,7 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.export_ctx = FileExportContext()
         self.geometry_exporter = GeometryExporter()
 
-    def set_path(self, mts_root):
+    def set_path(self, mts_build):
         '''
         Set the different variables necessary to run the addon properly.
         Add the path to mitsuba binaries to the PATH env var.
@@ -85,12 +86,10 @@ class MitsubaFileExport(Operator, ExportHelper):
         Params
         ------
 
-        mts_root: Path to mitsuba 2 root folder.
+        mts_build: Path to mitsuba 2 build folder.
         '''
-        os.environ['PATH'] += os.pathsep + os.path.join(mts_root, 'dist')
-        os.environ['PATH'] += os.pathsep + os.path.join(mts_root, 'build', 'dist')
-        sys.path.append(os.path.join(mts_root, 'dist', 'python'))
-        sys.path.append(os.path.join(mts_root, 'build', 'dist', 'python'))
+        os.environ['PATH'] += os.pathsep + os.path.join(mts_build, 'dist')
+        sys.path.append(os.path.join(mts_build, 'dist', 'python'))
 
     def execute(self, context):
         # set path to mitsuba

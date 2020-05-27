@@ -19,7 +19,7 @@ There are two independent ways of installing the addon, depending on your needs:
 - In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**
 - Select the downloaded archive
 - Enable the Add-on:
-	- Point `Path` to Mitsuba 2's main directory. If the environment variable `MITSUBA_DIR` was set (cf. Mitsuba 2 install instructions), this field will automatically be filled with the path it contains.
+	- Point `Path` to Mitsuba 2's build directory. If the environment variable `MITSUBA_DIR` was set (cf. Mitsuba 2 install instructions), this field will automatically be filled with the path it contains.
 
 :warning: If you can't find the add-on in the add-ons list, make sure the *Testing* category is selected.
 
@@ -31,6 +31,8 @@ There are a couple ways to keep up to date with the repository without doing the
   	- MacOS: `/Users/$USER/Library/Application Support/Blender/2.82/scripts/addons/`
   	- Windows: `%USERPROFILE%\AppData\Roaming\Blender Foundation\Blender\2.82\scripts\addons`
 - Alternatively, create a directory called `addons` in the location of your work and clone this repository there. Then specify the path to the parent folder of the `addons` directory in the preferences in Blender ( **Edit** -> **Preferences** -> **File Paths** -> **Scripts**).  For more detailed information, see [here](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html#rd-party-add-ons).
+
+After that, follow the same procedure as option #1
 
 Make sure you restart Blender to update the Add-on.
 
