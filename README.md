@@ -20,6 +20,7 @@ There are two independent ways of installing the addon, depending on your needs:
 - Select the downloaded archive
 - Enable the Add-on:
 	- Point `Path` to Mitsuba 2's build directory. If the environment variable `MITSUBA_DIR` was set (cf. Mitsuba 2 install instructions), this field will automatically be filled with the path it contains.
+- Save the preferences. The **Save Preferences** button is in a menu in the bottom left corner of the preferences window.
 
 :warning: If you can't find the add-on in the add-ons list, make sure the *Testing* category is selected.
 
