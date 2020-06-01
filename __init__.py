@@ -12,6 +12,7 @@ bl_info = {
 
 import bpy
 import os
+import sys
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
 from . import export, engine

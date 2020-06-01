@@ -1,4 +1,6 @@
 import bpy
+import os
+import sys
 from .export import MitsubaFileExport
 
 def menu_func(self, context):
