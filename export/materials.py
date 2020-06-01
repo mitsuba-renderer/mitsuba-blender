@@ -1,6 +1,6 @@
 import numpy as np
 from mathutils import Matrix
-from .file_api import Files
+from .export_context import Files
 
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported

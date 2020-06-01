@@ -14,7 +14,7 @@ import bpy
 import os
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
-from . import export
+from . import export, engine
 #from export import MitsubaFileExport, MitsubaPrefs
 
 def get_mitsuba_path():
@@ -45,10 +45,12 @@ class MitsubaPrefs(AddonPreferences):
 def register():
     bpy.utils.register_class(MitsubaPrefs)
     export.register()
+    engine.register()
 
 def unregister():
     bpy.utils.unregister_class(MitsubaPrefs)
     export.unregister()
+    engine.unregister()
 
 if __name__ == '__main__':
     register()

@@ -1,8 +1,8 @@
 from mathutils import Matrix
 import numpy as np
-from .file_api import Files
+from .export_context import Files
 
-def export_camera(C, camera_instance, b_scene, export_ctx):
+def export_camera(camera_instance, b_scene, export_ctx):
     #camera
     b_camera = camera_instance.object#TODO: instances here too?
     params = {}
@@ -29,9 +29,9 @@ def export_camera(C, camera_instance, b_scene, export_ctx):
     film = {}
     film['type'] = 'hdrfilm'
 
-    scale = C.scene.render.resolution_percentage / 100
-    film['width'] = int(C.scene.render.resolution_x * scale)
-    film['height'] = int(C.scene.render.resolution_y * scale)
+    scale = b_scene.render.resolution_percentage / 100
+    film['width'] = int(b_scene.render.resolution_x * scale)
+    film['height'] = int(b_scene.render.resolution_y * scale)
 
     params['film'] = film
 

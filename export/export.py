@@ -5,12 +5,7 @@ import os
 from os.path import basename, dirname
 import sys
 
-from .file_api import FileExportContext, Files
-from .materials import export_world
-from .geometry import GeometryExporter
-from .lights import export_light
-from .camera import export_camera
-
+from .convert import SceneConverter
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
 
@@ -54,8 +49,7 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.prefs = bpy.context.preferences.addons[addon_name].preferences
 
     def reset(self):
-        self.export_ctx = FileExportContext()
-        self.geometry_exporter = GeometryExporter()
+        self.converter = SceneConverter()
 
     def set_path(self, mts_build):
         '''
@@ -87,51 +81,15 @@ class MitsubaFileExport(Operator, ExportHelper):
 	            to_forward=self.axis_forward,
 	            to_up=self.axis_up,
 	        ).to_4x4()
-        self.export_ctx.axis_mat = axis_mat
-        self.export_ctx.export_ids = self.export_ids
-        self.export_ctx.set_filename(self.filepath, split_files=self.split_files)
+        self.converter.export_ctx.axis_mat = axis_mat
+        # Add IDs to all base plugins (shape, emitter, sensor...)
+        self.converter.export_ctx.export_ids = self.export_ids
+        #Set path to scene .xml file
+        self.converter.set_filename(self.filepath, split_files=self.split_files)
 
-        # Switch to object mode before exporting stuff, so everything is defined properly
-        if bpy.ops.object.mode_set.poll():
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        integrator = {
-            'type':'path',
-            'max_depth': context.scene.cycles.max_bounces
-            }
-        self.export_ctx.data_add(integrator)
-
-        depsgraph = context.evaluated_depsgraph_get()#TODO: get RENDER evaluated depsgraph (not implemented)
-        b_scene = context.scene #TODO: what if there are multiple scenes?
-        export_world(self.export_ctx, b_scene.world, self.ignore_background)
-
-        #main export loop
-        for object_instance in depsgraph.object_instances:
-            if self.use_selection:
-                #skip if it's not selected or if it's an instance and the parent object is not selected
-                if not object_instance.is_instance and not object_instance.object.original.select_get():
-                    continue
-                if object_instance.is_instance and not object_instance.object.parent.original.select_get():
-                    continue
-
-            evaluated_obj = object_instance.object
-            object_type = evaluated_obj.type
-            #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
-            if evaluated_obj.hide_render or object_instance.is_instance and evaluated_obj.parent.original.hide_render:
-                self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
-                continue#ignore it since we don't want it rendered (TODO: hide_viewport)
-
-            if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
-                self.geometry_exporter.export_object(object_instance, self.export_ctx)
-            elif object_type == 'CAMERA':
-                export_camera(context, object_instance, b_scene, self.export_ctx)#TODO: investigate multiple scenes and multiple cameras at same time
-            elif object_type == 'LIGHT':
-                export_light(object_instance, self.export_ctx)
-            else:
-                self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
-
+        self.converter.scene_to_dict(context.evaluated_depsgraph_get())
         #write data to scene .xml file
-        self.export_ctx.write()
+        self.converter.dict_to_xml()
         #reset the exporter
         self.reset()
         return {'FINISHED'}
