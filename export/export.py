@@ -2,6 +2,7 @@ import bpy
 from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, BoolProperty
 import os
+from os.path import basename, dirname
 import sys
 
 from .file_api import FileExportContext, Files
@@ -12,30 +13,6 @@ from .camera import export_camera
 
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
-def get_mitsuba_path():
-    # Try to get the path to the Mitsuba 2 root folder
-    tokens = os.getenv('MITSUBA_DIR')
-    if tokens:
-        for token in tokens.split(':'):
-            path = os.path.join(token, 'build')
-            if os.path.isdir(path):
-                return path
-    return ""
-
-class MitsubaPrefs(AddonPreferences):
-
-    bl_idname = __package__
-
-    mitsuba_path: StringProperty(
-        name="Build Path",
-        description="Path to the Mitsuba 2 build directory",
-        subtype='DIR_PATH',
-        default=get_mitsuba_path()
-        )
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(self, "mitsuba_path")
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
 class MitsubaFileExport(Operator, ExportHelper):
@@ -71,7 +48,10 @@ class MitsubaFileExport(Operator, ExportHelper):
 
     def __init__(self):
         self.reset()
-        self.prefs = bpy.context.preferences.addons[__package__].preferences
+        # addon_name must match the addon main folder name
+        # Use dirname() to go up the necessary amount of folders
+        addon_name = basename(dirname(dirname(__file__)))
+        self.prefs = bpy.context.preferences.addons[addon_name].preferences
 
     def reset(self):
         self.export_ctx = FileExportContext()

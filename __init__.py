@@ -11,20 +11,44 @@ bl_info = {
 }
 
 import bpy
-from .export import MitsubaFileExport, MitsubaPrefs
+import os
+from bpy.props import StringProperty
+from bpy.types import AddonPreferences
+from . import export
+#from export import MitsubaFileExport, MitsubaPrefs
 
-def menu_func(self, context):
-    self.layout.operator(MitsubaFileExport.bl_idname, text="Mitsuba 2 (.xml)")
+def get_mitsuba_path():
+    # Try to get the path to the Mitsuba 2 root folder
+    tokens = os.getenv('MITSUBA_DIR')
+    if tokens:
+        for token in tokens.split(':'):
+            path = os.path.join(token, 'build')
+            if os.path.isdir(path):
+                return path
+    return ""
+
+class MitsubaPrefs(AddonPreferences):
+
+    bl_idname = __name__
+
+    mitsuba_path: StringProperty(
+        name="Build Path",
+        description="Path to the Mitsuba 2 build directory",
+        subtype='DIR_PATH',
+        default=get_mitsuba_path()
+        )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "mitsuba_path")
 
 def register():
-    bpy.utils.register_class(MitsubaFileExport)
     bpy.utils.register_class(MitsubaPrefs)
-    bpy.types.TOPBAR_MT_file_export.append(menu_func)
+    export.register()
 
 def unregister():
-    bpy.utils.unregister_class(MitsubaFileExport)
     bpy.utils.unregister_class(MitsubaPrefs)
-    bpy.types.TOPBAR_MT_file_export.remove(menu_func)
+    export.unregister()
 
 if __name__ == '__main__':
     register()
