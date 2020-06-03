@@ -10,11 +10,20 @@ class GeometryExporter:
     def __init__(self):
         self.exported_meshes = {} # dict containing entries like mesh_name : [exported materials]
 
-    def add_exported_mesh(self, name, mat_nr):
+    def add_exported_mesh(self, name, name_export):
+        '''
+        Store the list of exported subparts for each mesh
+
+        Params
+        ------
+
+        name: Name of the full mesh in Blender
+        name_export: Name of the exported subpart
+        '''
         if name in self.exported_meshes.keys():
-            self.exported_meshes[name].append(mat_nr)
+            self.exported_meshes[name].append(name_export)
         else:
-            self.exported_meshes.update({name:[mat_nr]})
+            self.exported_meshes.update({name:[name_export]})
 
     def save_mesh(self, export_ctx, b_mesh, matrix_world, b_name, file_path, mat_nr):
         '''
@@ -69,7 +78,7 @@ class GeometryExporter:
 
         if m_mesh.face_count() > 0: # Only save complete meshes
             m_mesh.write_ply(file_path) # Save as binary ply
-            self.add_exported_mesh(b_name, mat_nr)
+            self.add_exported_mesh(b_name, name)
             return True
         return False
 
@@ -87,7 +96,7 @@ class GeometryExporter:
         relative_path = os.path.join("meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
 
-        if not object_instance.is_instance or b_object.name_full not in self.exported_meshes.keys() or mat_nr not in self.exported_meshes[b_object.name_full]:
+        if not object_instance.is_instance or b_object.name_full not in self.exported_meshes.keys() or name not in self.exported_meshes[b_object.name_full]:
             #save the mesh once, if it's not an instance, or if it's an instance and the original object was not exported
             if b_object.type != 'MESH':
                 b_mesh = b_object.to_mesh()
@@ -100,7 +109,7 @@ class GeometryExporter:
 
         if object_instance.is_instance or not b_object.parent or not b_object.parent.is_instancer:
             #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
-            if mat_nr!=-1 and mat_nr not in self.exported_meshes[b_object.name_full]:
+            if mat_nr!=-1 and name not in self.exported_meshes[b_object.name_full]:
                 return
             params = {'type':'ply'}
             params['filename'] = abs_path
@@ -153,9 +162,9 @@ class GeometryExporter:
         name = object_instance.object.name_full
         nb_mats = len(self.exported_meshes[name])
         if nb_mats == 1:
-            mat_id = self.exported_meshes[name][0]
+            name_export = self.exported_meshes[name][0]
             new_name = os.path.join("meshes", "%s.ply" % name)
-            old_name = os.path.join("meshes", "%s-%s.ply" % (name, object_instance.object.data.materials[mat_id].name))
+            old_name = os.path.join("meshes", "%s.ply" % name_export)
 
             old_path = os.path.join(export_ctx.directory, old_name)
             new_path = os.path.join(export_ctx.directory, new_name)
