@@ -8,24 +8,6 @@ import sys
 from .convert import SceneConverter
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
 
-def set_path():
-    '''
-    Set the different variables necessary to run the addon properly.
-    Add the path to mitsuba binaries to the PATH env var.
-    Append the path to the python libs to sys.path
-    '''
-    addon_name = basename(dirname(dirname(__file__)))
-    mts_build = bpy.path.abspath(bpy.context.preferences.addons[addon_name].preferences.mitsuba_path)
-    os.environ['PATH'] += os.pathsep + os.path.join(mts_build, 'dist')
-    sys.path.append(os.path.join(mts_build, 'dist', 'python'))
-    print(mts_build)
-    # Make sure we can load mitsuba from blender
-    try:
-        import mitsuba
-        mitsuba.set_variant('scalar_rgb')
-        return True
-    except ModuleNotFoundError:
-        return False
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
 class MitsubaFileExport(Operator, ExportHelper):
@@ -60,35 +42,16 @@ class MitsubaFileExport(Operator, ExportHelper):
     )
 
     def __init__(self):
-        self.reset()
         # addon_name must match the addon main folder name
         # Use dirname() to go up the necessary amount of folders
         addon_name = basename(dirname(dirname(__file__)))
         self.prefs = bpy.context.preferences.addons[addon_name].preferences
+        self.reset()
 
     def reset(self):
         self.converter = SceneConverter()
 
-    def set_path(self, mts_build):
-        '''
-        Set the different variables necessary to run the addon properly.
-        Add the path to mitsuba binaries to the PATH env var.
-        Append the path to the python libs to sys.path
-
-        Params
-        ------
-
-        mts_build: Path to mitsuba 2 build folder.
-        '''
-        os.environ['PATH'] += os.pathsep + os.path.join(mts_build, 'dist')
-        sys.path.append(os.path.join(mts_build, 'dist', 'python'))
-
     def execute(self, context):
-        # set path to mitsuba
-        if not set_path():
-            self.report({'ERROR'}, "Importing Mitsuba failed. Please verify the path to the library in the addon preferences.")
-            return {'CANCELLED'}
-
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
 	            to_forward=self.axis_forward,

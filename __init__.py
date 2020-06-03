@@ -32,26 +32,142 @@ class MitsubaPrefs(AddonPreferences):
 
     bl_idname = __name__
 
-    mitsuba_path: StringProperty(
+    mitsuba_path : StringProperty(
         name="Build Path",
         description="Path to the Mitsuba 2 build directory",
         subtype='DIR_PATH',
         default=get_mitsuba_path()
         )
 
+    ok_msg : StringProperty(
+        name = "Message",
+        default = "",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+        )
+
+    error_msg : StringProperty(
+        name = "Error Message",
+        default = "",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+        )
+
+    os_path : StringProperty(
+        name = "Addition to PATH",
+        default="",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+    )
+
+    python_path : StringProperty(
+        name = "Addition to sys.path",
+        default="",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+    )
+
     def draw(self, context):
         layout = self.layout
+        if self.error_msg:
+            sub = layout.row()
+            sub.alert = True
+            sub.label(text=self.error_msg, icon='ERROR')
+        if self.ok_msg:
+            sub = layout.row()
+            sub.label(text=self.ok_msg, icon='CHECKMARK')
         layout.prop(self, "mitsuba_path")
+        layout.operator("mitsuba.reload")
+
+def set_path(context):
+    '''
+    Set the different variables necessary to run the addon properly.
+    Add the path to mitsuba binaries to the PATH env var.
+    Append the path to the python libs to sys.path
+    '''
+    prefs = context.preferences.addons[__name__].preferences
+    mts_build = bpy.path.abspath(prefs.mitsuba_path)
+    # Add path to the binaries to the system PATH
+    prefs.os_path = os.path.join(mts_build, 'dist')
+    os.environ['PATH'] += os.pathsep + prefs.os_path
+    # Add path to python libs to sys.path
+    prefs.python_path = os.path.join(mts_build, 'dist', 'python')
+    sys.path.append(prefs.python_path)
+    # Make sure we can load mitsuba from blender
+    try:
+        reload_mitsuba = 'mitsuba' in sys.modules
+        import mitsuba
+        # If mitsuba was already loaded and we change the path, we need to reload it, since the import above will be ignored
+        if reload_mitsuba:
+            import importlib
+            importlib.reload(mitsuba)
+        mitsuba.set_variant('scalar_rgb')
+        return True
+    except ModuleNotFoundError:
+        return False
+
+def try_registering(context):
+    '''
+    Only register Addon Classes if mitsuba can be found.
+
+    Params
+    ------
+
+    context: Blender context
+    '''
+    prefs = context.preferences.addons[__name__].preferences
+    prefs.ok_msg = ''
+    prefs.error_msg = ''
+    if set_path(context):
+        export.register()
+        engine.register()
+        # Mitsuba was found, set the global threading environment
+        from mitsuba.core import ThreadEnvironment
+        bpy.types.Scene.thread_env = ThreadEnvironment()
+        prefs.ok_msg = "Found Mitsuba"
+        return True
+    else:
+        prefs.error_msg = "Failed to import Mitsuba 2. Please verify the path to the build directory."
+        return False
+
+def try_unregistering():
+    '''
+    Try unregistering Addon classes.
+    This may fail if Mitsuba wasn't found, hence the try catch guard
+    '''
+    try:
+        export.unregister()
+        engine.unregister()
+        return True
+    except RuntimeError:
+        return False
+
+class ReloadMitsuba(bpy.types.Operator):
+    bl_idname = "mitsuba.reload"
+    bl_label = "Reload"
+    bl_description = "Reload the Add-On"
+
+    def execute(self, context):
+        try_unregistering()
+        prefs = context.preferences.addons[__name__].preferences
+        # Remove what we added in set_path
+        if prefs.python_path in sys.path:
+            sys.path.remove(prefs.python_path)
+        if prefs.os_path in os.environ['PATH']:
+            items = os.environ['PATH'].split(os.pathsep)
+            items.remove(prefs.os_path)
+            os.environ['PATH'] = os.pathsep.join(items)
+
+        if try_registering(context):
+            bpy.ops.wm.save_userpref() #Save the working path
+        return {'FINISHED'}
+
 
 def register():
+    bpy.utils.register_class(ReloadMitsuba)
     bpy.utils.register_class(MitsubaPrefs)
-    export.register()
-    engine.register()
+    try_registering(bpy.context)
 
 def unregister():
+    bpy.utils.unregister_class(ReloadMitsuba)
     bpy.utils.unregister_class(MitsubaPrefs)
-    export.unregister()
-    engine.unregister()
+    try_unregistering()
 
 if __name__ == '__main__':
     register()

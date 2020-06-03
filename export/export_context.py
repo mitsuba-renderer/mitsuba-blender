@@ -97,8 +97,7 @@ class ExportContext:
     def data_get(self, name):
         return self.scene_data.get(name)
 
-    @staticmethod
-    def log(message, level='INFO'):
+    def log(self, message, level='INFO'):
         '''
         Log something using mitsuba's logging API
 
@@ -131,7 +130,7 @@ class ExportContext:
         if image.packed_file or image.file_format in convert_format:
             if image.file_format in convert_format:
                 msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
-                ExportContext.log(msg, 'WARN')
+                self.log(msg, 'WARN')
                 image.file_format = convert_format[image.file_format]
 
             original_name = os.path.basename(image.filepath)
