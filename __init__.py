@@ -28,53 +28,6 @@ def get_mitsuba_path():
                 return path
     return ""
 
-class MitsubaPrefs(AddonPreferences):
-
-    bl_idname = __name__
-
-    mitsuba_path : StringProperty(
-        name="Build Path",
-        description="Path to the Mitsuba 2 build directory",
-        subtype='DIR_PATH',
-        default=get_mitsuba_path()
-        )
-
-    ok_msg : StringProperty(
-        name = "Message",
-        default = "",
-        options = {'HIDDEN', 'SKIP_SAVE'}
-        )
-
-    error_msg : StringProperty(
-        name = "Error Message",
-        default = "",
-        options = {'HIDDEN', 'SKIP_SAVE'}
-        )
-
-    os_path : StringProperty(
-        name = "Addition to PATH",
-        default="",
-        options = {'HIDDEN', 'SKIP_SAVE'}
-    )
-
-    python_path : StringProperty(
-        name = "Addition to sys.path",
-        default="",
-        options = {'HIDDEN', 'SKIP_SAVE'}
-    )
-
-    def draw(self, context):
-        layout = self.layout
-        if self.error_msg:
-            sub = layout.row()
-            sub.alert = True
-            sub.label(text=self.error_msg, icon='ERROR')
-        if self.ok_msg:
-            sub = layout.row()
-            sub.label(text=self.ok_msg, icon='CHECKMARK')
-        layout.prop(self, "mitsuba_path")
-        layout.operator("mitsuba.reload")#TODO: add this in update() of mitsuba path prop
-
 def set_path(context):
     '''
     Set the different variables necessary to run the addon properly.
@@ -138,34 +91,72 @@ def try_unregistering():
     except RuntimeError:
         return False
 
-class ReloadMitsuba(bpy.types.Operator):
-    bl_idname = "mitsuba.reload"
-    bl_label = "Reload"
-    bl_description = "Reload the Add-On"
+def reload_mts(self, context):
+    try_unregistering()
+    prefs = context.preferences.addons[__name__].preferences
+    # Remove what we added in set_path
+    if prefs.python_path in sys.path:
+        sys.path.remove(prefs.python_path)
+    if prefs.os_path in os.environ['PATH']:
+        items = os.environ['PATH'].split(os.pathsep)
+        items.remove(prefs.os_path)
+        os.environ['PATH'] = os.pathsep.join(items)
 
-    def execute(self, context):
-        try_unregistering()
-        prefs = context.preferences.addons[__name__].preferences
-        # Remove what we added in set_path
-        if prefs.python_path in sys.path:
-            sys.path.remove(prefs.python_path)
-        if prefs.os_path in os.environ['PATH']:
-            items = os.environ['PATH'].split(os.pathsep)
-            items.remove(prefs.os_path)
-            os.environ['PATH'] = os.pathsep.join(items)
+    if try_registering(context):
+        bpy.ops.wm.save_userpref() #Save the working path
 
-        if try_registering(context):
-            bpy.ops.wm.save_userpref() #Save the working path
-        return {'FINISHED'}
+class MitsubaPrefs(AddonPreferences):
 
+    bl_idname = __name__
+
+    mitsuba_path : StringProperty(
+        name="Build Path",
+        description="Path to the Mitsuba 2 build directory",
+        subtype='DIR_PATH',
+        default=get_mitsuba_path(),
+        update=reload_mts
+        )
+
+    ok_msg : StringProperty(
+        name = "Message",
+        default = "",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+        )
+
+    error_msg : StringProperty(
+        name = "Error Message",
+        default = "",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+        )
+
+    os_path : StringProperty(
+        name = "Addition to PATH",
+        default="",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+    )
+
+    python_path : StringProperty(
+        name = "Addition to sys.path",
+        default="",
+        options = {'HIDDEN', 'SKIP_SAVE'}
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        if self.error_msg:
+            sub = layout.row()
+            sub.alert = True
+            sub.label(text=self.error_msg, icon='ERROR')
+        if self.ok_msg:
+            sub = layout.row()
+            sub.label(text=self.ok_msg, icon='CHECKMARK')
+        layout.prop(self, "mitsuba_path")
 
 def register():
-    bpy.utils.register_class(ReloadMitsuba)
     bpy.utils.register_class(MitsubaPrefs)
     try_registering(bpy.context)
 
 def unregister():
-    bpy.utils.unregister_class(ReloadMitsuba)
     bpy.utils.unregister_class(MitsubaPrefs)
     try_unregistering()
 
