@@ -67,8 +67,11 @@ class ExportContext:
         self.exported_mats = ExportedMaterialsCache()
         self.export_ids = False # Export Object IDs in the XML file
         self.exported_ids = set()
+        # All the args defined below are set in the Converter
         self.directory = ''
-        self.axis_mat = Matrix() # Coordinate shift, overwritten in main export method
+        self.axis_mat = Matrix() # Coordinate shift
+        self.textures_folder = ''
+        self.deg = None # Dependency graph
 
     def data_add(self, mts_dict, name=''):
         '''
@@ -201,7 +204,6 @@ class ExportContext:
         Apply coordinate shift and convert to a mitsuba Transform 4f
         '''
         from mitsuba.core import Transform4f
-
         if len(matrix) == 4:
             mat = self.axis_mat @ matrix
         else: #3x3

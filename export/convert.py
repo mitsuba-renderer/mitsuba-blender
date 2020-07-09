@@ -32,11 +32,15 @@ class SceneConverter:
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
+        self.export_ctx.deg = depsgraph
 
         b_scene = depsgraph.scene #TODO: what if there are multiple scenes?
-        integrator = {
-            'type':'path',
-            'max_depth': b_scene.cycles.max_bounces
+        if b_scene.render.engine == 'MITSUBA2':
+            integrator = getattr(b_scene.mitsuba.available_integrators,b_scene.mitsuba.active_integrator).to_dict()
+        else:
+            integrator = {
+                'type':'path',
+                'max_depth': b_scene.cycles.max_bounces
             }
         self.export_ctx.data_add(integrator)
 

@@ -1,0 +1,58 @@
+{
+    "box" : {
+        "label" : "Box",
+        "description" : "Box reconstruction filter."
+    },
+    "tent" : {
+        "label" : "Tent",
+        "description" : "Simple triangular reconstruction filter."
+    },
+    "gaussian" : {
+        "label" : "Gaussian",
+        "description" : "Windowed gaussian reconstruction filter.",
+        "parameters" : {
+            "stddev" : {
+                "label" : "Standard Deviation",
+                "description" : "Standard deviation of the gaussian.",
+                "type" : "float",
+                "default" : 0.5,
+                "min" : 0.0
+            }
+        }
+    },
+    "mitchell" : {
+        "label" : "Mitchell",
+        "description" : "Separable cubic spline reconstruction filter.",
+        "parameters" : {
+            "B" : {
+                "label" : "B",
+                "description" : "Value of the B parameter defined in the original paper.",
+                "type" : "float",
+                "default" : 0.333333
+            },
+            "C" : {
+                "label" : "C",
+                "description" : "Value of the C parameter defined in the original paper.",
+                "type" : "float",
+                "default" : 0.333333
+            }
+        }
+    },
+    "catmullrom" : {
+        "label" : "Catmull-Rom",
+        "description" : "Mitchell filter matching a Catmull-Rom spline."
+    },
+    "lanczos" : {
+        "label" : "Lanczos",
+        "description" : "Windowed version of the theoretically optimal low-pass filter.",
+        "parameters" : {
+            "lobes" : {
+                "label" : "Lobes",
+                "description" : "sets the dnumber of filter side-lobes.",
+                "type" : "integer",
+                "default" : 3,
+                "min" : 1
+            }
+        }
+    }
+}

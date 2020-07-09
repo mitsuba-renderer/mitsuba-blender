@@ -73,7 +73,7 @@ class MitsubaPrefs(AddonPreferences):
             sub = layout.row()
             sub.label(text=self.ok_msg, icon='CHECKMARK')
         layout.prop(self, "mitsuba_path")
-        layout.operator("mitsuba.reload")
+        layout.operator("mitsuba.reload")#TODO: add this in update() of mitsuba path prop
 
 def set_path(context):
     '''

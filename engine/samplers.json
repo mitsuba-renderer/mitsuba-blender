@@ -1,0 +1,21 @@
+{
+    "independent" : {
+        "label" : "Independent",
+        "description" : "Produces independent and uniformly distributed samples.",
+        "parameters" : {
+            "sample_count" : {
+                "label" : "Sample Count",
+                "description" : "Number of samples per pixel.",
+                "type" : "integer",
+                "default" : 4,
+                "min" : 1
+            },
+            "seed" : {
+                "label" : "Seed",
+                "description" : "Seed offset.",
+                "type" : "integer",
+                "default" : 0
+            }
+        }
+    }
+}

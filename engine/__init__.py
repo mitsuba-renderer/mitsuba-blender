@@ -19,11 +19,15 @@ def get_panels():
     return panels
 
 def register():
+    from . import properties
+    properties.register()
     bpy.utils.register_class(MitsubaRenderEngine)
     for panel in get_panels():
         panel.COMPAT_ENGINES.add('MITSUBA2')
 
 def unregister():
+    from . import properties
+    properties.unregister()
     bpy.utils.unregister_class(MitsubaRenderEngine)
     for panel in get_panels():
         if 'MITSUBA2' in panel.COMPAT_ENGINES:

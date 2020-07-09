@@ -29,9 +29,9 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
     # small preview for materials, world and lights.
     def render(self, depsgraph):
         from mitsuba import set_variant
-        set_variant('scalar_rgb') # TODO: let the user choose
-        from mitsuba.core import Bitmap, Struct, ScopedSetThreadEnvironment
         b_scene = depsgraph.scene
+        set_variant(b_scene.mitsuba.variant)
+        from mitsuba.core import Bitmap, Struct, ScopedSetThreadEnvironment
         with ScopedSetThreadEnvironment(b_scene.thread_env):
             scale = b_scene.render.resolution_percentage / 100.0
             self.size_x = int(b_scene.render.resolution_x * scale)
@@ -46,16 +46,11 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
 
             sensor = mts_scene.sensors()[0] # TODO: only export the camera used for render in this case
             mts_scene.integrator().render(mts_scene, sensor)
-            render = np.array(sensor.film().bitmap(raw=True).convert(Bitmap.PixelFormat.RGBA, Struct.Type.Float32, srgb_gamma=False))
+            render = sensor.film().bitmap()
+            render_pixels = np.array(render.convert(Bitmap.PixelFormat.RGBA, Struct.Type.Float32, srgb_gamma=False))
             # Here we write the pixel values to the RenderResult
             result = self.begin_result(0, 0, self.size_x, self.size_y)
             layer = result.layers[0].passes["Combined"]
 
-            layer.rect = np.flip(render,0).reshape((self.size_x*self.size_y, 4))
+            layer.rect = np.flip(render_pixels,0).reshape((self.size_x*self.size_y, 4))
             self.end_result(result)
-            """
-            from mitsuba.core import Thread
-            Thread.thread().set_logger(None)
-            Thread.thread().set_file_resolver(None)
-            Thread.unregister_external_thread()
-            """

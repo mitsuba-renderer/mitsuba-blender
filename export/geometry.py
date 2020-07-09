@@ -97,7 +97,8 @@ class GeometryExporter:
         abs_path = os.path.join(export_ctx.directory, relative_path)
 
         if not object_instance.is_instance or b_object.name_full not in self.exported_meshes.keys() or name not in self.exported_meshes[b_object.name_full]:
-            #save the mesh once, if it's not an instance, or if it's an instance and the original object was not exported
+            # Save the mesh once, if it's not an instance, or if it's an instance and the original object was not exported
+            # TODO: If we are in render mode, each instance has to be treated as a separate mesh.
             if b_object.type != 'MESH':
                 b_mesh = b_object.to_mesh()
             else:
@@ -118,6 +119,8 @@ class GeometryExporter:
                 original_transform = export_ctx.axis_mat @ b_object.matrix_world
                 # remove the instancer object transform, apply the instance transform and shift coordinates
                 params['to_world'] = export_ctx.transform_matrix(object_instance.matrix_world @ original_transform.inverted())
+
+                    # params['to_world'] = export_ctx.transform_matrix(b_object.matrix_world)
             #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
 
             if mat_nr == -1:#default bsdf
