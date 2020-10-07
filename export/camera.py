@@ -35,18 +35,20 @@ def export_camera(camera_instance, b_scene, export_ctx):
     film['width'] = int(b_scene.render.resolution_x * scale)
     film['height'] = int(b_scene.render.resolution_y * scale)
 
-    params['film'] = film
 
     if b_scene.render.engine == 'MITSUBA2':
-        params['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
+        film['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
     elif b_scene.render.engine == 'CYCLES':
         if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':
-            params['rfilter'] = {
+            film['rfilter'] = {
                 'type': 'gaussian',
                 'stddev' : b_scene.cycles.filter_width
             }
         elif b_scene.cycles.pixel_filter_type == 'BOX':
-            params['rfilter'] = {'type' : 'box'}
+            film['rfilter'] = {'type' : 'box'}
+
+    params['film'] = film
+
     if export_ctx.export_ids:
         export_ctx.data_add(params, name=b_camera.name_full)
     else:
