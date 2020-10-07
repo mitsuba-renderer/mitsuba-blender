@@ -203,9 +203,9 @@ class ExportContext:
         '''
         Apply coordinate shift and convert to a mitsuba Transform 4f
         '''
-        from mitsuba.core import Transform4f
+        from mitsuba.core import ScalarTransform4f
         if len(matrix) == 4:
             mat = self.axis_mat @ matrix
         else: #3x3
             mat = matrix.to_4x4()
-        return Transform4f(list([list(x) for x in mat]))
+        return ScalarTransform4f(list([list(x) for x in mat]))
