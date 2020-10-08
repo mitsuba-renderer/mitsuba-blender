@@ -171,6 +171,9 @@ def convert_emitter_materials_cycles(export_ctx, current_node):
 
     else:
         radiance = [x * radiance for x in current_node.inputs["Color"].default_value[:]]
+        if np.sum(radiance) == 0:
+            export_ctx.log("Emitter has zero emission, this will case mitsuba to fail! Ignoring it.", 'WARN')
+            return {'type':'diffuse', 'reflectance': export_ctx.spectrum(0)}
 
     params = {
         'type': 'area',
@@ -355,7 +358,8 @@ def convert_world(export_ctx, surface_node, ignore_background):
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
     strength = surface_node.inputs['Strength'].default_value
 
-    if strength == 0:#don't add an emitter if it emits nothing
+    if strength == 0: # Don't add an emitter if it emits nothing
+        export_ctx.log('Ignoring envmap with zero strength.', 'INFO')
         return
 
     if surface_node.type in ['BACKGROUND', 'EMISSION']:
@@ -410,6 +414,9 @@ def convert_world(export_ctx, surface_node, ignore_background):
             radiance = [x * strength for x in color[:3]]
             if ignore_background and radiance == [0.05087608844041824]*3:
                 export_ctx.log("Ignoring Blender's default background...", 'INFO')
+                return
+            if np.sum(radiance) == 0:
+                export_ctx.log("Ignoring background emitter with zero emission.", 'INFO')
                 return
             params.update({
                 'type': 'constant',
