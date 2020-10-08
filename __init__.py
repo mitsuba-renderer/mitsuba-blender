@@ -38,10 +38,12 @@ def set_path(context):
     mts_build = bpy.path.abspath(prefs.mitsuba_path)
     # Add path to the binaries to the system PATH
     prefs.os_path = os.path.join(mts_build, 'dist')
-    os.environ['PATH'] += os.pathsep + prefs.os_path
+    if prefs.os_path not in os.environ['PATH']:
+        os.environ['PATH'] += os.pathsep + prefs.os_path
     # Add path to python libs to sys.path
     prefs.python_path = os.path.join(mts_build, 'dist', 'python')
-    sys.path.append(prefs.python_path)
+    if prefs.python_path not in sys.path:
+        sys.path.append(prefs.python_path)
     # Make sure we can load mitsuba from blender
     try:
         reload_mitsuba = 'mitsuba' in sys.modules
@@ -120,25 +122,27 @@ class MitsubaPrefs(AddonPreferences):
     ok_msg : StringProperty(
         name = "Message",
         default = "",
-        options = {'HIDDEN', 'SKIP_SAVE'}
+        options = {'HIDDEN'}
         )
 
     error_msg : StringProperty(
         name = "Error Message",
         default = "",
-        options = {'HIDDEN', 'SKIP_SAVE'}
+        options = {'HIDDEN'}
         )
 
     os_path : StringProperty(
         name = "Addition to PATH",
         default="",
-        options = {'HIDDEN', 'SKIP_SAVE'}
+        subtype='DIR_PATH',
+        options = {'HIDDEN'}
     )
 
     python_path : StringProperty(
         name = "Addition to sys.path",
         default="",
-        options = {'HIDDEN', 'SKIP_SAVE'}
+        subtype='DIR_PATH',
+        options = {'HIDDEN'}
     )
 
     def draw(self, context):
