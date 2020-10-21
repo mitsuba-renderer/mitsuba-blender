@@ -93,6 +93,7 @@ class GeometryExporter:
         else:
             name = "%s-%s" %(b_object.name_full, b_object.data.materials[mat_nr].name)
 
+        name = name.replace(os.path.sep, '_') # Temporary fix for slashes in mesh names TODO: something better
         relative_path = os.path.join("meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
 
