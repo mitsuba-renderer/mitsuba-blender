@@ -37,11 +37,11 @@ def set_path(context):
     prefs = context.preferences.addons[__name__].preferences
     mts_build = bpy.path.abspath(prefs.mitsuba_path)
     # Add path to the binaries to the system PATH
-    prefs.os_path = os.path.join(mts_build, 'dist')
+    prefs.os_path = mts_build
     if prefs.os_path not in os.environ['PATH']:
         os.environ['PATH'] += os.pathsep + prefs.os_path
     # Add path to python libs to sys.path
-    prefs.python_path = os.path.join(mts_build, 'dist', 'python')
+    prefs.python_path = os.path.join(mts_build, 'python')
     if prefs.python_path not in sys.path:
         sys.path.append(prefs.python_path)
     # Make sure we can load mitsuba from blender
