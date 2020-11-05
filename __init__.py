@@ -99,7 +99,7 @@ def reload_mts(self, context):
     # Remove what we added in set_path
     if prefs.python_path in sys.path:
         sys.path.remove(prefs.python_path)
-    if prefs.os_path in os.environ['PATH']:
+    if prefs.os_path and prefs.os_path in os.environ['PATH']:
         items = os.environ['PATH'].split(os.pathsep)
         items.remove(prefs.os_path)
         os.environ['PATH'] = os.pathsep.join(items)
