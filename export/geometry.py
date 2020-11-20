@@ -93,12 +93,15 @@ class GeometryExporter:
         else:
             name = "%s-%s" %(b_object.name_full, b_object.data.materials[mat_nr].name)
 
+        # ID used for saving and for shape groups
+        mesh_id = "mesh-%s" % name
+
         relative_path = os.path.join("meshes", "%s.ply" % name)
         abs_path = os.path.join(export_ctx.directory, relative_path)
 
-        if not object_instance.is_instance or b_object.name_full not in self.exported_meshes.keys() or name not in self.exported_meshes[b_object.name_full]:
+        object_exported = b_object.name_full in self.exported_meshes.keys() and name in self.exported_meshes[b_object.name_full]
+        if not object_instance.is_instance or not object_exported:
             # Save the mesh once, if it's not an instance, or if it's an instance and the original object was not exported
-            # TODO: If we are in render mode, each instance has to be treated as a separate mesh.
             if b_object.type != 'MESH':
                 b_mesh = b_object.to_mesh()
             else:
@@ -108,23 +111,18 @@ class GeometryExporter:
             if b_object.type != 'MESH':
                 b_object.to_mesh_clear()
 
-        if object_instance.is_instance or not b_object.parent or not b_object.parent.is_instancer:
-            #we only write a shape plugin if an object is *not* an instance emitter, i.e. either an instance or an original object
-            if mat_nr!=-1 and name not in self.exported_meshes[b_object.name_full]:
-                return
-            params = {'type':'ply'}
-            params['filename'] = abs_path
-            if(object_instance.is_instance):
-                #instance, load referenced object saved before with another transform matrix
-                original_transform = export_ctx.axis_mat @ b_object.matrix_world
-                # remove the instancer object transform, apply the instance transform and shift coordinates
-                params['to_world'] = export_ctx.transform_matrix(object_instance.matrix_world @ original_transform.inverted())
 
-                    # params['to_world'] = export_ctx.transform_matrix(b_object.matrix_world)
-            #TODO: this only exports the mesh as seen in the viewport, not as should be rendered
+        if mat_nr!=-1 and name not in self.exported_meshes[b_object.name_full]:
+            return
 
-            if mat_nr == -1:#default bsdf
-                if not export_ctx.data_get('default-bsdf'):#we only need to add one of this, but we may have multiple emitter materials
+
+        if not object_instance.is_instance or not object_exported: # Either regular object, or instance emitter
+            params = {
+                'type': 'ply',
+                'filename': abs_path
+            }
+            if mat_nr == -1: # Default bsdf
+                if not export_ctx.data_get('default-bsdf'): # We only need to add one of this, but we may have multiple emitter materials
                     default_bsdf = {
                         'type': 'twosided',
                         'id': 'default-bsdf',
@@ -134,19 +132,40 @@ class GeometryExporter:
                 params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
                 mat_id = "mat-%s" % b_object.data.materials[mat_nr].name
-                if export_ctx.exported_mats.has_mat(mat_id):#add one emitter *and* one bsdf
+                if export_ctx.exported_mats.has_mat(mat_id): # Add one emitter *and* one bsdf
                     mixed_mat = export_ctx.exported_mats.mats[mat_id]
                     params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
                     params['emitter'] = mixed_mat['emitter']
                 else:
                     params['bsdf'] = {'type':'ref', 'id':mat_id}
-            if object_instance.is_instance or not export_ctx.export_ids:
-                export_ctx.data_add(params)
-            else:
-                mesh_id = "mesh-%s" % b_object.name_full
-                if mat_nr != -1:
-                    mesh_id += "-%d" % mat_nr
+
+            is_instance_emitter = b_object.parent != None and b_object.parent.is_instancer
+            if is_instance_emitter: # and not object_exported
+                # Create a shapegroup
+                shape_group = {
+                    'type': 'shapegroup',
+                    'shape': params
+                }
+                export_ctx.data_add(shape_group, name=mesh_id)
+            elif export_ctx.export_ids:
                 export_ctx.data_add(params, name=mesh_id)
+            else:
+                export_ctx.data_add(params)
+        # If instance, write an instance
+        # In some cases, both cases are calles, when an instance is first seen before its emitter is exported
+        if object_instance.is_instance:
+            params = {
+                'type': 'instance',
+                'shape': {
+                    'type': 'ref',
+                    'id': mesh_id
+                }
+            }
+            #instance, load referenced object saved before with another transform matrix
+            original_transform = export_ctx.axis_mat @ b_object.matrix_world
+            # remove the instancer object transform, apply the instance transform and shift coordinates
+            params['to_world'] = export_ctx.transform_matrix(object_instance.matrix_world @ original_transform.inverted())
+            export_ctx.data_add(params)
 
     def export_object(self, object_instance, export_ctx):
         mat_count = len(object_instance.object.data.materials)
@@ -157,7 +176,8 @@ class GeometryExporter:
                 self.export_object_mat(object_instance, export_ctx, mat_nr)
         if valid_mats == 0: #no material, or no valid material
             self.export_object_mat(object_instance, export_ctx, -1)
-
+        # TODO: decluttering
+        """
         '''
         To avoid clutter in the XML file, we rename the mesh file if it has only one material.
         That way, we avoid having a bunch of 'MyMesh-MyMaterial.ply' in the file.
@@ -179,11 +199,19 @@ class GeometryExporter:
             except FileNotFoundError: #the mesh was already renamed
                 pass
 
-            #only rename in the XML if the object is not an instancer (instancers are not saved in the XML file)
-            if object_instance.is_instance or not object_instance.object.parent or not object_instance.object.parent.is_instancer:
-                last_key = next(reversed(export_ctx.scene_data)) # get the last added key
-                assert(export_ctx.scene_data[last_key]['type'] == 'ply')
+            last_key = next(reversed(export_ctx.scene_data)) # get the last added key
+            if object_instance.object.parent and object_instance.object.parent.is_instancer:
+                # Instance emittter object, shape is inside a shape group
+                if export_ctx.scene_data[last_key]['type'] == 'shapegroup':
+                    export_ctx.scene_data[last_key]['shape']['filename'] = new_path
+                elif export_ctx.scene_data[last_key]['type'] == 'instance': # a
+                    export_ctx.scene_data[last_key]['shape']['filename'] = new_path
+                else:
+                    raise ValueError("Unexpected item type: ", export_ctx.scene_data[last_key])
+            else:
+                # Regular object
+                assert export_ctx.scene_data[last_key]['type'] == 'ply', export_ctx.scene_data[last_key]
                 export_ctx.scene_data[last_key]['filename'] = new_path
-                #also rename the ID, instances have no ID
-                if not object_instance.is_instance and export_ctx.export_ids:
+                if  export_ctx.export_ids:
                     export_ctx.scene_data[last_key]['id'] = "mesh-%s" % object_instance.object.name_full
+        """
