@@ -9,6 +9,7 @@ class GeometryExporter:
     """
     def __init__(self):
         self.exported_meshes = {} # dict containing entries like mesh_name : [exported materials]
+        self.current_mesh_flat = False # Temporary workaround to set the face_normals flag
 
     def add_exported_mesh(self, name, name_export):
         '''
@@ -75,6 +76,7 @@ class GeometryExporter:
         props['to_world'] = export_ctx.transform_matrix(matrix_world)
         props['mat_nr'] = mat_nr
         m_mesh = load_dict(props)
+        self.current_mesh_flat = not m_mesh.has_vertex_normals()
 
         if m_mesh.face_count() > 0: # Only save complete meshes
             m_mesh.write_ply(file_path) # Save as binary ply
@@ -121,6 +123,8 @@ class GeometryExporter:
                 'type': 'ply',
                 'filename': abs_path
             }
+            if self.current_mesh_flat:
+                params['face_normals'] = True
             if mat_nr == -1: # Default bsdf
                 if not export_ctx.data_get('default-bsdf'): # We only need to add one of this, but we may have multiple emitter materials
                     default_bsdf = {
