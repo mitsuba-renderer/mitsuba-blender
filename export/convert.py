@@ -1,7 +1,7 @@
 import bpy
 from .export_context import ExportContext
 from .materials import export_world
-from .geometry import GeometryExporter
+from .geometry import export_object
 from .lights import export_light
 from .camera import export_camera
 
@@ -13,7 +13,6 @@ class SceneConverter:
     '''
     def __init__(self):
         self.export_ctx = ExportContext()
-        self.geometry_exporter = GeometryExporter()
         self.use_selection = False # Only export selection
         self.ignore_background = True
 
@@ -62,7 +61,7 @@ class SceneConverter:
                 self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
-                self.geometry_exporter.export_object(object_instance, self.export_ctx)
+                export_object(object_instance, self.export_ctx)
             elif object_type == 'CAMERA':
                 export_camera(object_instance, b_scene, self.export_ctx)
             elif object_type == 'LIGHT':
