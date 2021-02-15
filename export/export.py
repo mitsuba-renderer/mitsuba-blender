@@ -63,7 +63,7 @@ class MitsubaFileExport(Operator, ExportHelper):
         #Set path to scene .xml file
         self.converter.set_filename(self.filepath, split_files=self.split_files)
 
-        self.converter.scene_to_dict(context.evaluated_depsgraph_get())
+        self.converter.scene_to_dict(context)
         #write data to scene .xml file
         self.converter.dict_to_xml()
         #reset the exporter

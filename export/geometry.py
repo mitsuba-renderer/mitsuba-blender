@@ -55,19 +55,19 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     return load_dict(props)
 
 
-def export_object(object_instance, export_ctx):
+def export_object(deg_instance, export_ctx, is_particle):
     """
     Convert a blender object to mitsuba and save it as Binary PLY
     """
 
-    b_object = object_instance.object
+    b_object = deg_instance.object
     object_id = f"mesh-{b_object.name_full}"
 
     is_instance_emitter = b_object.parent != None and b_object.parent.is_instancer
-    # Convert the mesh if it's a regular mesh or an instance whose object
-    # has not been exported yet.
-    if not object_instance.is_instance or export_ctx.data_get(object_id) is None:
+    is_instance = deg_instance.is_instance
 
+    # Only write to file objects that have never been exported before
+    if export_ctx.data_get(object_id) is None:
         if b_object.type == 'MESH':
             b_mesh = b_object.data
         else: # Metaballs, text, surfaces
@@ -76,7 +76,7 @@ def export_object(object_instance, export_ctx):
         # Convert the mesh into one mitsuba mesh per different material
         mat_count = len(b_mesh.materials)
         converted_parts = []
-        if is_instance_emitter:
+        if is_instance or is_instance_emitter:
             transform = None
         else:
             transform = b_object.matrix_world
@@ -102,8 +102,8 @@ def export_object(object_instance, export_ctx):
             b_object.to_mesh_clear()
 
         part_count = len(converted_parts)
-        # Use a ShapeGroup for emitters and split meshes
-        use_shapegroup = is_instance_emitter or part_count > 1
+        # Use a ShapeGroup for instances and split meshes
+        use_shapegroup = is_instance or part_count > 1 or is_instance_emitter or is_particle
         # TODO: Check if shapegroups for split meshes is worth it
         if use_shapegroup:
             group = {
@@ -163,7 +163,7 @@ def export_object(object_instance, export_ctx):
         if use_shapegroup:
             export_ctx.data_add(group, name=object_id)
 
-        if part_count > 1 and not object_instance.is_instance:
+        if part_count > 1:
             # Also export the instance of the shapegroup
             params = {
                 'type': 'instance',
@@ -174,13 +174,13 @@ def export_object(object_instance, export_ctx):
             }
             export_ctx.data_add(params)
 
-    if object_instance.is_instance:
+    if is_instance or is_particle:
         params = {
             'type': 'instance',
             'shape': {
                 'type': 'ref',
                 'id': object_id
             },
-            'to_world': export_ctx.transform_matrix(object_instance.matrix_world)
+            'to_world': export_ctx.transform_matrix(deg_instance.matrix_world)
         }
         export_ctx.data_add(params)
