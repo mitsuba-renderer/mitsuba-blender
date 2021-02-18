@@ -2,6 +2,7 @@ from .materials import export_material
 from .export_context import Files
 from mathutils import Matrix
 import os
+import bpy
 
 def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     '''
@@ -61,7 +62,9 @@ def export_object(deg_instance, export_ctx, is_particle):
     """
 
     b_object = deg_instance.object
-    object_id = f"mesh-{b_object.name_full}"
+    # Remove spurious characters such as slashes
+    name_clean = bpy.path.clean_name(b_object.name_full)
+    object_id = f"mesh-{name_clean}"
 
     is_instance_emitter = b_object.parent != None and b_object.parent.is_instancer
     is_instance = deg_instance.is_instance
@@ -85,14 +88,14 @@ def export_object(deg_instance, export_ctx, is_particle):
             converted_parts.append((-1, convert_mesh(export_ctx,
                                                     b_mesh,
                                                     transform,
-                                                    b_object.name_full,
+                                                    name_clean,
                                                     0)))
         for mat_nr in range(mat_count):
             if b_mesh.materials[mat_nr]:
                 mts_mesh = convert_mesh(export_ctx,
                                         b_mesh,
                                         transform,
-                                        f"{b_object.name_full}-{b_mesh.materials[mat_nr].name}",
+                                        f"{name_clean}-{b_mesh.materials[mat_nr].name}",
                                         mat_nr)
                 if mts_mesh.face_count() > 0:
                     converted_parts.append((mat_nr, mts_mesh))
@@ -113,9 +116,9 @@ def export_object(deg_instance, export_ctx, is_particle):
         for (mat_nr, mts_mesh) in converted_parts:
             # Determine the file name
             if part_count == 1:
-                name = f"{b_object.name_full}"
+                name = f"{name_clean}"
             else:
-                name = f"{b_object.name_full}-{b_mesh.materials[mat_nr].name}"
+                name = f"{name_clean}-{b_mesh.materials[mat_nr].name}"
             mesh_id = f"mesh-{name}"
 
             # Save as binary ply
