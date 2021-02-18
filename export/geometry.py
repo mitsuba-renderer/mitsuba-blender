@@ -106,7 +106,7 @@ def export_object(deg_instance, export_ctx, is_particle):
 
         part_count = len(converted_parts)
         # Use a ShapeGroup for instances and split meshes
-        use_shapegroup = is_instance or part_count > 1 or is_instance_emitter or is_particle
+        use_shapegroup = is_instance or is_instance_emitter or is_particle
         # TODO: Check if shapegroups for split meshes is worth it
         if use_shapegroup:
             group = {
@@ -165,17 +165,6 @@ def export_object(deg_instance, export_ctx, is_particle):
 
         if use_shapegroup:
             export_ctx.data_add(group, name=object_id)
-
-        if part_count > 1:
-            # Also export the instance of the shapegroup
-            params = {
-                'type': 'instance',
-                'shape': {
-                    'type': 'ref',
-                    'id': object_id
-                    }
-            }
-            export_ctx.data_add(params)
 
     if is_instance or is_particle:
         params = {
