@@ -70,8 +70,14 @@ class ExportContext:
         # All the args defined below are set in the Converter
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
-        self.textures_folder = ''
         self.deg = None # Dependency graph
+        self.subfolders = {
+            'texture': 'textures',
+            'emitter': 'textures',
+            'shape': 'meshes',
+            'spectrum': 'spectra'
+                            }
+
 
     def data_add(self, mts_dict, name=''):
         '''
@@ -130,29 +136,26 @@ class ExportContext:
         image : The Blender Image object
         """
         # TODO: don't save packed images but convert them to a mitsuba texture, and let the XML writer save
-        if image.packed_file or image.file_format in convert_format:
-            if image.file_format in convert_format:
-                msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
-                self.log(msg, 'WARN')
-                image.file_format = convert_format[image.file_format]
-
-            original_name = os.path.basename(image.filepath)
-            if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
-                base_name, _ = os.path.splitext(original_name)
-                name = image.name.replace(original_name, base_name, 1) # Remove the extension
-                name += texture_exts[image.file_format]
-            else:
-                name = "%s%s" % (image.name, texture_exts[image.file_format])
-            target_path = os.path.join(self.textures_folder, name)
-            if not os.path.isdir(self.textures_folder):
-                os.makedirs(self.textures_folder)
-            old_filepath = image.filepath
-            image.filepath = target_path
-            image.save()
-            image.filepath = old_filepath
-            return target_path
-        # If not packed or converted, just store it as is, it will be copied in the XMLWriter
-        return image.filepath_from_user()
+        textures_folder = os.path.join(self.directory, self.subfolders['texture'])
+        if image.file_format in convert_format:
+            msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
+            self.log(msg, 'WARN')
+            image.file_format = convert_format[image.file_format]
+        original_name = os.path.basename(image.filepath)
+        if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
+            base_name, _ = os.path.splitext(original_name)
+            name = image.name.replace(original_name, base_name, 1) # Remove the extension
+            name += texture_exts[image.file_format]
+        else:
+            name = "%s%s" % (image.name, texture_exts[image.file_format])
+        target_path = os.path.join(textures_folder, name)
+        if not os.path.isdir(textures_folder):
+            os.makedirs(textures_folder)
+        old_filepath = image.filepath
+        image.filepath = target_path
+        image.save()
+        image.filepath = old_filepath
+        return f"{self.subfolders['texture']}/{name}"
 
     def spectrum(self, value, mode='rgb'):
         '''

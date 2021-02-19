@@ -61,9 +61,9 @@ class MitsubaFileExport(Operator, ExportHelper):
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
         #Set path to scene .xml file
-        self.converter.set_filename(self.filepath, split_files=self.split_files)
+        self.converter.set_path(self.filepath, split_files=self.split_files)
 
-        self.converter.scene_to_dict(context)
+        self.converter.scene_to_dict(context.evaluated_depsgraph_get())
         #write data to scene .xml file
         self.converter.dict_to_xml()
         #reset the exporter

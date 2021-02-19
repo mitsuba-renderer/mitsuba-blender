@@ -122,13 +122,16 @@ def export_object(deg_instance, export_ctx, is_particle):
             mesh_id = f"mesh-{name}"
 
             # Save as binary ply
-            filepath = os.path.join(export_ctx.directory, "meshes", f"{name}.ply")
+            mesh_folder = os.path.join(export_ctx.directory, export_ctx.subfolders['shape'])
+            if not os.path.isdir(mesh_folder):
+                os.makedirs(mesh_folder)
+            filepath = os.path.join(mesh_folder,  f"{name}.ply")
             mts_mesh.write_ply(filepath)
 
             # Build dictionary entry
             params = {
                 'type': 'ply',
-                'filename': f"meshes/{name}.ply"
+                'filename': f"{export_ctx.subfolders['shape']}/{name}.ply"
             }
 
             # Add flat shading flag if needed

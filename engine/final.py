@@ -31,7 +31,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         from mitsuba import set_variant
         b_scene = depsgraph.scene
         set_variant(b_scene.mitsuba.variant)
-        from mitsuba.core import Bitmap, Struct, ScopedSetThreadEnvironment
+        from mitsuba.core import Bitmap, Struct, ScopedSetThreadEnvironment, Thread
         with ScopedSetThreadEnvironment(b_scene.thread_env):
             scale = b_scene.render.resolution_percentage / 100.0
             self.size_x = int(b_scene.render.resolution_x * scale)
@@ -40,8 +40,9 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
             # Temporary workaround as long as the dict creation writes stuff to dict
             with tempfile.TemporaryDirectory() as dummy_dir:
                 filepath = os.path.join(dummy_dir, "scene.xml")
-                self.converter.set_filename(filepath)
+                self.converter.set_path(filepath, render=True)
                 self.converter.scene_to_dict(depsgraph)
+                Thread.thread().file_resolver().prepend(dummy_dir)
                 mts_scene = self.converter.dict_to_scene()
 
             sensor = mts_scene.sensors()[0] # TODO: only export the camera used for render in this case

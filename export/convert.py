@@ -1,4 +1,5 @@
 import bpy
+import os
 from .export_context import ExportContext
 from .materials import export_world
 from .geometry import export_object
@@ -16,23 +17,22 @@ class SceneConverter:
         self.use_selection = False # Only export selection
         self.ignore_background = True
 
-    def set_filename(self, name, split_files=False):
+    def set_path(self, name, split_files=False, render=False):
         from mitsuba.python.xml import WriteXML
         # Ideally, this should only be created if we want to write a scene.
         # For now we need it to save meshes and packed textures.
         # TODO: get rid of all writing to disk when creating the dict
-        self.xml_writer = WriteXML(name, split_files)
+        if not render:
+            self.xml_writer = WriteXML(name, self.export_ctx.subfolders, split_files)
         # Give the path to the export context, for saving meshes and files
-        self.export_ctx.directory = self.xml_writer.directory
-        # Temporary workaround for exporting packed textures
-        self.export_ctx.textures_folder = self.xml_writer.textures_folder
+        self.export_ctx.directory, _ = os.path.split(name)
 
-    def scene_to_dict(self, context):
+    def scene_to_dict(self, depsgraph):
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
 
-        depsgraph = context.evaluated_depsgraph_get()
+        #depsgraph = context.evaluated_depsgraph_get()
         self.export_ctx.deg = depsgraph
 
         b_scene = depsgraph.scene #TODO: what if there are multiple scenes?

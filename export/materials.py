@@ -48,7 +48,7 @@ def convert_color_texture_node(export_ctx, socket):
         if node.type == "TEX_IMAGE":
             params = export_texture_node(export_ctx, node)
 
-        elif node.type == "RGB": 
+        elif node.type == "RGB":
             #input rgb node
             params = export_ctx.spectrum(node.color)
         elif node.type == "VERTEX_COLOR":
@@ -131,7 +131,7 @@ def convert_glass_materials_cycles(export_ctx, current_node):
         raise NotImplementedError("Only default IOR value is supported in Mitsuba 2.")
 
     ior = current_node.inputs['IOR'].default_value
-    
+
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
     if roughness and current_node.distribution != 'SHARP':
@@ -146,7 +146,7 @@ def convert_glass_materials_cycles(export_ctx, current_node):
             params['type'] = 'thindielectric'
         else:
             params['type'] = 'dielectric'
-    
+
     params['int_ior'] = ior
 
     specular_transmittance = convert_color_texture_node(export_ctx, current_node.inputs['Color'])
