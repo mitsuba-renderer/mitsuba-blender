@@ -18,7 +18,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
     def __init__(self):
         self.scene_data = None
         self.draw_data = None
-        self.converter = SceneConverter()
+        self.converter = SceneConverter(render=True)
 
     # When the render engine instance is destroy, this is called. Clean up any
     # render engine data here, for example stopping running render threads.
@@ -40,12 +40,12 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
             # Temporary workaround as long as the dict creation writes stuff to dict
             with tempfile.TemporaryDirectory() as dummy_dir:
                 filepath = os.path.join(dummy_dir, "scene.xml")
-                self.converter.set_path(filepath, render=True)
+                self.converter.set_path(filepath)
                 self.converter.scene_to_dict(depsgraph)
                 Thread.thread().file_resolver().prepend(dummy_dir)
                 mts_scene = self.converter.dict_to_scene()
 
-            sensor = mts_scene.sensors()[0] # TODO: only export the camera used for render in this case
+            sensor = mts_scene.sensors()[0]
             mts_scene.integrator().render(mts_scene, sensor)
             render = sensor.film().bitmap()
             render_pixels = np.array(render.convert(Bitmap.PixelFormat.RGBA, Struct.Type.Float32, srgb_gamma=False))

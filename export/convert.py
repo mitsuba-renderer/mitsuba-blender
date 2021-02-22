@@ -12,17 +12,18 @@ class SceneConverter:
     Converts a blender scene to a Mitsuba-compatible dict.
     Either save it as an XML or load it as a scene.
     '''
-    def __init__(self):
+    def __init__(self, render=False):
         self.export_ctx = ExportContext()
         self.use_selection = False # Only export selection
         self.ignore_background = True
+        self.render = render
 
-    def set_path(self, name, split_files=False, render=False):
+    def set_path(self, name, split_files=False):
         from mitsuba.python.xml import WriteXML
         # Ideally, this should only be created if we want to write a scene.
         # For now we need it to save meshes and packed textures.
         # TODO: get rid of all writing to disk when creating the dict
-        if not render:
+        if not self.render:
             self.xml_writer = WriteXML(name, self.export_ctx.subfolders, split_files)
         # Give the path to the export context, for saving meshes and files
         self.export_ctx.directory, _ = os.path.split(name)
@@ -74,7 +75,9 @@ class SceneConverter:
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
                 export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
             elif object_type == 'CAMERA':
-                export_camera(object_instance, b_scene, self.export_ctx)
+                # When rendering inside blender, export only the active camera
+                if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
+                    export_camera(object_instance, b_scene, self.export_ctx)
             elif object_type == 'LIGHT':
                 export_light(object_instance, self.export_ctx)
             else:
