@@ -67,7 +67,7 @@
                     "geo_normal" : "Geometric Normals",
                     "sh_normal" : "Shading Normals",
                     "dp_du" : "Position Partial Derivative w.r.t. U",
-                    "dp_duv" : "Position Partial Derivative w.r.t. V",
+                    "dp_dv" : "Position Partial Derivative w.r.t. V",
                     "duv_dx" : "UV Partial Derivative w.r.t. X",
                     "duv_dy" : "UV Partial Derivative w.r.t. Y"
 
