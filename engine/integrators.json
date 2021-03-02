@@ -106,5 +106,10 @@
                 "type" : "integrator"
             }
         }
+    },
+    "depth" : {
+        "label": "Depth Integrator",
+        "description": "Returns the per-pixel distances to the intersected objects.",
+        "parameters": {}
     }
 }
