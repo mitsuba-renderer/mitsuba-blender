@@ -152,9 +152,9 @@ class ExportContext:
         if not os.path.isdir(textures_folder):
             os.makedirs(textures_folder)
         old_filepath = image.filepath
-        image.filepath = target_path
+        image.filepath_raw = target_path
         image.save()
-        image.filepath = old_filepath
+        image.filepath_raw = old_filepath
         return f"{self.subfolders['texture']}/{name}"
 
     def spectrum(self, value, mode='rgb'):
