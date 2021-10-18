@@ -24,7 +24,8 @@ class SceneConverter:
         # For now we need it to save meshes and packed textures.
         # TODO: get rid of all writing to disk when creating the dict
         if not self.render:
-            self.xml_writer = WriteXML(name, self.export_ctx.subfolders, split_files)
+            self.xml_writer = WriteXML(name, self.export_ctx.subfolders,
+                                       split_files=split_files)
         # Give the path to the export context, for saving meshes and files
         self.export_ctx.directory, _ = os.path.split(name)
 
@@ -63,13 +64,15 @@ class SceneConverter:
                 #skip if it's not selected or if it's an instance and the parent object is not selected
                 if not object_instance.is_instance and not object_instance.object.original.select_get():
                     continue
-                if object_instance.is_instance and not object_instance.object.parent.original.select_get():
+                if (object_instance.is_instance and object_instance.object.parent
+                    and not object_instance.object.parent.original.select_get()):
                     continue
 
             evaluated_obj = object_instance.object
             object_type = evaluated_obj.type
             #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
-            if evaluated_obj.hide_render or object_instance.is_instance and evaluated_obj.parent and evaluated_obj.parent.original.hide_render:
+            if evaluated_obj.hide_render or (object_instance.is_instance
+                and evaluated_obj.parent and evaluated_obj.parent.original.hide_render):
                 self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
