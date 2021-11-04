@@ -257,8 +257,46 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
     else:#one bsdf, one emitter
         raise NotImplementedError("Mixing a BSDF and an emitter is not supported. Consider using an Add shader instead.")
 
-#TODO: Add more support for other materials: refraction, transparent, translucent, principled
+def convert_principled_materials_cycles(export_ctx, current_node):
+    params = {}
+    base_color = convert_color_texture_node(export_ctx, current_node.inputs['Base Color'])
+    specular = convert_float_texture_node(export_ctx, current_node.inputs['Specular'])
+    specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
+    specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission'])
+    roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
+    metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
+    anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
+    sheen = convert_float_texture_node(export_ctx, current_node.inputs['Sheen'])
+    sheen_tint = convert_float_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
+    clearcoat = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat'])
+    clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat Roughness'])
+
+    # Undo default roughness transform done by the exporter
+    if type(roughness) is float:
+        roughness = np.sqrt(roughness)
+    if type(clearcoat_roughness) is float:
+        clearcoat_roughness = np.sqrt(clearcoat_roughness)
+
+    params.update({
+        'type': 'principled',
+        'base_color': base_color,
+        'specular': specular,
+        'spec_tint': specular_tint,
+        'spec_trans': specular_trans,
+        'metallic': metallic,
+        'anisotropic': anisotropic,
+        'roughness': roughness,
+        'sheen': sheen,
+        'sheen_tint': sheen_tint,
+        'clearcoat': clearcoat,
+        'clearcoat_gloss': clearcoat_roughness
+    })
+    return params
+
+
+#TODO: Add more support for other materials: refraction, transparent, translucent
 cycles_converters = {
+    'BSDF_PRINCIPLED': convert_principled_materials_cycles,
     "BSDF_DIFFUSE": convert_diffuse_materials_cycles,
     'BSDF_GLOSSY': convert_glossy_materials_cycles,
     'BSDF_GLASS': convert_glass_materials_cycles,
