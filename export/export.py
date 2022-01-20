@@ -16,6 +16,7 @@ class MitsubaFileExport(Operator, ExportHelper):
     bl_label = "Mitsuba 2 Export"
 
     filename_ext = ".xml"
+    filter_glob: StringProperty(default="*.xml", options={'HIDDEN'})
 
     use_selection: BoolProperty(
 	        name = "Selection Only",
