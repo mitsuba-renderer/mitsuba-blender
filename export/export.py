@@ -3,7 +3,6 @@ from bpy.types import Operator, AddonPreferences
 from bpy.props import StringProperty, BoolProperty
 import os
 from os.path import basename, dirname
-import sys
 
 from .convert import SceneConverter
 from bpy_extras.io_utils import ExportHelper, axis_conversion, orientation_helper
@@ -64,9 +63,21 @@ class MitsubaFileExport(Operator, ExportHelper):
         #Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)
 
-        self.converter.scene_to_dict(context.evaluated_depsgraph_get())
+        window_manager = context.window_manager
+
+        deps_graph = context.evaluated_depsgraph_get()
+
+        total_progress = len(deps_graph.object_instances)
+        window_manager.progress_begin(0, total_progress)
+
+        self.converter.scene_to_dict(deps_graph, window_manager)
         #write data to scene .xml file
         self.converter.dict_to_xml()
+
+        window_manager.progress_end()
+
+        self.report({'INFO'}, "Scene exported successfully!")
+
         #reset the exporter
         self.reset()
         return {'FINISHED'}
