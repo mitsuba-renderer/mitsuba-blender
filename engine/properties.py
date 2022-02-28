@@ -271,8 +271,8 @@ class MitsubaRenderSettings(PropertyGroup):
     for var in variants():
         enum_variants.append((var, var, ""))
 
-    if config.MTS_DEFAULT_VARIANT:
-        default_variant = config.MTS_DEFAULT_VARIANT
+    if config.MI_DEFAULT_VARIANT:
+        default_variant = config.MI_DEFAULT_VARIANT
     default_variant = variant()
 
     variant : EnumProperty(

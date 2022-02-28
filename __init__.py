@@ -23,7 +23,7 @@ def get_mitsuba_path():
     tokens = os.getenv('MITSUBA_DIR')
     if tokens:
         for token in tokens.split(':'):
-            path = os.path.join(token, 'build')
+            path = token
             if os.path.isdir(path):
                 return path
     return ""
@@ -73,7 +73,7 @@ def try_registering(context):
         export.register()
         engine.register()
         # Mitsuba was found, set the global threading environment
-        from mitsuba.core import ThreadEnvironment
+        from mitsuba import ThreadEnvironment
         bpy.types.Scene.thread_env = ThreadEnvironment()
         prefs.ok_msg = "Found Mitsuba"
         return True
