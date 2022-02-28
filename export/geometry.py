@@ -97,7 +97,7 @@ def export_object(deg_instance, export_ctx, is_particle):
                                         transform,
                                         f"{name_clean}-{b_mesh.materials[mat_nr].name}",
                                         mat_nr)
-                if mts_mesh.face_count() > 0:
+                if mts_mesh is not None and mts_mesh.face_count() > 0:
                     converted_parts.append((mat_nr, mts_mesh))
                     export_material(export_ctx, b_mesh.materials[mat_nr])
 
