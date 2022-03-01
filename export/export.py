@@ -60,7 +60,10 @@ class MitsubaFileExport(Operator, ExportHelper):
         self.converter.export_ctx.axis_mat = axis_mat
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
-        #Set path to scene .xml file
+
+        self.converter.use_selection = self.use_selection
+
+        # Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)
 
         window_manager = context.window_manager
