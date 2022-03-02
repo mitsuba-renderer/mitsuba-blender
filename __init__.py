@@ -52,6 +52,11 @@ def set_path(context):
         if reload_mitsuba:
             import importlib
             importlib.reload(mitsuba)
+            # FIXME: This is a temporary fix! Due to the way Mitsuba creates aliases for the `mitsuba` namespace to setup
+            #        the variants, calling `reload` on `mitsuba` does not do what it is expected to. Calling `import mitsuba`
+            #        forces Python to reload the original module. This however will not reload the correct mitsuba module if
+            #        the `mitsuba_path` variable was changed by the user and Blender was not restarted in between.
+            import mitsuba
         mitsuba.set_variant('scalar_rgb')
         return True
     except ModuleNotFoundError:
