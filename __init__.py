@@ -15,7 +15,7 @@ import os
 import sys
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
-from . import export, engine
+from . import io, engine
 #from export import MitsubaFileExport, MitsubaPrefs
 
 def get_mitsuba_path():
@@ -75,7 +75,7 @@ def try_registering(context):
     prefs.ok_msg = ''
     prefs.error_msg = ''
     if set_path(context):
-        export.register()
+        io.register()
         engine.register()
         # Mitsuba was found, set the global threading environment
         from mitsuba import ThreadEnvironment
@@ -92,7 +92,7 @@ def try_unregistering():
     This may fail if Mitsuba wasn't found, hence the try catch guard
     '''
     try:
-        export.unregister()
+        io.unregister()
         engine.unregister()
         return True
     except RuntimeError:

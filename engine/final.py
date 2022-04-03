@@ -4,7 +4,7 @@ import os
 from os.path import basename, dirname
 import sys
 import numpy as np
-from ..export.convert import SceneConverter
+from ..io.convert import SceneConverter
 
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 
