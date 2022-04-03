@@ -399,9 +399,10 @@ class MITSUBA_CAMERA_PT_sampler(bpy.types.Panel):
     bl_context = 'render'
     def draw(self, context):
         layout = self.layout
-        cam_settings = context.scene.camera.data.mitsuba
-        layout.prop(cam_settings, "active_sampler", text="Sampler")
-        getattr(cam_settings.samplers, cam_settings.active_sampler).draw(layout)
+        if hasattr(context.scene.camera, 'data'):
+            cam_settings = context.scene.camera.data.mitsuba
+            layout.prop(cam_settings, "active_sampler", text="Sampler")
+            getattr(cam_settings.samplers, cam_settings.active_sampler).draw(layout)
 
 class MITSUBA_CAMERA_PT_rfilter(bpy.types.Panel):
     bl_idname = "MITSUBA_CAMERA_PT_rfilter"
@@ -411,9 +412,10 @@ class MITSUBA_CAMERA_PT_rfilter(bpy.types.Panel):
     bl_context = 'render'
     def draw(self, context):
         layout = self.layout
-        cam_settings = context.scene.camera.data.mitsuba
-        layout.prop(cam_settings, "active_rfilter", text="Filter")
-        getattr(cam_settings.rfilters, cam_settings.active_rfilter).draw(layout)
+        if hasattr(context.scene.camera, 'data'):
+            cam_settings = context.scene.camera.data.mitsuba
+            layout.prop(cam_settings, "active_rfilter", text="Filter")
+            getattr(cam_settings.rfilters, cam_settings.active_rfilter).draw(layout)
 
 def draw_device(self, context):
     scene = context.scene
