@@ -1,0 +1,160 @@
+import os
+
+if "bpy" in locals():
+    import importlib
+    if "bl_transform_utils" in locals():
+        importlib.reload(bl_transform_utils)
+
+import bpy
+import bmesh
+from mathutils import Matrix, Vector
+
+from . import bl_transform_utils
+
+######################
+##    Utilities     ##
+######################
+
+def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
+    ''' Set a Blender mesh shading mode.
+
+    Params
+    ------
+    bl_mesh : The Blender mesh to operate on.
+    flat_shading : boolean, optional
+        Should the face normals be used instead of the vertex normals?
+    flip_normals : boolean, optional
+        Should the normals be flipped from the current normal direction?
+    '''
+    if flat_shading:
+        bl_mesh.polygons.foreach_set('use_smooth', [False] * len(bl_mesh.polygons))
+    else:
+        bl_mesh.calc_normals()
+        bl_mesh.polygons.foreach_set('use_smooth', [True] * len(bl_mesh.polygons))
+    if flip_normals:
+        bl_mesh.flip_normals()
+    bl_mesh.update()
+
+######################
+##    Converters    ##
+######################
+
+def mi_ply_to_bl_shape(mi_context, mi_shape):
+    assert mi_shape.has_property('filename')
+
+    filename = mi_shape['filename']
+    abs_path = mi_context.resolve_scene_relative_path(filename)
+
+    # Load .PLY mesh from file
+    from io_mesh_ply import import_ply
+    bl_mesh = import_ply.load_ply_mesh(abs_path, mi_shape.id())
+    if not bl_mesh:
+        mi_context.log(f'Cannot load PLY mesh file "{filename}".', 'ERROR')
+        return None
+    
+    # Set face normals if requested
+    _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
+
+    # Set object world transform
+    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
+
+    return bl_obj, bl_mesh
+
+def mi_sphere_to_bl_shape(mi_context, mi_shape):
+    bl_mesh = bpy.data.meshes.new(mi_shape.id())
+    bl_bmesh = bmesh.new()
+
+    if mi_shape.has_property('to_world'):
+        world_matrix = mi_context.mi_space_to_bl_space(bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None)))
+        radius = 1.0
+    else:
+        # NOTE: We transform only the position vector to Blender space as the mesh is already correctly oriented.
+        world_matrix = Matrix.Translation(mi_context.mi_space_to_bl_space(Vector(mi_shape.get('center', [0.0, 0.0, 0.0]))))
+        radius = mi_shape.get('radius', 1.0)
+
+    # Create a UV sphere mesh
+    # NOTE: The 'diameter' parameter seems to be missnamed as it results in sphere twice as big as expected
+    bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16, diameter=radius, calc_uvs=True)
+    bl_bmesh.to_mesh(bl_mesh)
+    bl_bmesh.free()
+
+    _set_bl_mesh_shading(bl_mesh, flat_shading=False, flip_normals=mi_shape.get('flip_normals', False))
+
+    # Set object world transform
+    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
+    # FIXME: Verify that the world matrix is correct
+    bl_obj.matrix_world = world_matrix
+
+    return bl_obj, bl_mesh
+
+def mi_disk_to_bl_shape(mi_context, mi_shape):
+    bl_mesh = bpy.data.meshes.new(mi_shape.id())
+    bl_bmesh = bmesh.new()
+
+    # Create a disk
+    bmesh.ops.create_circle(bl_bmesh, cap_ends=True, cap_tris=True, segments=32, radius=1.0, calc_uvs=True)
+    bl_bmesh.to_mesh(bl_mesh)
+    bl_bmesh.free()
+
+    _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
+
+    # Set object world transform
+    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
+    # FIXME: The world matrix seems off
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
+
+    return bl_obj, bl_mesh
+
+def mi_rectangle_to_bl_shape(mi_context, mi_shape):
+    bl_mesh = bpy.data.meshes.new(mi_shape.id())
+    bl_bmesh = bmesh.new()
+
+    # Create a rectangle
+    bmesh.ops.create_grid(bl_bmesh, x_segments=1, y_segments=1, size=1.0, calc_uvs=True)
+    bl_bmesh.to_mesh(bl_mesh)
+    bl_bmesh.free()
+
+    _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
+    
+    # Set object world transform
+    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
+    # FIXME: The world matrix seems off
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
+
+    return bl_obj, bl_mesh
+
+######################
+##   Main import    ##
+######################
+
+_shape_converters = {
+    'ply': mi_ply_to_bl_shape,
+    'sphere': mi_sphere_to_bl_shape,
+    'disk': mi_disk_to_bl_shape,
+    'rectangle': mi_rectangle_to_bl_shape,
+}
+
+def mi_shape_to_bl_shape(mi_context, mi_shape):
+    shape_type = mi_shape.plugin_name()
+    if shape_type not in _shape_converters:
+        mi_context.log(f'Mitsuba Shape type "{shape_type}" not supported.', 'ERROR')
+        return None
+    
+    # Create the Blender object
+    bl_obj, bl_mesh = _shape_converters[shape_type](mi_context, mi_shape)
+
+    # Link the mesh's BSDF
+    bl_mat_ref = mi_shape.get('bsdf', None)
+    if bl_mat_ref is not None:
+        bl_mesh.materials.clear()
+        bl_mesh.materials.append(mi_context.get_bl_material(bl_mat_ref))
+        bl_obj.active_material_index = 0
+
+    # Link the newly created object to the Mitsuba collection
+    mi_context.bl_collection.objects.link(bl_obj)
+
+    return bl_obj
