@@ -1,27 +1,21 @@
+from enum import Enum
 from collections import OrderedDict
 import os
 
 class MitsubaScenePropertiesIterator:
     """ Iterator for Mitsuba properties. Implement filtering based on object class type """
-    def __init__(self, props, cls_filter: str = ''):
+    def __init__(self, props):
         self._objects = list(props.objects.items())
-        self._cls_filter = cls_filter
         self._index = 0
 
     def __iter__(self):
         return self
 
     def __next__(self):
-        # If a filter is set, skip entries that don't match the specified class type
-        if self._cls_filter != '':
-            while self._index < len(self._objects) and self._objects[self._index][1][0] != self._cls_filter:
-                self._index += 1
-
         if self._index < len(self._objects):
-            id, (cls, prop) = self._objects[self._index]
+            _, (cls, prop) = self._objects[self._index]
             self._index += 1
             return cls, prop
-
         raise StopIteration
 
 class MitsubaSceneProperties:
@@ -37,27 +31,128 @@ class MitsubaSceneProperties:
     def __iter__(self):
         return MitsubaScenePropertiesIterator(self)
 
-    def with_class(self, cls):
-        return MitsubaScenePropertiesIterator(self, cls_filter=cls)
-
-    def get_with_id(self, id):
-        """ Get the property of an object with a certain id """
+    def get_with_id(self, id: str):
+        ''' Get the property of an object with a certain id '''
         if id in self.objects:
             return self.objects[id]
         return None
 
+    def get_first_of_class(self, cls):
+        ''' Get the first properties in the object list that if of a certain class '''
+        for (id, (class_, prop)) in self.objects.items():
+            if cls == class_:
+                return (id, prop)
+        return None
+
+class BlenderNodeType(Enum):
+    NONE = 0,
+    SCENE = 1,
+    OBJECT = 2,
+    MATERIAL = 3,
+    PROPERTIES = 4,
+
+class BlenderNode:
+    ''' Define a Blender data node.
+    These nodes store an intermediate representation of the imported
+    Blender data.
+    '''
+    def __init__(self, id=''):
+        self.id = id
+        self.parent = None
+        self.children = []
+        self.type = BlenderNodeType.NONE
+
+    def __repr__(self):
+        r = f'BlenderNode({self.id}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
+    def add_child(self, child):
+        child.parent = self
+        self.children.append(child)
+
+class BlenderSceneNode(BlenderNode):
+    ''' Define a Blender node containing scene data '''
+    def __init__(self, id=''):
+        super(BlenderSceneNode, self).__init__(id=id)
+        self.type = BlenderNodeType.SCENE
+
+    def __repr__(self):
+        r = f'BlenderSceneNode({self.id}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
+class BlenderMaterialNode(BlenderNode):
+    ''' Define a Blender node containing material data '''
+    def __init__(self, bl_mat, id=''):
+        super(BlenderMaterialNode, self).__init__(id=id)
+        self.type = BlenderNodeType.MATERIAL
+        self.bl_mat = bl_mat
+
+    def __repr__(self):
+        r = f'BlenderMaterialNode({self.id}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
+class BlenderObjectNodeType(Enum):
+    SHAPE = 0,
+    CAMERA = 1,
+    LIGHT = 2,
+
+class BlenderObjectNode(BlenderNode):
+    ''' Define a Blender data node containing Blender object data '''
+    def __init__(self, obj_type: BlenderObjectNodeType, bl_data, world_matrix, id=''):
+        super(BlenderObjectNode, self).__init__(id=id)
+        self.type = BlenderNodeType.OBJECT
+        self.obj_type = obj_type
+        self.bl_data = bl_data
+        self.world_matrix = world_matrix
+
+    def __repr__(self):
+        r = f'BlenderObjectNode({self.id}, {self.obj_type}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
+    def is_object_type(self, type: BlenderObjectNodeType):
+        return self.obj_type == type
+
+class BlenderPropertiesNode(BlenderNode):
+    ''' Define a Blender data node containing Mitsuba properties.
+    These properties will be parsed as part of the scene's post-processing stage.
+    '''
+    def __init__(self, mi_cls, mi_props, id=''):
+        super(BlenderPropertiesNode, self).__init__(id=id)
+        self.type = BlenderNodeType.PROPERTIES
+        self.mi_cls = mi_cls
+        self.mi_props = mi_props
+
+    def __repr__(self):
+        r = f'BlenderPropertiesNode({self.id}, {self.mi_cls}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
 class MitsubaSceneImportContext:
-    """ Define a context for the Mitsuba scene importer """
-    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_props, axis_matrix):
+    ''' Define a context for the Mitsuba scene importer '''
+    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_scene_props, axis_matrix):
         self.bl_context = bl_context
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
         self.filepath = filepath
         self.directory, _ = os.path.split(self.filepath)
-        self.mi_props = mi_props
+        self.mi_scene_props = mi_scene_props
         self.axis_matrix = axis_matrix
         self.axis_matrix_inv = axis_matrix.inverted()
-        self.bl_materials = {}
+        self.bl_material_cache = {}
 
     def log(self, message, level='INFO'):
         '''
@@ -95,13 +190,10 @@ class MitsubaSceneImportContext:
         return abs_path
 
     def register_bl_material(self, id, bl_mat):
-        if id in self.bl_materials:
-            self.log(f'Material "{id}" is already registered.', 'ERROR')
-        else:
-            self.bl_materials[id] = bl_mat
+        if id not in self.bl_material_cache:
+            self.bl_material_cache[id] = bl_mat
 
     def get_bl_material(self, id):
-        if id not in self.bl_materials:
-            self.log(f'Unknown material "{id}".', 'ERROR')
+        if id not in self.bl_material_cache:
             return None
-        return self.bl_materials[id]
+        return self.bl_material_cache[id]

@@ -87,7 +87,7 @@ def mi_material_to_bl_material(mi_context, mi_mat):
     # Ensure that we have a converter for that material type
     mat_type = mi_mat.plugin_name()
     if mat_type not in _material_converters:
-        mi_context.log(f'Mitsuba BSDF type "{mat_type}" not supported. Skipping.', 'WARN')
+        mi_context.log(f'Mitsuba BSDF type "{mat_type}" not supported.', 'ERROR')
         return None
     
     # Create the Blender material and the shader node wrapper

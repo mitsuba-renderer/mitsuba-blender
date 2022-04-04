@@ -1,5 +1,3 @@
-import numpy as np
-
 from mathutils import Matrix
 
 def mi_transform_to_bl_transform(matrix):

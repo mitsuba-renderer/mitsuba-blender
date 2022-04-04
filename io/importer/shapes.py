@@ -55,12 +55,9 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
     # Set face normals if requested
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
 
-    # Set object world transform
-    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
-    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
 
-    return bl_obj, bl_mesh
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 def mi_sphere_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
@@ -82,12 +79,8 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
 
     _set_bl_mesh_shading(bl_mesh, flat_shading=False, flip_normals=mi_shape.get('flip_normals', False))
 
-    # Set object world transform
-    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
     # FIXME: Verify that the world matrix is correct
-    bl_obj.matrix_world = world_matrix
-
-    return bl_obj, bl_mesh
+    return bl_mesh, world_matrix
 
 def mi_disk_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
@@ -100,13 +93,10 @@ def mi_disk_to_bl_shape(mi_context, mi_shape):
 
     _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
 
-    # Set object world transform
-    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
     # FIXME: The world matrix seems off
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
-    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
 
-    return bl_obj, bl_mesh
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 def mi_rectangle_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
@@ -119,13 +109,10 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
 
     _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
     
-    # Set object world transform
-    bl_obj = bpy.data.objects.new(mi_shape.id(), bl_mesh)
     # FIXME: The world matrix seems off
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
-    bl_obj.matrix_world = mi_context.mi_space_to_bl_space(world_matrix)
 
-    return bl_obj, bl_mesh
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 ######################
 ##   Main import    ##
@@ -145,16 +132,6 @@ def mi_shape_to_bl_shape(mi_context, mi_shape):
         return None
     
     # Create the Blender object
-    bl_obj, bl_mesh = _shape_converters[shape_type](mi_context, mi_shape)
+    bl_mesh, world_matrix = _shape_converters[shape_type](mi_context, mi_shape)
 
-    # Link the mesh's BSDF
-    bl_mat_ref = mi_shape.get('bsdf', None)
-    if bl_mat_ref is not None:
-        bl_mesh.materials.clear()
-        bl_mesh.materials.append(mi_context.get_bl_material(bl_mat_ref))
-        bl_obj.active_material_index = 0
-
-    # Link the newly created object to the Mitsuba collection
-    mi_context.bl_collection.objects.link(bl_obj)
-
-    return bl_obj
+    return bl_mesh, world_matrix
