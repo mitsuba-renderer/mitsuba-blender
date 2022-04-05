@@ -132,29 +132,37 @@ class NodeMaterialWrapper:
             depths[depth].append(node)
         return depths
 
+    def _get_approximate_node_dimension(self, node):
+        ''' Get an approximation of a node's dimensions.
+        Nodes have dimensions attributes, however they are not updated until they are
+        displayed in the editor. Therefore, we cannot use them in this case as we create
+        and format the entire node tree in a script.
+        We use the number of inputs and outputs plus the header times a standard height 
+        of 24 units as an approximation. POUET
+        '''
+        # Hardcoded constant width
+        width = 240
+        height = 24 * (len(node.inputs) + len(node.outputs) + 1)
+        return (width, height)
 
     def format_node_tree(self):
         ''' Formats the placement of material nodes in the shader editor. '''
         margin_x = 100
         margin_y = 20
-        # NOTE: The header height is not included when computing the node height
-        #       with `node.height`.
-        header_height = 20
-        max_node_width = 240
 
         node_depths = self._get_node_depths()
         tree_depth = len(node_depths)
-        tree_width = tree_depth * (max_node_width + margin_x) - margin_x
 
         current_x = 0
         for depth in range(tree_depth):
             current_y = 0
+            max_width_for_depth = 0
             for node in node_depths[depth]:
                 node.location = (current_x, current_y)
-                # FIXME: The node `height` attribute does not seem to report the
-                #        height when the node tree is not currently displayed ?
-                current_y += node.height + header_height + margin_y
-            current_x -= max_node_width + margin_x
+                node_width, node_height = self._get_approximate_node_dimension(node)
+                if node_width > max_width_for_depth:
+                    max_width_for_depth = node_width
+                current_y -= node_height + margin_y
+            current_x -= max_width_for_depth + margin_x
 
-        for node in self.tree.nodes:
-            node.location[0] = node.location[0] - max_node_width + tree_width/2
+        # TODO: Tree placement
