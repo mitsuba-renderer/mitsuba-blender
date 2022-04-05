@@ -10,25 +10,38 @@ def rgba_to_rgb(color):
 
 class NodeMaterialWrapper:
     ''' Utility wrapper around a node-based Blender material '''
-    def __init__(self, bl_mat, clear_node_tree=True):
+    def __init__(self, bl_mat, init_empty=False, out_node=None):
         ''' Construct a new NodeMaterialWrapper
         
         Params
         ------
         bl_mat : The wrapped Blender material
-        clear_node_tree : bool, optional
+        init_empty : bool, optional
             If set, the material's node tree will be cleared
+        out_node : optional
+            Reference to the output (root) node of the material.
+            If not set, the default output material node is used.
+            If init_empty is set, this argument is ignored.
         '''
         self.bl_mat = bl_mat
         if not bl_mat.use_nodes:
             bl_mat.use_nodes = True
         self.tree = bl_mat.node_tree
         # Clear the node tree if requested
-        if clear_node_tree:
+        if init_empty:
             for node in self.tree.nodes:
                 self.tree.nodes.remove(node)
-        # Get the output node
-        self.out_node = self._ensure_out_node()
+            # Get the output node
+            self.out_node = self._ensure_out_node()
+        elif out_node is not None:
+            # Try to find the provided output node in the node tree
+            for node in self.tree.nodes:
+                if node == out_node:
+                    self.out_node = node
+            assert self.out_node is not None
+        else:
+            # Ensure that an output node exists
+            self.out_node = self._ensure_out_node()
         
     def _delete_node_recursive(self, node):
         for input in node.inputs:
@@ -47,20 +60,26 @@ class NodeMaterialWrapper:
             out_node = self.tree.nodes.new(type='ShaderNodeOutputMaterial')
         return out_node
 
-    def ensure_node_type(self, path, type, output):
+    def _get_socket_with_id(self, socket_list, identifier: str):
+        for socket in socket_list:
+            if socket.identifier == identifier:
+                return socket
+        return None
+
+    def ensure_node_type(self, path: list[str], bl_idname: str, output_socket_id: str):
         ''' Ensures that a node of a certain type exists at the correct location 
         in the graph. If another node already exists at that location, then it is
         removed.
 
         Params
         ------
-        path: list(str)
-            Path to the requested node. Each element of this list represent the name
-            of the input to follow starting from the output node.
-        type: str
+        path: list[str]
+            Path to the requested node. Each element of this list represent the identifier
+            of the input socket to follow starting from the output node.
+        bl_idname: str
             Type of the node that should be connected to the last input in the path.
-        output: str
-            Socket name of the newly created node that should be connected to the rest
+        output_socket_id: str
+            Socket identifier of the newly created node that should be connected to the rest
             of the path.
 
         Returns
@@ -69,19 +88,29 @@ class NodeMaterialWrapper:
         '''
         current_node = self.out_node
         next_socket = None
-        for i, next in enumerate(path):
-            assert next in current_node.inputs
-            next_socket = current_node.inputs[next]
+        final_node = None
+        for i, next_id in enumerate(path):
+            # Ensure that a starting point for the path exists from the current node
+            next_socket = self._get_socket_with_id(current_node.inputs, next_id)
+            assert next_socket is not None
             if i < len(path)-1:
+                # If this is not the last element of the path, follow the path if it exists
                 assert next_socket.is_linked
                 current_node = next_socket.links[0].from_node
             elif next_socket.is_linked:
+                # If this is the last element of the path, check that the last node is of the
+                # correct type. If not, delete it recursively.
                 final_node = next_socket.links[0].from_node
-                if final_node.bl_idname != type:
+                if final_node.bl_idname != bl_idname:
                     self._delete_node_recursive(final_node)
-        new_node = self.tree.nodes.new(type=type)
-        self.tree.links.new(new_node.outputs[output], next_socket)
-        return new_node
+                    final_node = None
+        # Create the new node only if it was not already present
+        if final_node is None:
+            final_node = self.tree.nodes.new(type=bl_idname)
+            output_socket = self._get_socket_with_id(final_node.outputs, output_socket_id)
+            assert output_socket is not None
+            self.tree.links.new(output_socket, next_socket)
+        return final_node
 
     def _get_node_depths(self):
         def _traverse(node, graph=OrderedDict(), depth=0):
