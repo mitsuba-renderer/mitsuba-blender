@@ -291,7 +291,7 @@ def convert_principled_materials_cycles(export_ctx, current_node):
         'clearcoat': clearcoat,
         'clearcoat_gloss': clearcoat_roughness
     })
-    return params
+    return two_sided_bsdf(params)
 
 
 #TODO: Add more support for other materials: refraction, transparent, translucent
