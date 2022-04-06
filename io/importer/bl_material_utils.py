@@ -148,21 +148,46 @@ class NodeMaterialWrapper:
     def format_node_tree(self):
         ''' Formats the placement of material nodes in the shader editor. '''
         margin_x = 100
-        margin_y = 20
+        margin_y = 50
 
         node_depths = self._get_node_depths()
         tree_depth = len(node_depths)
 
-        current_x = 0
-        for depth in range(tree_depth):
-            current_y = 0
-            max_width_for_depth = 0
-            for node in node_depths[depth]:
-                node.location = (current_x, current_y)
-                node_width, node_height = self._get_approximate_node_dimension(node)
-                if node_width > max_width_for_depth:
-                    max_width_for_depth = node_width
-                current_y -= node_height + margin_y
-            current_x -= max_width_for_depth + margin_x
+        # 2D bbox, [min_x, min_y, max_x, max_y]
+        tree_bbox = [0.0, 0.0, 0.0, 0.0]
+        def expand_bbox(tree_bbox, other_bbox):
+            if other_bbox[0] < tree_bbox[0]:
+                tree_bbox[0] = other_bbox[0]
+            if other_bbox[1] < tree_bbox[1]:
+                tree_bbox[1] = other_bbox[1]
+            if other_bbox[2] > tree_bbox[2]:
+                tree_bbox[2] = other_bbox[2]
+            if other_bbox[3] > tree_bbox[3]:
+                tree_bbox[3] = other_bbox[3]
+            return tree_bbox
 
-        # TODO: Tree placement
+        current_x = 0.0
+        for depth in range(tree_depth):
+            depth_width = 0.0
+            depth_height = 0.0
+            node_dims = []
+            for node in node_depths[depth]:
+                node_width, node_height = self._get_approximate_node_dimension(node)
+                node_dims.append((node_width, node_height))
+                if node_width > depth_width:
+                    depth_width = node_width
+                depth_height += node_height + margin_y
+
+            current_y = depth_height / 2.0
+            for i, node in enumerate(node_depths[depth]):
+                node.location = (current_x, current_y)
+                node_width, node_height = node_dims[i]
+                tree_bbox = expand_bbox(tree_bbox, [current_x, current_y-node_height, current_x+node_width, current_y])
+                current_y -= node_height + margin_y
+
+            current_x -= depth_width + margin_x
+
+        center = [(tree_bbox[0]+tree_bbox[2])/2.0, (tree_bbox[1]+tree_bbox[3])/2.0]
+        for node in self.tree.nodes:
+            current_location = node.location
+            node.location = (current_location[0]-center[0], current_location[1]-center[1])
