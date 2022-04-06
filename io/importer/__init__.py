@@ -9,7 +9,7 @@ if "bpy" in locals():
     if "shapes" in locals():
         importlib.reload(shapes)
     if "cameras" in locals():
-        importlib.reload(cameras)
+        importlib.reload(sensors)
     if "emitters" in locals():
         importlib.reload(emitters)
 
@@ -19,7 +19,7 @@ from . import common
 from . import materials
 from . import shapes
 from . import emitters
-from . import cameras
+from . import sensors
 
 ########################
 ##     Utilities      ##
@@ -51,7 +51,7 @@ def mi_integrator_to_bl_node(mi_context, mi_props):
     return node
 
 def mi_sensor_to_bl_node(mi_context, mi_props):
-    bl_camera, world_matrix = cameras.mi_sensor_to_bl_camera(mi_context, mi_props)
+    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
     node = common.BlenderObjectNode(common.BlenderObjectNodeType.CAMERA, bl_camera, world_matrix, mi_props.id())
     _convert_named_references(mi_context, mi_props, node)
     return node
