@@ -42,7 +42,17 @@ def _convert_named_references(mi_context, mi_props, parent_node):
 
 def mi_scene_to_bl_node(mi_context, mi_props):
     node = common.BlenderSceneNode(mi_props.id())
-    _convert_named_references(mi_context, mi_props, node)
+    for _, ref_id in mi_props.named_references():
+        mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
+        if mi_child_cls == 'BSDF':
+            # We don't convert materials at the scene level. They will be parsed
+            # by shapes that reference them.
+            continue
+        else:
+            # We convert any other object referenced by the scene
+            child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
+            if child_node is not None:
+                node.add_child(child_node)
     return node
 
 def mi_integrator_to_bl_node(mi_context, mi_props):
@@ -65,7 +75,6 @@ def mi_film_to_bl_node(mi_context, mi_props):
     return node
 
 def mi_bsdf_to_bl_node(mi_context, mi_props):
-    # FIXME: Support nested plugins
     bl_material = mi_context.get_bl_material(mi_props.id())
     if bl_material is None:
         bl_material = materials.mi_material_to_bl_material(mi_context, mi_props)
