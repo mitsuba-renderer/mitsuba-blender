@@ -12,6 +12,8 @@ if "bpy" in locals():
         importlib.reload(sensors)
     if "emitters" in locals():
         importlib.reload(emitters)
+    if "world" in locals():
+        importlib.reload(world)
 
 import bpy
 
@@ -20,6 +22,7 @@ from . import materials
 from . import shapes
 from . import emitters
 from . import sensors
+from . import world
 
 ########################
 ##     Utilities      ##
@@ -84,8 +87,13 @@ def mi_bsdf_to_bl_node(mi_context, mi_props):
     return common.BlenderMaterialNode(bl_material, id=mi_props.id())
 
 def mi_emitter_to_bl_node(mi_context, mi_props):
-    bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
-    node = common.BlenderObjectNode(common.BlenderObjectNodeType.LIGHT, bl_light, world_matrix, mi_props.id())
+    # NOTE: Some Mitsuba emitters need to be imported as a Blender world material
+    if world.should_convert_mi_emitter_to_bl_world(mi_props):
+        bl_world = world.mi_emitter_to_bl_world(mi_context, mi_props)
+        node = common.BlenderWorldNode(bl_world, mi_props.id())
+    else:
+        bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
+        node = common.BlenderObjectNode(common.BlenderObjectNodeType.LIGHT, bl_light, world_matrix, mi_props.id())
     return node
 
 def mi_shape_to_bl_node(mi_context, mi_props):
@@ -178,6 +186,7 @@ def instantiate_bl_object_node(mi_context, bl_node):
     return True
 
 def instantiate_bl_properties_node(mi_context, bl_node):
+    # TODO: Set Blender properties here
     return True
 
 def instantiate_bl_scene_node(mi_context, bl_node):
@@ -190,11 +199,19 @@ def instantiate_bl_material_node(mi_context, bl_node):
     # Nothing to do here.
     return True
 
+def instantiate_bl_world_node(mi_context, bl_node):
+    if mi_context.bl_scene.world is not None:
+        mi_context.log(f'Multiple Blender worlds is not supported.', 'ERROR')
+        return False
+    mi_context.bl_scene.world = bl_node.bl_world
+    return True
+
 _bl_node_instantiators = {
     common.BlenderNodeType.SCENE: instantiate_bl_scene_node,
     common.BlenderNodeType.MATERIAL: instantiate_bl_material_node,
     common.BlenderNodeType.OBJECT: instantiate_bl_object_node,
     common.BlenderNodeType.PROPERTIES: instantiate_bl_properties_node,
+    common.BlenderNodeType.WORLD: instantiate_bl_world_node,
 }
 
 def instantiate_bl_data_node(mi_context, bl_node):

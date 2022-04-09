@@ -2,54 +2,13 @@ from enum import Enum
 from collections import OrderedDict
 import os
 
-class MitsubaScenePropertiesIterator:
-    """ Iterator for Mitsuba properties. Implement filtering based on object class type """
-    def __init__(self, props):
-        self._objects = list(props.objects.items())
-        self._index = 0
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self._index < len(self._objects):
-            _, (cls, prop) = self._objects[self._index]
-            self._index += 1
-            return cls, prop
-        raise StopIteration
-
-class MitsubaSceneProperties:
-    """ Container for loaded Mitsuba scene properties """
-    def __init__(self, props):
-        self.objects = OrderedDict()
-        for (class_, prop) in props:
-            self.objects[prop.id()] = (class_, prop)
-
-    def __len__(self):
-        return len(self.objects)
-
-    def __iter__(self):
-        return MitsubaScenePropertiesIterator(self)
-
-    def get_with_id(self, id: str):
-        ''' Get the property of an object with a certain id '''
-        if id in self.objects:
-            return self.objects[id]
-        return None
-
-    def get_first_of_class(self, cls):
-        ''' Get the first properties in the object list that if of a certain class '''
-        for (id, (class_, prop)) in self.objects.items():
-            if cls == class_:
-                return (id, prop)
-        return None
-
 class BlenderNodeType(Enum):
     NONE = 0,
     SCENE = 1,
     OBJECT = 2,
     MATERIAL = 3,
     PROPERTIES = 4,
+    WORLD = 5,
 
 class BlenderNode:
     ''' Define a Blender data node.
@@ -100,6 +59,20 @@ class BlenderMaterialNode(BlenderNode):
         r += ']'
         return r
 
+class BlenderWorldNode(BlenderNode):
+    ''' Define a Blender node containing world data '''
+    def __init__(self, bl_world, id=''):
+        super(BlenderWorldNode, self).__init__(id=id)
+        self.type = BlenderNodeType.WORLD
+        self.bl_world = bl_world
+
+    def __repr__(self):
+        r = f'BlenderWorldNode({self.id}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
 class BlenderObjectNodeType(Enum):
     SHAPE = 0,
     CAMERA = 1,
@@ -140,6 +113,48 @@ class BlenderPropertiesNode(BlenderNode):
             r += f'{child}\n'
         r += ']'
         return r
+
+class MitsubaScenePropertiesIterator:
+    """ Iterator for Mitsuba properties. Implement filtering based on object class type """
+    def __init__(self, props):
+        self._objects = list(props.objects.items())
+        self._index = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._index < len(self._objects):
+            _, (cls, prop) = self._objects[self._index]
+            self._index += 1
+            return cls, prop
+        raise StopIteration
+
+class MitsubaSceneProperties:
+    """ Container for loaded Mitsuba scene properties """
+    def __init__(self, props):
+        self.objects = OrderedDict()
+        for (class_, prop) in props:
+            self.objects[prop.id()] = (class_, prop)
+
+    def __len__(self):
+        return len(self.objects)
+
+    def __iter__(self):
+        return MitsubaScenePropertiesIterator(self)
+
+    def get_with_id(self, id: str):
+        ''' Get the property of an object with a certain id '''
+        if id in self.objects:
+            return self.objects[id]
+        return None
+
+    def get_first_of_class(self, cls):
+        ''' Get the first properties in the object list that if of a certain class '''
+        for (id, (class_, prop)) in self.objects.items():
+            if cls == class_:
+                return (id, prop)
+        return None
 
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
