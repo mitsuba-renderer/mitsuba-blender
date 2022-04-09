@@ -4,6 +4,8 @@ if "bpy" in locals():
     import importlib
     if "bl_transform_utils" in locals():
         importlib.reload(bl_transform_utils)
+    if "mi_spectra_utils" in locals():
+        importlib.reload(mi_spectra_utils)
 
 import bpy
 from mathutils import Matrix, Vector

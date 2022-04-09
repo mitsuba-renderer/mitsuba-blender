@@ -3,12 +3,14 @@ import math
 if "bpy" in locals():
     import importlib
     if "bl_material_utils" in locals():
-        importlib.reload(bl_material_utils)
+        importlib.reload(bl_shader_utils)
+    if "mi_spectra_utils" in locals():
+        importlib.reload(mi_spectra_utils)
     
 import bpy
 
-from . import bl_material_utils
-from mathutils import Color
+from . import bl_shader_utils
+from . import mi_spectra_utils
 
 ######################
 ##      Utils       ##
@@ -104,7 +106,7 @@ def write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat
     # Generate a geometry node that will select the correct BSDF based on face orientation
     bl_mat_wrap.ensure_node_type([out_socket_id, 'Fac'], 'ShaderNodeNewGeometry', 'Backfacing')
     # Create a new material wrapper with the mix shader as output node
-    bl_child_mat_wrap = bl_material_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+    bl_child_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
     # Write the child materials
     write_mi_material_to_node_graph(mi_context, mi_front_mat, bl_child_mat_wrap, 'Shader', is_within_twosided=True)
     if mi_back_mat is not None:
@@ -136,6 +138,7 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
     if mat_type not in _material_writers:
         mi_context.log(f'Mitsuba BSDF type "{mat_type}" not supported. Skipping.', 'WARN')
         write_bl_error_material(bl_mat_wrap, out_socket_id)
+        return
     
     if is_within_twosided and mat_type == 'twosided':
         mi_context.log('Cannot have nested twosided materials.', 'ERROR')
@@ -160,7 +163,7 @@ def mi_material_to_bl_material(mi_context, mi_mat):
     The newly created Blender material
     '''
     bl_mat = bpy.data.materials.new(name=mi_mat.id())
-    bl_mat_wrap = bl_material_utils.NodeMaterialWrapper(bl_mat, init_empty=True)
+    bl_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat, init_empty=True)
     
     # Write the Mitsuba material to the surface output
     write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, 'Surface')

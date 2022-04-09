@@ -8,14 +8,14 @@ def rgb_to_rgba(color):
 def rgba_to_rgb(color):
     return Color(color[0], color[1], color[2])
 
-class NodeMaterialWrapper:
-    ''' Utility wrapper around a node-based Blender material '''
-    def __init__(self, bl_mat, init_empty=False, out_node=None):
-        ''' Construct a new NodeMaterialWrapper
+class NodeShaderWrapper:
+    ''' Utility wrapper around a node-based Blender shader '''
+    def __init__(self, bl_node_tree, init_empty=False, out_node=None):
+        ''' Construct a new NodeShaderWrapper
         
         Params
         ------
-        bl_mat : The wrapped Blender material
+        bl_node_tree : The wrapped Blender shader node tree
         init_empty : bool, optional
             If set, the material's node tree will be cleared
         out_node : optional
@@ -23,10 +23,7 @@ class NodeMaterialWrapper:
             If not set, the default output material node is used.
             If init_empty is set, this argument is ignored.
         '''
-        self.bl_mat = bl_mat
-        if not bl_mat.use_nodes:
-            bl_mat.use_nodes = True
-        self.tree = bl_mat.node_tree
+        self.tree = bl_node_tree
         # Clear the node tree if requested
         if init_empty:
             for node in self.tree.nodes:
@@ -51,14 +48,7 @@ class NodeMaterialWrapper:
         self.tree.nodes.remove(node)
 
     def _ensure_out_node(self):
-        out_node = None
-        for node in self.tree.nodes:
-            if node.bl_idname == 'ShaderNodeOutputMaterial':
-                out_node = node
-                break
-        if out_node is None:
-            out_node = self.tree.nodes.new(type='ShaderNodeOutputMaterial')
-        return out_node
+        raise NotImplementedError('To implement in subclasses')
 
     def _get_socket_with_id(self, socket_list, identifier: str):
         for socket in socket_list:
@@ -191,3 +181,63 @@ class NodeMaterialWrapper:
         for node in self.tree.nodes:
             current_location = node.location
             node.location = (current_location[0]-center[0], current_location[1]-center[1])
+
+class NodeMaterialWrapper(NodeShaderWrapper):
+    ''' Utility wrapper around a node-based Blender material '''
+    def __init__(self, bl_mat, init_empty=False, out_node=None):
+        ''' Construct a new NodeMaterialWrapper
+        
+        Params
+        ------
+        bl_mat : The wrapped Blender material
+        init_empty : bool, optional
+            If set, the material's node tree will be cleared
+        out_node : optional
+            Reference to the output (root) node of the material.
+            If not set, the default output material node is used.
+            If init_empty is set, this argument is ignored.
+        '''
+        self.bl_mat = bl_mat
+        if not bl_mat.use_nodes:
+            bl_mat.use_nodes = True
+        super(NodeMaterialWrapper, self).__init__(bl_mat.node_tree, init_empty, out_node)
+
+    def _ensure_out_node(self):
+        out_node = None
+        for node in self.tree.nodes:
+            if node.bl_idname == 'ShaderNodeOutputMaterial':
+                out_node = node
+                break
+        if out_node is None:
+            out_node = self.tree.nodes.new(type='ShaderNodeOutputMaterial')
+        return out_node
+
+class NodeWorldWrapper(NodeShaderWrapper):
+    ''' Utility wrapper around a node-based Blender world '''
+    def __init__(self, bl_world, init_empty=False, out_node=None):
+        ''' Construct a new NodeWorldWrapper
+        
+        Params
+        ------
+        bl_world : The wrapped Blender world
+        init_empty : bool, optional
+            If set, the material's node tree will be cleared
+        out_node : optional
+            Reference to the output (root) node of the material.
+            If not set, the default output material node is used.
+            If init_empty is set, this argument is ignored.
+        '''
+        self.bl_world = bl_world
+        if not bl_world.use_nodes:
+            bl_world.use_nodes = True
+        super(NodeWorldWrapper, self).__init__(bl_world.node_tree, init_empty, out_node)
+
+    def _ensure_out_node(self):
+        out_node = None
+        for node in self.tree.nodes:
+            if node.bl_idname == 'ShaderNodeOutputWorld':
+                out_node = node
+                break
+        if out_node is None:
+            out_node = self.tree.nodes.new(type='ShaderNodeOutputWorld')
+        return out_node
