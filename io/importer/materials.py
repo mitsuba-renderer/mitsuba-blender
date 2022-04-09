@@ -23,47 +23,88 @@ def _get_bsdf_with_id(mi_context, ref_id):
         return None
     return mi_child_mat
 
-######################
-##    Data Types    ##
-######################
+#################################
+##  Material property writers  ##
+#################################
 
-def mi_float_to_bl_float(mi_context, mi_mat, prop_name, default=None):
+def write_mi_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+    reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
+    bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(reflectance)
+
+_rgb_object_writers = {
+    'SRGBReflectanceSpectrum': write_mi_srgb_reflectance_spectrum
+}
+
+def write_mi_spectrum_object(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+    mi_obj_class_name = mi_obj.class_().name()
+    if mi_obj_class_name not in _rgb_object_writers:
+        mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
+        return
+    _rgb_object_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+
+def write_mi_mat_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
-    if default is None:
-        _assert_mi_mat_has_property_of_type(mi_context, mi_mat, prop_name, Properties.Type.Float)
-    return float(mi_mat.get(prop_name, default))
+    if mi_mat.has_property(mi_prop_name):
+        mi_prop_type = mi_mat.type(mi_prop_name)
+        if mi_prop_type == Properties.Type.Color:
+            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(list(mi_mat.get(mi_prop_name, default)))
+        elif mi_prop_type == Properties.Type.NamedReference:
+            # FIXME: Implement texture references
+            raise NotImplementedError('Textures are not supported.')
+        elif mi_prop_type == Properties.Type.Object:
+            mi_obj = mi_mat.get(mi_prop_name)
+            write_mi_spectrum_object(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+        else:
+            mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to rgb.', 'ERROR')
+    elif default is not None:
+        bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(default)
+    else:
+        mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
 
-def mi_color_to_bl_color_rgb(mi_context, mi_mat, prop_name, default=None):
+def write_mi_mat_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
     from mitsuba import Properties
-    if default is None:
-        _assert_mi_mat_has_property_of_type(mi_context, mi_mat, prop_name, Properties.Type.Color)
-    return Color(mi_mat.get(prop_name, default))
-
-def mi_color_to_bl_color_rgba(mi_context, mi_mat, prop_name, default=None):
-    return bl_material_utils.rgb_to_rgba(mi_color_to_bl_color_rgb(mi_context, mi_mat, prop_name, default))
+    if mi_mat.has_property(mi_prop_name):
+        mi_prop_type = mi_mat.type(mi_prop_name)
+        if mi_prop_type == Properties.Type.Float:
+            mi_prop_value = mi_mat.get(mi_prop_name, default)
+            if transformation is not None:
+                mi_prop_value = transformation(mi_prop_value)
+            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_prop_value
+        elif mi_prop_type == Properties.Type.NamedReference:
+            # FIXME: Implement texture references
+            raise NotImplementedError('Textures are not supported.')
+        else:
+            mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
+    elif default is not None:
+        bl_mat_wrap.out_node.inputs[out_socket_id].default_value = default
+    else:
+        mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
 
 ######################
 ##   BSDF writers   ##
 ######################
 
-def mi_principled_to_bl_principled(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+def write_mi_principled_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
-    bl_principled.inputs['Base Color'].default_value = [0.8, 0.8, 0.8, 1.0]
-    bl_principled.inputs['Specular'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'specular', 0.5)
-    bl_principled.inputs['Specular Tint'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'spec_tint', 0.0)
-    bl_principled.inputs['Transmission'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'spec_trans', 0.0)
-    bl_principled.inputs['Metallic'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'metallic', 0.0)
-    bl_principled.inputs['Anisotropic'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'anisotropic', 0.0)
-    bl_principled.inputs['Roughness'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'roughness', 0.4)
-    bl_principled.inputs['Sheen'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'sheen', 0.0)
-    bl_principled.inputs['Sheen Tint'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'sheen_tint', 0.5)
-    bl_principled.inputs['Clearcoat'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'clearcoat', 0.0)
-    bl_principled.inputs['Clearcoat Roughness'].default_value = mi_float_to_bl_float(mi_context, mi_mat, 'clearcoat_gloss', math.sqrt(0.03)) ** 2
+    bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
+    write_mi_mat_rgb_property(mi_context, mi_mat, 'base_color', bl_principled_wrap, 'Base Color', [0.8, 0.8, 0.8])
+    write_mi_mat_float_property(mi_context, mi_mat, 'specular', bl_principled_wrap, 'Specular', 0.5)
+    write_mi_mat_float_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', 0.0)
+    write_mi_mat_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, 'Transmission', 0.0)
+    write_mi_mat_float_property(mi_context, mi_mat, 'metallic', bl_principled_wrap, 'Metallic', 0.0)
+    write_mi_mat_float_property(mi_context, mi_mat, 'anisotropic', bl_principled_wrap, 'Anisotropic', 0.0)
+    # FIXME: Check which parameters need transformations when loaded
+    write_mi_mat_float_property(mi_context, mi_mat, 'roughness', bl_principled_wrap, 'Roughness', math.sqrt(0.4), lambda x: x ** 2)
+    write_mi_mat_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, 'Sheen', 0.0)
+    write_mi_mat_float_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', 0.5)
+    write_mi_mat_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, 'Clearcoat', 0.0)
+    write_mi_mat_float_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, 'Clearcoat Roughness', math.sqrt(0.03), lambda x: x ** 2)
     return True
 
 def write_mi_diffuse_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     bl_diffuse = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfDiffuse', 'BSDF')
-    bl_diffuse.inputs['Color'].default_value = [0.8, 0.8, 0.8, 1.0]
+    bl_diffuse_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_diffuse)
+    write_mi_mat_rgb_property(mi_context, mi_mat, 'reflectance', bl_diffuse_wrap, 'Color', [0.8, 0.8, 0.8])
     return True
 
 def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
