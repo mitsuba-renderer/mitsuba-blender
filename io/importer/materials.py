@@ -16,14 +16,6 @@ from . import mi_spectra_utils
 ##      Utils       ##
 ######################
 
-def _assert_mi_mat_has_property_of_type(mi_context, mi_mat, prop_name, type):
-    if not mi_mat.has_property(prop_name):
-        mi_context.log('ERROR', f'Material "{mi_mat.id()}" does not have property "{prop_name}".')
-        assert False
-    if mi_mat.type(prop_name) != type:
-        mi_context.log('ERROR', f'Material property "{prop_name}" is of type "{mi_mat.type(prop_name)}". Expected {type}.')
-        assert False
-
 def _get_bsdf_with_id(mi_context, ref_id):
     mi_child_cls, mi_child_mat = mi_context.mi_scene_props.get_with_id(ref_id)
     if mi_child_cls != 'BSDF':
