@@ -14,6 +14,8 @@ if "bpy" in locals():
         importlib.reload(emitters)
     if "world" in locals():
         importlib.reload(world)
+    if "textures" in locals():
+        importlib.reload(textures)
 
 import bpy
 
@@ -23,6 +25,7 @@ from . import shapes
 from . import emitters
 from . import sensors
 from . import world
+from . import textures
 
 ########################
 ##     Utilities      ##
@@ -32,75 +35,121 @@ def _check_unqueried_props(mi_context, mi_cls, mi_props):
     for prop_name in mi_props.unqueried():
         mi_context.log(f'Mitsuba {mi_cls} property "{prop_name}" was not handled.', 'WARN')
 
-def _convert_named_references(mi_context, mi_props, parent_node):
+def _convert_named_references(mi_context, mi_props, parent_node, type_filter=[]):
     for _, ref_id in mi_props.named_references():
         mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
-        child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
-        if child_node is not None:
-            parent_node.add_child(child_node)
+        if len(type_filter) == 0 or mi_child_cls in type_filter:
+            child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
+            if child_node is not None:
+                parent_node.add_child(child_node)
 
 ########################
 ##  Scene convertion  ##
 ########################
 
 def mi_scene_to_bl_node(mi_context, mi_props):
-    node = common.BlenderSceneNode(mi_props.id())
-    for _, ref_id in mi_props.named_references():
-        mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
-        if mi_child_cls == 'BSDF':
-            # We don't convert materials at the scene level. They will be parsed
-            # by shapes that reference them.
-            continue
-        else:
-            # We convert any other object referenced by the scene
-            child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
-            if child_node is not None:
-                node.add_child(child_node)
+    node = common.create_blender_node(common.BlenderNodeType.SCENE, id=mi_props.id())
+    # Convert all objects referenced by the scene
+    # NOTE: Objects that are not referenced somewhere in the Mitsuba XML scene will
+    #       not be loaded at all.
+    _convert_named_references(mi_context, mi_props, node)
+
     return node
 
 def mi_integrator_to_bl_node(mi_context, mi_props):
     # FIXME: Support nested integrators (AOVs)
-    node = common.BlenderPropertiesNode('Integrator', mi_props, id=mi_props.id())
+    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
+    # Convert dependencies if any
+    _convert_named_references(mi_context, mi_props, node)
+
     return node
 
 def mi_sensor_to_bl_node(mi_context, mi_props):
-    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
-    node = common.BlenderObjectNode(common.BlenderObjectNodeType.CAMERA, bl_camera, world_matrix, mi_props.id())
+    node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
+    # Convert dependencies if any
     _convert_named_references(mi_context, mi_props, node)
+    # Convert the camera
+    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
+
+    node.obj_type = common.BlenderObjectNodeType.CAMERA
+    node.bl_data = bl_camera
+    node.world_matrix = world_matrix
     return node
 
 def mi_sampler_to_bl_node(mi_context, mi_props):
-    node = common.BlenderPropertiesNode('Sampler', mi_props, id=mi_props.id())
+    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
+    # Convert dependencies if any
+    _convert_named_references(mi_context, mi_props, node)
+
     return node
 
 def mi_film_to_bl_node(mi_context, mi_props):
-    node = common.BlenderPropertiesNode('Film', mi_props, id=mi_props.id())
+    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
+    # Convert dependencies if any
+    _convert_named_references(mi_context, mi_props, node)
+
     return node
 
 def mi_bsdf_to_bl_node(mi_context, mi_props):
+    node = common.create_blender_node(common.BlenderNodeType.MATERIAL, id=mi_props.id())
+    # Parse referenced textures to ensure they are loaded before we parse the material
+    _convert_named_references(mi_context, mi_props, node, type_filter=['Texture'])
+    # Parse the Blender material
     bl_material = mi_context.get_bl_material(mi_props.id())
     if bl_material is None:
         bl_material = materials.mi_material_to_bl_material(mi_context, mi_props)
         if bl_material is None:
             return None
         mi_context.register_bl_material(mi_props.id(), bl_material)
-    return common.BlenderMaterialNode(bl_material, id=mi_props.id())
+
+    node.bl_mat = bl_material
+    return node
 
 def mi_emitter_to_bl_node(mi_context, mi_props):
     # NOTE: Some Mitsuba emitters need to be imported as a Blender world material
     if world.should_convert_mi_emitter_to_bl_world(mi_props):
         bl_world = world.mi_emitter_to_bl_world(mi_context, mi_props)
-        node = common.BlenderWorldNode(bl_world, mi_props.id())
+        
+        node = common.create_blender_node(common.BlenderNodeType.WORLD, id=mi_props.id())
+        node.bl_world = bl_world
     else:
         bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
-        node = common.BlenderObjectNode(common.BlenderObjectNodeType.LIGHT, bl_light, world_matrix, mi_props.id())
+        
+        node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
+        node.obj_type = common.BlenderObjectNodeType.LIGHT
+        node.bl_data = bl_light
+        node.world_matrix = world_matrix
     return node
 
 def mi_shape_to_bl_node(mi_context, mi_props):
+    node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
     # FIXME: Support nested emitter/bsdf combination
-    bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
-    node = common.BlenderObjectNode(common.BlenderObjectNodeType.SHAPE, bl_shape, world_matrix, mi_props.id())
     _convert_named_references(mi_context, mi_props, node)
+    # Convert the shape
+    bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
+    
+    node.obj_type = common.BlenderObjectNodeType.SHAPE
+    node.bl_data = bl_shape
+    node.world_matrix = world_matrix
+    return node
+
+def mi_texture_to_bl_node(mi_context, mi_props):
+    # We only parse bitmap textures
+    if mi_props.plugin_name() != 'bitmap':
+        return None
+
+    node = common.create_blender_node(common.BlenderNodeType.IMAGE, id=mi_props.id())
+    # Convert dependencies if any
+    _convert_named_references(mi_context, mi_props, node)
+    # Load the image
+    bl_image = mi_context.get_bl_image(mi_props.id())
+    if bl_image is None:
+        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
+        if bl_image is None:
+            return None
+        mi_context.register_bl_image(mi_props.id(), bl_image)
+    
+    node.bl_image = bl_image
     return node
 
 _bl_data_converters = {
@@ -112,6 +161,7 @@ _bl_data_converters = {
     'BSDF': mi_bsdf_to_bl_node,
     'Emitter': mi_emitter_to_bl_node,
     'Shape': mi_shape_to_bl_node,
+    'Texture': mi_texture_to_bl_node,
 }
 
 def mi_props_to_bl_data_node(mi_context, mi_cls, mi_props):
@@ -127,6 +177,12 @@ def mi_props_to_bl_data_node(mi_context, mi_cls, mi_props):
 #########################
 ## Scene instantiation ##
 #########################
+
+def instantiate_bl_scene_node(mi_context, bl_node):
+    for child_node in bl_node.children:
+        if not instantiate_bl_data_node(mi_context, child_node):
+            return False
+    return True
 
 def instantiate_bl_shape_object_node(mi_context, bl_node):
     bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
@@ -189,12 +245,6 @@ def instantiate_bl_properties_node(mi_context, bl_node):
     # TODO: Set Blender properties here
     return True
 
-def instantiate_bl_scene_node(mi_context, bl_node):
-    for child_node in bl_node.children:
-        if not instantiate_bl_data_node(mi_context, child_node):
-            return False
-    return True
-
 def instantiate_bl_material_node(mi_context, bl_node):
     # Nothing to do here.
     return True
@@ -206,12 +256,17 @@ def instantiate_bl_world_node(mi_context, bl_node):
     mi_context.bl_scene.world = bl_node.bl_world
     return True
 
+def instantiate_bl_image_node(mi_context, bl_node):
+    # Nothing to do here.
+    return True
+
 _bl_node_instantiators = {
     common.BlenderNodeType.SCENE: instantiate_bl_scene_node,
     common.BlenderNodeType.MATERIAL: instantiate_bl_material_node,
     common.BlenderNodeType.OBJECT: instantiate_bl_object_node,
     common.BlenderNodeType.PROPERTIES: instantiate_bl_properties_node,
     common.BlenderNodeType.WORLD: instantiate_bl_world_node,
+    common.BlenderNodeType.IMAGE: instantiate_bl_image_node,
 }
 
 def instantiate_bl_data_node(mi_context, bl_node):

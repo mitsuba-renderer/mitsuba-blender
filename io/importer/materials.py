@@ -6,11 +6,14 @@ if "bpy" in locals():
         importlib.reload(bl_shader_utils)
     if "mi_spectra_utils" in locals():
         importlib.reload(mi_spectra_utils)
+    if "textures" in locals():
+        importlib.reload(textures)
     
 import bpy
 
 from . import bl_shader_utils
 from . import mi_spectra_utils
+from . import textures
 
 ######################
 ##      Utils       ##
@@ -23,24 +26,82 @@ def _get_bsdf_with_id(mi_context, ref_id):
         return None
     return mi_child_mat
 
+def _get_texture_with_id(mi_context, ref_id):
+    mi_child_cls, mi_child_tex = mi_context.mi_scene_props.get_with_id(ref_id)
+    if mi_child_cls != 'Texture':
+        mi_context.log(f'Cannot find Mitsuba Texture "{ref_id}".', 'ERROR')
+        return None
+    return mi_child_tex
+
 #################################
 ##  Material property writers  ##
 #################################
+
+def mi_wrap_mode_to_bl_extension(mi_context, mi_wrap_mode):
+    if mi_wrap_mode == 'repeat':
+        return 'REPEAT'
+    elif mi_wrap_mode == 'mirror':
+        # NOTE: Blender does not support mirror wrap mode
+        return 'REPEAT'
+    elif mi_wrap_mode == 'clamp':
+        return 'CLIP'
+    else:
+        mi_context.log(f'Mitsuba wrap mode "{mi_wrap_mode}" is not supported.', 'ERROR')
+        return None
+
+def mi_filter_type_to_bl_interpolation(mi_context, mi_filter_type):
+    if mi_filter_type == 'bilinear':
+        return 'Cubic'
+    elif mi_filter_type == 'nearest':
+        return 'Closest'
+    else:
+        mi_context.log(f'Mitsuba filter type "{mi_filter_type}" is not supported.', 'ERROR')
+        return None
+
+def write_mi_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_id = mi_texture.id()
+    bl_image = mi_context.get_bl_image(mi_texture_id)
+    if bl_image is None:
+        # If the image is not in the cache, load it from disk.
+        # This can happen if we have a texture inside of a BSDF that is itself into a
+        # twosided BSDF.
+        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_texture)
+        if bl_image is None:
+            bl_mat_wrap.out_node[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(default)
+            return
+        mi_context.register_bl_image(mi_texture_id, bl_image)
+
+    # FIXME: Support texture coordinate mapping
+    bl_teximage = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeTexImage', 'Color')
+    bl_teximage.image = bl_image
+    bl_teximage.extension = mi_wrap_mode_to_bl_extension(mi_context, mi_texture.get('wrap_mode', 'repeat'))
+    bl_teximage.interpolation = mi_filter_type_to_bl_interpolation(mi_context, mi_texture.get('filter_type', 'bilinear'))
+
+_rgb_texture_writers = {
+    'bitmap': write_mi_bitmap
+}
+
+def write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_type = mi_texture.plugin_name()
+    if mi_texture_type not in _rgb_texture_writers:
+        mi_context.log(f'Mitsuba Texture type "{mi_texture_type}" is not supported.', 'ERROR')
+        return
+    _rgb_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
 
 def write_mi_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
     reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
     bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(reflectance)
 
-_rgb_object_writers = {
+_rgb_spectrum_writers = {
     'SRGBReflectanceSpectrum': write_mi_srgb_reflectance_spectrum
 }
 
-def write_mi_spectrum_object(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+def write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
     mi_obj_class_name = mi_obj.class_().name()
-    if mi_obj_class_name not in _rgb_object_writers:
+    if mi_obj_class_name not in _rgb_spectrum_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return
-    _rgb_object_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+    _rgb_spectrum_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
 
 def write_mi_mat_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
@@ -49,11 +110,13 @@ def write_mi_mat_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out
         if mi_prop_type == Properties.Type.Color:
             bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(list(mi_mat.get(mi_prop_name, default)))
         elif mi_prop_type == Properties.Type.NamedReference:
-            # FIXME: Implement texture references
-            raise NotImplementedError('Textures are not supported.')
+            mi_texture_ref_id = mi_mat.get(mi_prop_name)
+            mi_texture = _get_texture_with_id(mi_context, mi_texture_ref_id)
+            assert mi_texture is not None
+            write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
         elif mi_prop_type == Properties.Type.Object:
             mi_obj = mi_mat.get(mi_prop_name)
-            write_mi_spectrum_object(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+            write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to rgb.', 'ERROR')
     elif default is not None:
@@ -72,7 +135,7 @@ def write_mi_mat_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, o
             bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_prop_value
         elif mi_prop_type == Properties.Type.NamedReference:
             # FIXME: Implement texture references
-            raise NotImplementedError('Textures are not supported.')
+            raise NotImplementedError('Float textures are not supported.')
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
     elif default is not None:
@@ -111,8 +174,7 @@ def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     mi_child_materials = []
     for _, ref_id in mi_mat.named_references():
         mi_child_mat = _get_bsdf_with_id(mi_context, ref_id)
-        if mi_child_mat is None:
-            return False
+        assert mi_child_mat
         mi_child_materials.append(mi_child_mat)
     mi_child_material_count = len(mi_child_materials)
     if mi_child_material_count == 1:

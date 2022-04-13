@@ -9,17 +9,18 @@ class BlenderNodeType(Enum):
     MATERIAL = 3,
     PROPERTIES = 4,
     WORLD = 5,
+    IMAGE = 6,
 
 class BlenderNode:
     ''' Define a Blender data node.
     These nodes store an intermediate representation of the imported
     Blender data.
     '''
-    def __init__(self, id=''):
+    def __init__(self, type=BlenderNodeType.NONE, id=''):
         self.id = id
         self.parent = None
         self.children = []
-        self.type = BlenderNodeType.NONE
+        self.type = type
 
     def __repr__(self):
         r = f'BlenderNode({self.id}) [\n'
@@ -35,8 +36,7 @@ class BlenderNode:
 class BlenderSceneNode(BlenderNode):
     ''' Define a Blender node containing scene data '''
     def __init__(self, id=''):
-        super(BlenderSceneNode, self).__init__(id=id)
-        self.type = BlenderNodeType.SCENE
+        super(BlenderSceneNode, self).__init__(type=BlenderNodeType.SCENE, id=id)
 
     def __repr__(self):
         r = f'BlenderSceneNode({self.id}) [\n'
@@ -47,10 +47,9 @@ class BlenderSceneNode(BlenderNode):
 
 class BlenderMaterialNode(BlenderNode):
     ''' Define a Blender node containing material data '''
-    def __init__(self, bl_mat, id=''):
-        super(BlenderMaterialNode, self).__init__(id=id)
-        self.type = BlenderNodeType.MATERIAL
-        self.bl_mat = bl_mat
+    def __init__(self, id=''):
+        super(BlenderMaterialNode, self).__init__(type=BlenderNodeType.MATERIAL, id=id)
+        self.bl_mat = None
 
     def __repr__(self):
         r = f'BlenderMaterialNode({self.id}) [\n'
@@ -61,13 +60,26 @@ class BlenderMaterialNode(BlenderNode):
 
 class BlenderWorldNode(BlenderNode):
     ''' Define a Blender node containing world data '''
-    def __init__(self, bl_world, id=''):
-        super(BlenderWorldNode, self).__init__(id=id)
-        self.type = BlenderNodeType.WORLD
-        self.bl_world = bl_world
+    def __init__(self, id=''):
+        super(BlenderWorldNode, self).__init__(type=BlenderNodeType.WORLD, id=id)
+        self.bl_world = None
 
     def __repr__(self):
         r = f'BlenderWorldNode({self.id}) [\n'
+        for child in self.children:
+            r += f'{child}\n'
+        r += ']'
+        return r
+
+class BlenderImageNode(BlenderNode):
+    ''' Define a Blender node containing image data '''
+    def __init__(self, id=''):
+        super(BlenderImageNode, self).__init__(type=BlenderNodeType.IMAGE, id=id)
+        self.bl_image = None
+        self.mi_props = None
+
+    def __repr__(self):
+        r = f'BlenderImageNode({self.id}) [\n'
         for child in self.children:
             r += f'{child}\n'
         r += ']'
@@ -80,12 +92,11 @@ class BlenderObjectNodeType(Enum):
 
 class BlenderObjectNode(BlenderNode):
     ''' Define a Blender data node containing Blender object data '''
-    def __init__(self, obj_type: BlenderObjectNodeType, bl_data, world_matrix, id=''):
-        super(BlenderObjectNode, self).__init__(id=id)
-        self.type = BlenderNodeType.OBJECT
-        self.obj_type = obj_type
-        self.bl_data = bl_data
-        self.world_matrix = world_matrix
+    def __init__(self, id=''):
+        super(BlenderObjectNode, self).__init__(type=BlenderNodeType.OBJECT, id=id)
+        self.obj_type = None
+        self.bl_data = None
+        self.world_matrix = None
 
     def __repr__(self):
         r = f'BlenderObjectNode({self.id}, {self.obj_type}) [\n'
@@ -101,11 +112,8 @@ class BlenderPropertiesNode(BlenderNode):
     ''' Define a Blender data node containing Mitsuba properties.
     These properties will be parsed as part of the scene's post-processing stage.
     '''
-    def __init__(self, mi_cls, mi_props, id=''):
-        super(BlenderPropertiesNode, self).__init__(id=id)
-        self.type = BlenderNodeType.PROPERTIES
-        self.mi_cls = mi_cls
-        self.mi_props = mi_props
+    def __init__(self, id=''):
+        super(BlenderPropertiesNode, self).__init__(type=BlenderNodeType.PROPERTIES, id=id)
 
     def __repr__(self):
         r = f'BlenderPropertiesNode({self.id}, {self.mi_cls}) [\n'
@@ -113,6 +121,24 @@ class BlenderPropertiesNode(BlenderNode):
             r += f'{child}\n'
         r += ']'
         return r
+
+def create_blender_node(node_type=BlenderNodeType.NONE, id=''):
+    if node_type == BlenderNodeType.NONE:
+        return BlenderNode(id=id)
+    elif node_type == BlenderNodeType.SCENE:
+        return BlenderSceneNode(id=id)
+    elif node_type == BlenderNodeType.MATERIAL:
+        return BlenderMaterialNode(id=id)
+    elif node_type == BlenderNodeType.OBJECT:
+        return BlenderObjectNode(id=id)
+    elif node_type == BlenderNodeType.PROPERTIES:
+        return BlenderPropertiesNode(id=id)
+    elif node_type == BlenderNodeType.WORLD:
+        return BlenderWorldNode(id=id)
+    elif node_type == BlenderNodeType.IMAGE:
+        return BlenderImageNode(id=id)
+    else:
+        return None
 
 class MitsubaScenePropertiesIterator:
     """ Iterator for Mitsuba properties. Implement filtering based on object class type """
@@ -168,6 +194,7 @@ class MitsubaSceneImportContext:
         self.axis_matrix = axis_matrix
         self.axis_matrix_inv = axis_matrix.inverted()
         self.bl_material_cache = {}
+        self.bl_image_cache = {}
 
     def log(self, message, level='INFO'):
         '''
@@ -212,3 +239,12 @@ class MitsubaSceneImportContext:
         if id not in self.bl_material_cache:
             return None
         return self.bl_material_cache[id]
+
+    def register_bl_image(self, id, bl_image):
+        if id not in self.bl_image_cache:
+            self.bl_image_cache[id] = bl_image
+
+    def get_bl_image(self, id):
+        if id not in self.bl_image_cache:
+            return None
+        return self.bl_image_cache[id]
