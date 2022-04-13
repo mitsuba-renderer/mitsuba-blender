@@ -4,11 +4,14 @@ if "bpy" in locals():
         importlib.reload(bl_shader_utils)
     if "mi_spectra_utils" in locals():
         importlib.reload(mi_spectra_utils)
+    if "bl_image_utils" in locals():
+        importlib.reload(bl_image_utils)
     
 import bpy
 
 from . import bl_shader_utils
 from . import mi_spectra_utils
+from . import bl_image_utils
 
 ##############################
 ##  World property writers  ##
@@ -60,6 +63,23 @@ def write_mi_constant_emitter(mi_context, mi_emitter, bl_world_wrap, out_socket_
     write_mi_world_radiance_property(mi_context, mi_emitter, 'radiance', bl_background_wrap, 'Color', 'Strength', [0.8, 0.8, 0.8])
     return True
 
+def write_mi_envmap_emitter(mi_context, mi_emitter, bl_world_wrap, out_socket_id):
+    # Load the environment texture
+    filepath = mi_context.resolve_scene_relative_path(mi_emitter.get('filename'))
+    bl_image = bl_image_utils.load_bl_image_from_filepath(mi_context, filepath, is_data=False)
+    if bl_image is None:
+        mi_context.log(f'Failed to load image file "{filepath}".', 'ERROR')
+        return False
+    bl_image.name = mi_emitter.id()
+    # Create the background shader node
+    bl_background = bl_world_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBackground', 'Background')
+    bl_background.inputs['Strength'].default_value = mi_emitter.get('scale', 1.0)
+    # Create the environment texture node
+    bl_environment = bl_world_wrap.ensure_node_type([out_socket_id, 'Color'], 'ShaderNodeTexEnvironment', 'Color')
+    bl_environment.projection = 'EQUIRECTANGULAR'
+    bl_environment.image = bl_image
+    return True
+
 ######################
 ##   Main import    ##
 ######################
@@ -73,6 +93,7 @@ def write_bl_error_world(bl_world_wrap, out_socket_id):
 
 _world_writers = {
     'constant': write_mi_constant_emitter,
+    'envmap': write_mi_envmap_emitter,
 }
 
 def write_mi_emitter_to_node_graph(mi_context, mi_emitter, bl_world_wrap, out_socket_id):

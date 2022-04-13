@@ -1,22 +1,25 @@
 import os
 
+if "bpy" in locals():
+    import importlib
+    if "bl_image_utils" in locals():
+        importlib.reload(bl_image_utils)
+
 import bpy
+
+from . import bl_image_utils
 
 ######################
 ##    Converters    ##
 ######################
 
 def mi_bitmap_to_bl_image(mi_context, mi_texture):
-    filename = mi_context.resolve_scene_relative_path(mi_texture.get('filename'))
-    try:
-        bl_image = bpy.data.images.load(filename)
-    except:
-        mi_context.log(f'Failed to load image "{filename}".', 'ERROR')
+    filepath = mi_context.resolve_scene_relative_path(mi_texture.get('filename'))
+    bl_image = bl_image_utils.load_bl_image_from_filepath(mi_context, filepath, mi_texture.get('raw', False))
+    if bl_image is None:
+        mi_context.log(f'Failed to load image from path "{filepath}".', 'ERROR')
         return None
     bl_image.name = mi_texture.id()
-    if mi_texture.get('raw', False):
-        bl_image.colorspace_settings.is_data = True
-        bl_image.colorspace_settings.name = 'Non-Color'
     return bl_image
 
 ######################

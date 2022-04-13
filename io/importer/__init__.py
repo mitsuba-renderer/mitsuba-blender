@@ -108,14 +108,20 @@ def mi_bsdf_to_bl_node(mi_context, mi_props):
 def mi_emitter_to_bl_node(mi_context, mi_props):
     # NOTE: Some Mitsuba emitters need to be imported as a Blender world material
     if world.should_convert_mi_emitter_to_bl_world(mi_props):
-        bl_world = world.mi_emitter_to_bl_world(mi_context, mi_props)
-        
         node = common.create_blender_node(common.BlenderNodeType.WORLD, id=mi_props.id())
+        # Convert dependencies if any
+        _convert_named_references(mi_context, mi_props, node)
+
+        bl_world = world.mi_emitter_to_bl_world(mi_context, mi_props)
+
         node.bl_world = bl_world
     else:
+        node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
+        # Convert dependencies if any
+        _convert_named_references(mi_context, mi_props, node)
+
         bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
         
-        node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
         node.obj_type = common.BlenderObjectNodeType.LIGHT
         node.bl_data = bl_light
         node.world_matrix = world_matrix
