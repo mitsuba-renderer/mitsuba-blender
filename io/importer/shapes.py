@@ -4,12 +4,15 @@ if "bpy" in locals():
     import importlib
     if "bl_transform_utils" in locals():
         importlib.reload(bl_transform_utils)
+    if "bl_import_ply" in locals():
+        importlib.reload(bl_import_ply)
 
 import bpy
 import bmesh
 from mathutils import Matrix, Vector
 
 from . import bl_transform_utils
+from . import bl_import_ply
 
 ######################
 ##    Utilities     ##
@@ -46,8 +49,7 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
     abs_path = mi_context.resolve_scene_relative_path(filename)
 
     # Load .PLY mesh from file
-    from io_mesh_ply import import_ply
-    bl_mesh = import_ply.load_ply_mesh(abs_path, mi_shape.id())
+    bl_mesh = bl_import_ply.load_ply_mesh(abs_path, mi_shape.id())
     if not bl_mesh:
         mi_context.log(f'Cannot load PLY mesh file "{filename}".', 'ERROR')
         return None
