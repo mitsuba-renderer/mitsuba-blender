@@ -83,6 +83,13 @@ def mi_sampler_to_bl_node(mi_context, mi_props):
 
     return node
 
+def mi_rfilter_to_bl_node(mi_context, mi_props):
+    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
+    # Convert dependencies if any
+    _convert_named_references(mi_context, mi_props, node)
+
+    return node
+
 def mi_film_to_bl_node(mi_context, mi_props):
     node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
     # Convert dependencies if any
@@ -168,6 +175,7 @@ _bl_data_converters = {
     'Emitter': mi_emitter_to_bl_node,
     'Shape': mi_shape_to_bl_node,
     'Texture': mi_texture_to_bl_node,
+    'ReconstructionFilter': mi_rfilter_to_bl_node,
 }
 
 def mi_props_to_bl_data_node(mi_context, mi_cls, mi_props):
