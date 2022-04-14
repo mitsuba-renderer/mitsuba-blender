@@ -6,6 +6,8 @@ if "bpy" in locals():
         importlib.reload(bl_transform_utils)
     if "bl_import_ply" in locals():
         importlib.reload(bl_import_ply)
+    if "bl_import_obj" in locals():
+        importlib.reload(bl_import_obj)
 
 import bpy
 import bmesh
@@ -13,6 +15,7 @@ from mathutils import Matrix, Vector
 
 from . import bl_transform_utils
 from . import bl_import_ply
+from . import bl_import_obj
 
 ######################
 ##    Utilities     ##
@@ -54,6 +57,26 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
         mi_context.log(f'Cannot load PLY mesh file "{filename}".', 'ERROR')
         return None
     
+    # Set face normals if requested
+    _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
+
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
+
+def mi_obj_to_bl_shape(mi_context, mi_shape):
+    assert mi_shape.has_property('filename')
+
+    filename = mi_shape.get('filename')
+    abs_path = mi_context.resolve_scene_relative_path(filename)
+
+    # Load the mesh from the file
+    bl_meshes = bl_import_obj.load(abs_path)
+    if len(bl_meshes) > 1:
+        mi_context.log('OBJ file containing more than one mesh. Only the first one will be loaded.', 'WARN')
+    bl_mesh = bl_meshes[0]
+    bl_mesh.name = mi_shape.id()
+
     # Set face normals if requested
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
 
@@ -122,6 +145,7 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
 
 _shape_converters = {
     'ply': mi_ply_to_bl_shape,
+    'obj': mi_obj_to_bl_shape,
     'sphere': mi_sphere_to_bl_shape,
     'disk': mi_disk_to_bl_shape,
     'rectangle': mi_rectangle_to_bl_shape,
