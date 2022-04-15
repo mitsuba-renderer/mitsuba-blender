@@ -143,6 +143,64 @@ def write_mi_mat_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, o
     else:
         mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
 
+_ior_string_values = {
+    'acetone': 1.36,
+    'acrylic glass': 1.49,
+    'air': 1.00028,
+    'amber': 1.55,
+    'benzene': 1.501,
+    'bk7': 1.5046,
+    'bromine': 1.661,
+    'carbon dioxide': 1.00045,
+    'carbon tetrachloride': 1.461,
+    'diamond': 2.419,
+    'ethanol': 1.361,
+    'fused quartz': 1.458,
+    'glycerol': 1.4729,
+    'helium': 1.00004,
+    'hydrogen': 1.00013,
+    'pet': 1.575,
+    'polypropylene': 1.49,
+    'pyrex': 1.470,
+    'silicone oil': 1.52045,
+    'sodium chloride': 1.544,
+    'vacuum': 1.0,
+    'water': 1.3330,
+    'water ice': 1.31,
+}
+
+def mi_ior_string_to_float(mi_context, mi_ior):
+    if mi_ior not in _ior_string_values:
+        mi_context.log(f'Mitsuba IOR name "{mi_ior}" is not supported.', 'ERROR')
+        return 1.0
+    return _ior_string_values[mi_ior]
+
+def write_mi_mat_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
+    from mitsuba import Properties
+    if mi_mat.has_property(mi_prop_name):
+        mi_prop_type = mi_mat.type(mi_prop_name)
+        if mi_prop_type == Properties.Type.Float:
+            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_mat.get(mi_prop_name, default)
+        elif mi_prop_type == Properties.Type.String:
+            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_ior_string_to_float(mi_mat.get(mi_prop_name, 'bk7'))
+        else:
+            mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
+    elif default is not None:
+        bl_mat_wrap.out_node.inputs[out_socket_id].default_value = default
+    else:
+        mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
+
+_microfacet_distribution_values = {
+    'beckmann': 'BECKMANN',
+    'ggx': 'GGX'
+}
+
+def mi_microfacet_to_bl_microfacet(mi_context, mi_microfacet_distribution):
+    if mi_microfacet_distribution not in _microfacet_distribution_values:
+        mi_context.log(f'Mitsuba microfacet distribution "{mi_microfacet_distribution}" not supported.', 'ERROR')
+        return 'BECKMANN'
+    return _microfacet_distribution_values[mi_microfacet_distribution]
+
 ######################
 ##   BSDF writers   ##
 ######################
@@ -192,6 +250,24 @@ def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
         mi_context.log(f'Mitsuba twosided material "{mi_mat.id()}" has {mi_child_material_count} child material(s). Expected 1 or 2.', 'ERROR')
         return False
 
+def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
+    bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
+    # FIXME: Is this the correct distribution ?
+    bl_glass.distribution = 'SHARP'
+    write_mi_mat_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
+    write_mi_mat_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
+    return True
+
+def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
+    bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
+    bl_glass.distribution = mi_microfacet_to_bl_microfacet(mi_mat.get('distribution', 'beckmann'))
+    write_mi_mat_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
+    write_mi_mat_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
+    write_mi_mat_float_property(mi_context, mi_mat, 'alpha', bl_mat_wrap, 'Roughness', 0.1)
+    return True
+
 ######################
 ##   Main import    ##
 ######################
@@ -222,6 +298,8 @@ _material_writers = {
     'principled': write_mi_principled_bsdf,
     'diffuse': write_mi_diffuse_bsdf,
     'twosided': write_mi_twosided_bsdf,
+    'dielectric': write_mi_dielectric_bsdf,
+    'roughdielectric': write_mi_roughdielectric_bsdf,
 }
 
 def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False):

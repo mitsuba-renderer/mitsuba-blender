@@ -137,7 +137,7 @@ def mi_emitter_to_bl_node(mi_context, mi_props):
 def mi_shape_to_bl_node(mi_context, mi_props):
     node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
     # FIXME: Support nested emitter/bsdf combination
-    _convert_named_references(mi_context, mi_props, node)
+    _convert_named_references(mi_context, mi_props, node, type_filter=['BSDF'])
     # Convert the shape
     bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
     
