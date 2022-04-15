@@ -271,17 +271,39 @@ def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
     # FIXME: Is this the correct distribution ?
     bl_glass.distribution = 'SHARP'
-    write_mi_mat_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
-    write_mi_mat_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
+    write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
+    write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
     return True
 
 def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
-    bl_glass.distribution = mi_microfacet_to_bl_microfacet(mi_mat.get('distribution', 'beckmann'))
-    write_mi_mat_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
-    write_mi_mat_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
-    write_mi_mat_float_property(mi_context, mi_mat, 'alpha', bl_mat_wrap, 'Roughness', 0.1)
+    bl_glass.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
+    write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
+    write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
+    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.1)
+    return True
+
+def write_mi_thindielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
+    bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
+    bl_glass.distribution = 'SHARP'
+    bl_glass.inputs['IOR'].default_value = 1.0
+    write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
+    return True
+
+def write_mi_blend_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
+    bl_mix_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+    write_mi_float_property(mi_context, mi_mat, 'weight', bl_mix_wrap, 'Fac', 0.5)
+    # NOTE: We assume that the two BSDFs are ordered in the list of named references
+    mi_child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
+    mi_child_mats_count = len(mi_child_mats)
+    if mi_child_mats_count != 2:
+        mi_context.log(f'Unexpected number of child BSDFs in blendbsdf. Expected 2 but got {mi_child_mats_count}.', 'ERROR')
+        return False
+    write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader')
+    write_mi_material_to_node_graph(mi_context, mi_child_mats[1], bl_mix_wrap, 'Shader_001')
     return True
 
 ######################
@@ -316,6 +338,8 @@ _material_writers = {
     'twosided': write_mi_twosided_bsdf,
     'dielectric': write_mi_dielectric_bsdf,
     'roughdielectric': write_mi_roughdielectric_bsdf,
+    'thindielectric': write_mi_thindielectric_bsdf,
+    'blendbsdf': write_mi_blend_bsdf,
 }
 
 def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False):
