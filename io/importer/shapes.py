@@ -1,4 +1,4 @@
-import os
+import time
 
 if "bpy" in locals():
     import importlib
@@ -65,6 +65,8 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 def mi_obj_to_bl_shape(mi_context, mi_shape):
+    start_time = time.time()
+
     assert mi_shape.has_property('filename')
 
     filename = mi_shape.get('filename')
@@ -81,6 +83,9 @@ def mi_obj_to_bl_shape(mi_context, mi_shape):
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
 
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+
+    end_time = time.time()
+    mi_context.log(f'Loaded OBJ mesh "{mi_shape.id()}". Took {end_time-start_time:.2f}s.', 'INFO')
 
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 

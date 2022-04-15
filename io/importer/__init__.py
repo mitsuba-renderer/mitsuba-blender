@@ -1,4 +1,4 @@
-import os
+import time
 
 if "bpy" in locals():
     import importlib
@@ -309,6 +309,7 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     filepath: Path to the Mitsuba XML scene file
     global_mat: Axis conversion matrix
     '''
+    start_time = time.time()
     # Load the Mitsuba XML and extract the objects' properties
     from mitsuba import xml_to_props
     raw_props = xml_to_props(filepath)
@@ -328,5 +329,8 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     # Check that every property was accessed at least once as a sanity check
     for cls, prop in mi_scene_props:
         _check_unqueried_props(mi_context, cls, prop)
+
+    end_time = time.time()
+    mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}', 'INFO')
 
     return
