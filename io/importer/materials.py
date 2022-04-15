@@ -18,9 +18,9 @@ from . import mi_spectra_utils
 from . import mi_props_utils
 from . import textures
 
-#################################
-##  Material property writers  ##
-#################################
+################################
+##  Misc property converters  ##
+################################
 
 def mi_wrap_mode_to_bl_extension(mi_context, mi_wrap_mode):
     if mi_wrap_mode == 'repeat':
@@ -43,35 +43,52 @@ def mi_filter_type_to_bl_interpolation(mi_context, mi_filter_type):
         mi_context.log(f'Mitsuba filter type "{mi_filter_type}" is not supported.', 'ERROR')
         return None
 
-def write_mi_rgb_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_id = mi_texture.id()
-    bl_image = mi_context.get_bl_image(mi_texture_id)
-    if bl_image is None:
-        # If the image is not in the cache, load it from disk.
-        # This can happen if we have a texture inside of a BSDF that is itself into a
-        # twosided BSDF.
-        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_texture)
-        if bl_image is None:
-            bl_mat_wrap.out_node[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(default)
-            return
-        mi_context.register_bl_image(mi_texture_id, bl_image)
-
-    # FIXME: Support texture coordinate mapping
-    bl_teximage = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeTexImage', 'Color')
-    bl_teximage.image = bl_image
-    bl_teximage.extension = mi_wrap_mode_to_bl_extension(mi_context, mi_texture.get('wrap_mode', 'repeat'))
-    bl_teximage.interpolation = mi_filter_type_to_bl_interpolation(mi_context, mi_texture.get('filter_type', 'bilinear'))
-
-_rgb_texture_writers = {
-    'bitmap': write_mi_rgb_bitmap
+_ior_string_values = {
+    'acetone': 1.36,
+    'acrylic glass': 1.49,
+    'air': 1.00028,
+    'amber': 1.55,
+    'benzene': 1.501,
+    'bk7': 1.5046,
+    'bromine': 1.661,
+    'carbon dioxide': 1.00045,
+    'carbon tetrachloride': 1.461,
+    'diamond': 2.419,
+    'ethanol': 1.361,
+    'fused quartz': 1.458,
+    'glycerol': 1.4729,
+    'helium': 1.00004,
+    'hydrogen': 1.00013,
+    'pet': 1.575,
+    'polypropylene': 1.49,
+    'pyrex': 1.470,
+    'silicone oil': 1.52045,
+    'sodium chloride': 1.544,
+    'vacuum': 1.0,
+    'water': 1.3330,
+    'water ice': 1.31,
 }
 
-def write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_type = mi_texture.plugin_name()
-    if mi_texture_type not in _rgb_texture_writers:
-        mi_context.log(f'Mitsuba Texture type "{mi_texture_type}" is not supported.', 'ERROR')
-        return
-    _rgb_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
+def mi_ior_string_to_float(mi_context, mi_ior):
+    if mi_ior not in _ior_string_values:
+        mi_context.log(f'Mitsuba IOR name "{mi_ior}" is not supported.', 'ERROR')
+        return 1.0
+    return _ior_string_values[mi_ior]
+
+_microfacet_distribution_values = {
+    'beckmann': 'BECKMANN',
+    'ggx': 'GGX'
+}
+
+def mi_microfacet_to_bl_microfacet(mi_context, mi_microfacet_distribution):
+    if mi_microfacet_distribution not in _microfacet_distribution_values:
+        mi_context.log(f'Mitsuba microfacet distribution "{mi_microfacet_distribution}" not supported.', 'ERROR')
+        return 'BECKMANN'
+    return _microfacet_distribution_values[mi_microfacet_distribution]
+
+##############################
+##  Float property writers  ##
+##############################
 
 def write_mi_float_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
     mi_texture_id = mi_texture.id()
@@ -106,12 +123,85 @@ def write_mi_float_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, d
         return
     _float_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
 
-def write_mi_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+def write_mi_float_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+    reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
+    bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_spectra_utils.linear_rgb_to_luminance(reflectance)
+
+_float_spectrum_writers = {
+    'SRGBReflectanceSpectrum': write_mi_float_srgb_reflectance_spectrum
+}
+
+def write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
+    mi_obj_class_name = mi_obj.class_().name()
+    if mi_obj_class_name not in _float_spectrum_writers:
+        mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
+        return
+    _float_spectrum_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+
+def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
+    from mitsuba import Properties
+    if mi_mat.has_property(mi_prop_name):
+        mi_prop_type = mi_mat.type(mi_prop_name)
+        if mi_prop_type == Properties.Type.Float:
+            mi_prop_value = mi_mat.get(mi_prop_name, default)
+            if transformation is not None:
+                mi_prop_value = transformation(mi_prop_value)
+            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_prop_value
+        elif mi_prop_type == Properties.Type.NamedReference:
+            mi_texture_ref_id = mi_mat.get(mi_prop_name)
+            mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
+            assert mi_texture is not None
+            write_mi_float_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
+        elif mi_prop_type == Properties.Type.Object:
+            mi_obj = mi_mat.get(mi_prop_name)
+            write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+        else:
+            mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
+    elif default is not None:
+        bl_mat_wrap.out_node.inputs[out_socket_id].default_value = default
+    else:
+        mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
+
+############################
+##  RGB property writers  ##
+############################
+
+def write_mi_rgb_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_id = mi_texture.id()
+    bl_image = mi_context.get_bl_image(mi_texture_id)
+    if bl_image is None:
+        # If the image is not in the cache, load it from disk.
+        # This can happen if we have a texture inside of a BSDF that is itself into a
+        # twosided BSDF.
+        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_texture)
+        if bl_image is None:
+            bl_mat_wrap.out_node[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(default)
+            return
+        mi_context.register_bl_image(mi_texture_id, bl_image)
+
+    # FIXME: Support texture coordinate mapping
+    bl_teximage = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeTexImage', 'Color')
+    bl_teximage.image = bl_image
+    bl_teximage.extension = mi_wrap_mode_to_bl_extension(mi_context, mi_texture.get('wrap_mode', 'repeat'))
+    bl_teximage.interpolation = mi_filter_type_to_bl_interpolation(mi_context, mi_texture.get('filter_type', 'bilinear'))
+
+_rgb_texture_writers = {
+    'bitmap': write_mi_rgb_bitmap
+}
+
+def write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_type = mi_texture.plugin_name()
+    if mi_texture_type not in _rgb_texture_writers:
+        mi_context.log(f'Mitsuba Texture type "{mi_texture_type}" is not supported.', 'ERROR')
+        return
+    _rgb_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
+
+def write_mi_rgb_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
     reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
     bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(reflectance)
 
 _rgb_spectrum_writers = {
-    'SRGBReflectanceSpectrum': write_mi_srgb_reflectance_spectrum
+    'SRGBReflectanceSpectrum': write_mi_rgb_srgb_reflectance_spectrum
 }
 
 def write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
@@ -142,58 +232,9 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
     else:
         mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
 
-def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
-    from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
-        mi_prop_type = mi_mat.type(mi_prop_name)
-        if mi_prop_type == Properties.Type.Float:
-            mi_prop_value = mi_mat.get(mi_prop_name, default)
-            if transformation is not None:
-                mi_prop_value = transformation(mi_prop_value)
-            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_prop_value
-        elif mi_prop_type == Properties.Type.NamedReference:
-            mi_texture_ref_id = mi_mat.get(mi_prop_name)
-            mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
-            assert mi_texture is not None
-            write_mi_float_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
-        else:
-            mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
-    elif default is not None:
-        bl_mat_wrap.out_node.inputs[out_socket_id].default_value = default
-    else:
-        mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
-
-_ior_string_values = {
-    'acetone': 1.36,
-    'acrylic glass': 1.49,
-    'air': 1.00028,
-    'amber': 1.55,
-    'benzene': 1.501,
-    'bk7': 1.5046,
-    'bromine': 1.661,
-    'carbon dioxide': 1.00045,
-    'carbon tetrachloride': 1.461,
-    'diamond': 2.419,
-    'ethanol': 1.361,
-    'fused quartz': 1.458,
-    'glycerol': 1.4729,
-    'helium': 1.00004,
-    'hydrogen': 1.00013,
-    'pet': 1.575,
-    'polypropylene': 1.49,
-    'pyrex': 1.470,
-    'silicone oil': 1.52045,
-    'sodium chloride': 1.544,
-    'vacuum': 1.0,
-    'water': 1.3330,
-    'water ice': 1.31,
-}
-
-def mi_ior_string_to_float(mi_context, mi_ior):
-    if mi_ior not in _ior_string_values:
-        mi_context.log(f'Mitsuba IOR name "{mi_ior}" is not supported.', 'ERROR')
-        return 1.0
-    return _ior_string_values[mi_ior]
+############################
+##  IOR property writers  ##
+############################
 
 def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
@@ -209,17 +250,6 @@ def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
         bl_mat_wrap.out_node.inputs[out_socket_id].default_value = default
     else:
         mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
-
-_microfacet_distribution_values = {
-    'beckmann': 'BECKMANN',
-    'ggx': 'GGX'
-}
-
-def mi_microfacet_to_bl_microfacet(mi_context, mi_microfacet_distribution):
-    if mi_microfacet_distribution not in _microfacet_distribution_values:
-        mi_context.log(f'Mitsuba microfacet distribution "{mi_microfacet_distribution}" not supported.', 'ERROR')
-        return 'BECKMANN'
-    return _microfacet_distribution_values[mi_microfacet_distribution]
 
 ######################
 ##   BSDF writers   ##
@@ -281,7 +311,7 @@ def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id
     bl_glass.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
-    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.1)
+    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
     return True
 
 def write_mi_thindielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
@@ -304,6 +334,37 @@ def write_mi_blend_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
         return False
     write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader')
     write_mi_material_to_node_graph(mi_context, mi_child_mats[1], bl_mix_wrap, 'Shader_001')
+    return True
+
+def write_mi_conductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
+    bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
+    bl_glossy.distribution = 'SHARP'
+    write_mi_rgb_property(mi_context, mi_mat, 'specular_reflectance', bl_glossy_wrap, 'Color', [1.0, 1.0, 1.0])
+    return True
+
+def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
+    bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
+    bl_glossy.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
+    write_mi_rgb_property(mi_context, mi_mat, 'specular_reflectance', bl_glossy_wrap, 'Color', [1.0, 1.0, 1.0])
+    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    return True
+
+def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
+    bl_mix_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+    # Connect the opacity. A value of 0 is completely transparent and 1 is completely opaque.
+    write_mi_float_property(mi_context, mi_mat, 'opacity', bl_mix_wrap, 'Fac', 0.5)
+    # Add a transparent node to the top socket of the mix shader
+    bl_mix_wrap.ensure_node_type(['Shader'], 'ShaderNodeBsdfTransparent', 'BSDF')
+    # Parse the other BSDF
+    mi_child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
+    mi_child_mats_count = len(mi_child_mats)
+    if mi_child_mats_count != 1:
+        mi_context.log(f'Unexpected number of child BSDFs in mask BSDF. Expected 1 but got {mi_child_mats_count}.', 'ERROR')
+        return False
+    write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader_001')
     return True
 
 ######################
@@ -340,7 +401,17 @@ _material_writers = {
     'roughdielectric': write_mi_roughdielectric_bsdf,
     'thindielectric': write_mi_thindielectric_bsdf,
     'blendbsdf': write_mi_blend_bsdf,
+    'conductor': write_mi_conductor_bsdf,
+    'roughconductor': write_mi_roughconductor_bsdf,
+    'mask': write_mi_mask_bsdf,
 }
+
+# List of transmissive materials that are always two-sided
+_transmissive_materials = [
+    'dielectric',
+    'roughdielectric',
+    'thindielectric'
+]
 
 def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False):
     ''' Write a Mitsuba material in a node graph starting at a specific
@@ -357,7 +428,8 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
         mi_context.log('Cannot have nested twosided materials.', 'ERROR')
         return
     
-    if not is_within_twosided and mat_type != 'twosided':
+    if not is_within_twosided and mat_type != 'twosided' and mat_type not in _transmissive_materials:
+        # Write one-sided material
         write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat=mi_mat, mi_back_mat=None)
     elif not _material_writers[mat_type](mi_context, mi_mat, bl_mat_wrap, out_socket_id):
         mi_context.log(f'Failed to convert Mitsuba material "{mi_mat.id()}". Skipping.', 'WARN')

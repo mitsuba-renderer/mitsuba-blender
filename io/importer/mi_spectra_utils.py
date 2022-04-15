@@ -13,6 +13,9 @@ def get_color_strength_from_radiance(radiance):
         return radiance, 1.0
     return [c / strength for c in radiance], strength
 
+def linear_rgb_to_luminance(color):
+    return 0.2126 * color[0] + 0.7152 * color[1] + 0.0722 * color[2]
+
 ###########################
 ##  Reflectance spectra  ##
 ###########################
