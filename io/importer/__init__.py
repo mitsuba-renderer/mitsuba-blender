@@ -38,6 +38,7 @@ def _check_unqueried_props(mi_context, mi_cls, mi_props):
 def _convert_named_references(mi_context, mi_props, parent_node, type_filter=[]):
     for _, ref_id in mi_props.named_references():
         mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
+        assert mi_child_cls is not None and mi_child_props is not None
         if len(type_filter) == 0 or mi_child_cls in type_filter:
             child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
             if child_node is not None:
@@ -331,6 +332,6 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
         _check_unqueried_props(mi_context, cls, prop)
 
     end_time = time.time()
-    mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}', 'INFO')
+    mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}s.', 'INFO')
 
     return

@@ -171,16 +171,25 @@ class MitsubaSceneProperties:
 
     def get_with_id(self, id: str):
         ''' Get the property of an object with a certain id '''
-        if id in self.objects:
-            return self.objects[id]
-        return None
+        if id not in self.objects:
+            return (None, None)
+        return self.objects[id]
+
+    def get_with_id_and_class(self, id: str, cls: str):
+        ''' Get the property of an object with a certain id and class type '''
+        if id not in self.objects:
+            return None
+        cls_, props = self.objects[id]
+        if cls_ != cls:
+            return None
+        return props
 
     def get_first_of_class(self, cls):
         ''' Get the first properties in the object list that if of a certain class '''
         for (id, (class_, prop)) in self.objects.items():
             if cls == class_:
                 return (id, prop)
-        return None
+        return (None, None)
 
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
