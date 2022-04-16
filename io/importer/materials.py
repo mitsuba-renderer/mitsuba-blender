@@ -138,15 +138,18 @@ def write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, defa
         return
     _float_spectrum_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
 
+def write_mi_float_value(mi_context, float_value, bl_mat_wrap, out_socket_id, transformation=None):
+    if transformation is not None:
+        float_value = transformation(float_value)
+    bl_mat_wrap.out_node.inputs[out_socket_id].default_value = float_value
+
 def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
     from mitsuba import Properties
     if mi_mat.has_property(mi_prop_name):
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Float:
             mi_prop_value = mi_mat.get(mi_prop_name, default)
-            if transformation is not None:
-                mi_prop_value = transformation(mi_prop_value)
-            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_prop_value
+            write_mi_float_value(mi_context, mi_prop_value, bl_mat_wrap, out_socket_id, transformation)
         elif mi_prop_type == Properties.Type.NamedReference:
             mi_texture_ref_id = mi_mat.get(mi_prop_name)
             mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
@@ -211,12 +214,15 @@ def write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, defaul
         return
     _rgb_spectrum_writers[mi_obj_class_name](mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
 
+def write_mi_rgb_value(mi_context, rgb_value, bl_mat_wrap, out_socket_id):
+    bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(rgb_value)
+
 def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
     if mi_mat.has_property(mi_prop_name):
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
-            bl_mat_wrap.out_node.inputs[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(list(mi_mat.get(mi_prop_name, default)))
+            write_mi_rgb_value(mi_context, list(mi_mat.get(mi_prop_name, default)), bl_mat_wrap, out_socket_id)
         elif mi_prop_type == Properties.Type.NamedReference:
             mi_texture_ref_id = mi_mat.get(mi_prop_name)
             mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
@@ -367,6 +373,33 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
     write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader_001')
     return True
 
+# FIXME: The plastic and roughplastic don't have simple equivalent in Blender. We rely on a 
+#        crude approximation using a Disney principled shader.
+def write_mi_plastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
+    bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
+    write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
+    write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_principled_wrap, 'IOR', 1.49)
+    bl_principled.inputs['Specular'].default_value = 0.2
+    bl_principled.inputs['Specular Tint'].default_value = 1.0
+    bl_principled.inputs['Roughness'].default_value = 0.0
+    bl_principled.inputs['Clearcoat'].default_value = 0.8
+    bl_principled.inputs['Clearcoat Roughness'].default_value = 0.0
+    return True
+
+def write_mi_roughplastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id):
+    bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
+    bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
+    write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
+    write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_principled_wrap, 'IOR', 1.49)
+    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Clearcoat Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    bl_principled.distribution = mi_microfacet_to_bl_microfacet(mi_context, 'ggx')
+    bl_principled.inputs['Specular'].default_value = 0.2
+    bl_principled.inputs['Specular Tint'].default_value = 1.0
+    bl_principled.inputs['Clearcoat'].default_value = 0.8
+    return True
+
 ######################
 ##   Main import    ##
 ######################
@@ -404,6 +437,8 @@ _material_writers = {
     'conductor': write_mi_conductor_bsdf,
     'roughconductor': write_mi_roughconductor_bsdf,
     'mask': write_mi_mask_bsdf,
+    'plastic': write_mi_plastic_bsdf,
+    'roughplastic': write_mi_roughplastic_bsdf,
 }
 
 # List of transmissive materials that are always two-sided
