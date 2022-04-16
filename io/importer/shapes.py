@@ -144,6 +144,22 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
 
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
+def mi_cube_to_bl_shape(mi_context, mi_shape):
+    bl_mesh = bpy.data.meshes.new(mi_shape.id())
+    bl_bmesh = bmesh.new()
+
+    # Create a cube
+    bmesh.ops.create_cube(bl_bmesh, size=2.0, calc_uvs=True)
+    bl_bmesh.to_mesh(bl_mesh)
+    bl_bmesh.free()
+
+    _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
+
+    # FIXME: The world matrix seems off
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
+
 ######################
 ##   Main import    ##
 ######################
@@ -154,6 +170,7 @@ _shape_converters = {
     'sphere': mi_sphere_to_bl_shape,
     'disk': mi_disk_to_bl_shape,
     'rectangle': mi_rectangle_to_bl_shape,
+    'cube': mi_cube_to_bl_shape,
 }
 
 def mi_shape_to_bl_shape(mi_context, mi_shape):
