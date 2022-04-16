@@ -445,7 +445,8 @@ _material_writers = {
 _transmissive_materials = [
     'dielectric',
     'roughdielectric',
-    'thindielectric'
+    'thindielectric',
+    'mask',
 ]
 
 def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False):
