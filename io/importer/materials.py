@@ -278,6 +278,21 @@ def write_mi_bump_and_normal_maps(mi_context, bl_mat_wrap, out_socket_id, mi_bum
         bl_normal_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_normal)
         write_mi_rgb_property(mi_context, mi_normal, 'normalmap', bl_normal_wrap, 'Color', [0.5, 0.5, 1.0])
 
+###########################
+##  Area emitter writer  ##
+###########################
+
+def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
+    bl_add = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeAddShader', 'Shader')
+    bl_add_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_add)
+    
+    bl_emissive = bl_add_wrap.ensure_node_type(['Shader'], 'ShaderNodeEmission', 'Emission')
+    radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get('radiance'), [1.0, 1.0, 1.0])
+    bl_emissive.inputs['Color'].default_value = bl_shader_utils.rgb_to_rgba(radiance)
+    bl_emissive.inputs['Strength'].default_value = strength
+
+    return bl_add_wrap, 'Shader_001'
+
 ######################
 ##   BSDF writers   ##
 ######################
@@ -541,23 +556,37 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
         mi_context.log(f'Failed to convert Mitsuba material "{mi_mat.id()}". Skipping.', 'WARN')
         write_bl_error_material(bl_mat_wrap, out_socket_id)
 
-def mi_material_to_bl_material(mi_context, mi_mat):
+def mi_material_to_bl_material(mi_context, mi_mat, mi_emitter=None):
     ''' Create a Blender node tree representing a given Mitsuba material
     
     Params
     ------
     mi_context : Mitsuba import context
     mi_mat : Mitsuba material properties
+    mi_emitter : optional, Mitsuba area emitter properties
 
     Returns
     -------
     The newly created Blender material
     '''
+    # Check that the emitter is of the correct type
+    assert mi_emitter is None or mi_emitter.plugin_name() == 'area'
+
     bl_mat = bpy.data.materials.new(name=mi_mat.id())
     bl_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat, init_empty=True)
+    out_socket_id = 'Surface'
     
+    # If the material is emissive, write the emission shader
+    if mi_emitter is not None:
+        old_bl_mat_wrap = bl_mat_wrap
+        bl_mat_wrap, out_socket_id = write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter)
+
     # Write the Mitsuba material to the surface output
-    write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, 'Surface')
+    write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id)
+
+    # Restore the old material wrapper for formatting
+    if mi_emitter is not None:
+        bl_mat_wrap = old_bl_mat_wrap
 
     # Format the shader node graph
     bl_mat_wrap.format_node_tree()

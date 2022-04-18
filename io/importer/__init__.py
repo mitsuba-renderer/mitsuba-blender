@@ -16,6 +16,8 @@ if "bpy" in locals():
         importlib.reload(world)
     if "textures" in locals():
         importlib.reload(textures)
+    if "mi_props_utils" in locals():
+        importlib.reload(mi_props_utils)
 
 import bpy
 
@@ -26,6 +28,7 @@ from . import emitters
 from . import sensors
 from . import world
 from . import textures
+from . import mi_props_utils
 
 ########################
 ##     Utilities      ##
@@ -98,17 +101,22 @@ def mi_film_to_bl_node(mi_context, mi_props):
 
     return node
 
-def mi_bsdf_to_bl_node(mi_context, mi_props):
+def mi_bsdf_to_bl_node(mi_context, mi_props, mi_emitter=None):
     node = common.create_blender_node(common.BlenderNodeType.MATERIAL, id=mi_props.id())
     # Parse referenced textures to ensure they are loaded before we parse the material
     _convert_named_references(mi_context, mi_props, node, type_filter=['Texture'])
-    # Parse the Blender material
-    bl_material = mi_context.get_bl_material(mi_props.id())
-    if bl_material is None:
-        bl_material = materials.mi_material_to_bl_material(mi_context, mi_props)
+    
+    if mi_emitter is None:
+        # If the BSDF is not emissive, we can look for it in the cache.
+        bl_material = mi_context.get_bl_material(mi_props.id())
         if bl_material is None:
-            return None
-        mi_context.register_bl_material(mi_props.id(), bl_material)
+            bl_material = materials.mi_material_to_bl_material(mi_context, mi_props)
+            if bl_material is None:
+                return None
+            mi_context.register_bl_material(mi_props.id(), bl_material)
+    else:
+        # If the BSDF is emissive, we don't use the cache value and create a new one everytime.
+        bl_material = materials.mi_material_to_bl_material(mi_context, mi_props, mi_emitter=mi_emitter)
 
     node.bl_mat = bl_material
     return node
@@ -137,8 +145,15 @@ def mi_emitter_to_bl_node(mi_context, mi_props):
 
 def mi_shape_to_bl_node(mi_context, mi_props):
     node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
-    # FIXME: Support nested emitter/bsdf combination
-    _convert_named_references(mi_context, mi_props, node, type_filter=['BSDF'])
+    
+    mi_mats = mi_props_utils.named_references_with_class(mi_context, mi_props, 'BSDF')
+    assert len(mi_mats) == 1
+    mi_emitters = mi_props_utils.named_references_with_class(mi_context, mi_props, 'Emitter')
+    assert len(mi_emitters) <= 1
+
+    mi_mat_node = mi_bsdf_to_bl_node(mi_context, mi_mats[0], mi_emitter=mi_emitters[0] if len(mi_emitters) == 1 else None)
+    node.add_child(mi_mat_node)
+
     # Convert the shape
     bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
     
