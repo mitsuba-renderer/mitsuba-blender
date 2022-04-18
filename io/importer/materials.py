@@ -258,6 +258,15 @@ def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
     else:
         mi_context.log(f'Material "{mi_mat.id()}" does not have property "{mi_prop_name}".', 'ERROR')
 
+##################################
+##  Roughness property writers  ##
+##################################
+
+def write_mi_roughness_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
+    # FIXME: Check that the roughness value transformation is actually correct.
+    # FIXME: Verify that roughness textures don't also need to take the transformation into account.
+    write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default ** 2, lambda x: math.sqrt(x))
+
 #############################
 ##  Normal & Bump writers  ##
 #############################
@@ -270,6 +279,7 @@ def write_mi_bump_and_normal_maps(mi_context, bl_mat_wrap, out_socket_id, mi_bum
         mi_bump_textures = mi_props_utils.named_references_with_class(mi_context, mi_bump, 'Texture')
         assert len(mi_bump_textures) == 1
         write_mi_float_bitmap(mi_context, mi_bump_textures[0], bl_bump_wrap, 'Height', 0.0)
+        # FIXME: Can we map directly this value ?
         write_mi_float_property(mi_context, mi_bump, 'scale', bl_bump_wrap, 'Distance', 1.0)
         normal_mat_wrap = bl_bump_wrap
 
@@ -306,12 +316,11 @@ def write_mi_principled_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_
     write_mi_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, 'Transmission', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'metallic', bl_principled_wrap, 'Metallic', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'anisotropic', bl_principled_wrap, 'Anisotropic', 0.0)
-    # FIXME: Check which parameters need transformations when loaded
-    write_mi_float_property(mi_context, mi_mat, 'roughness', bl_principled_wrap, 'Roughness', math.sqrt(0.4), lambda x: x ** 2)
+    write_mi_roughness_property(mi_context, mi_mat, 'roughness', bl_principled_wrap, 'Roughness', 0.4)
     write_mi_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, 'Sheen', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', 0.5)
     write_mi_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, 'Clearcoat', 0.0)
-    write_mi_float_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, 'Clearcoat Roughness', math.sqrt(0.03), lambda x: x ** 2)
+    write_mi_roughness_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, 'Clearcoat Roughness', 0.03)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_principled_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -359,7 +368,7 @@ def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id
     bl_glass.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
-    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.1)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_glass_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -402,7 +411,7 @@ def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
     bl_glossy.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
     write_mi_rgb_property(mi_context, mi_mat, 'specular_reflectance', bl_glossy_wrap, 'Color', [1.0, 1.0, 1.0])
-    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.1)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_glossy_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -444,8 +453,8 @@ def write_mi_roughplastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, m
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_principled_wrap, 'IOR', 1.49)
-    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Roughness', math.sqrt(0.1), lambda x: x ** 2)
-    write_mi_float_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Clearcoat Roughness', math.sqrt(0.1), lambda x: x ** 2)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Roughness', 0.1)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Clearcoat Roughness', 0.1)
     bl_principled.distribution = mi_microfacet_to_bl_microfacet(mi_context, 'ggx')
     bl_principled.inputs['Specular'].default_value = 0.2
     bl_principled.inputs['Specular Tint'].default_value = 1.0
