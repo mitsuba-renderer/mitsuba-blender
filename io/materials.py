@@ -291,6 +291,11 @@ def convert_principled_materials_cycles(export_ctx, current_node):
         'clearcoat': clearcoat,
         'clearcoat_gloss': clearcoat_roughness
     })
+
+    # If the BSDF has a transmission component, don't make it two-sided
+    if type(specular_trans) is float and specular_trans > 0:
+        return params
+
     return two_sided_bsdf(params)
 
 
