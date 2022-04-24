@@ -16,6 +16,8 @@ if "bpy" in locals():
         importlib.reload(world)
     if "textures" in locals():
         importlib.reload(textures)
+    if "renderer" in locals():
+        importlib.reload(renderer)
     if "mi_props_utils" in locals():
         importlib.reload(mi_props_utils)
 
@@ -28,6 +30,7 @@ from . import emitters
 from . import sensors
 from . import world
 from . import textures
+from . import renderer
 from . import mi_props_utils
 
 ########################
@@ -66,6 +69,8 @@ def mi_integrator_to_bl_node(mi_context, mi_props):
     # Convert dependencies if any
     _convert_named_references(mi_context, mi_props, node)
 
+    node.prop_type = common.BlenderPropertiesNodeType.INTEGRATOR
+    node.mi_props = mi_props
     return node
 
 def mi_sensor_to_bl_node(mi_context, mi_props):
@@ -85,6 +90,8 @@ def mi_sampler_to_bl_node(mi_context, mi_props):
     # Convert dependencies if any
     _convert_named_references(mi_context, mi_props, node)
 
+    node.prop_type = common.BlenderPropertiesNodeType.SAMPLER
+    node.mi_props = mi_props
     return node
 
 def mi_rfilter_to_bl_node(mi_context, mi_props):
@@ -92,6 +99,8 @@ def mi_rfilter_to_bl_node(mi_context, mi_props):
     # Convert dependencies if any
     _convert_named_references(mi_context, mi_props, node)
 
+    node.prop_type = common.BlenderPropertiesNodeType.RFILTER
+    node.mi_props = mi_props
     return node
 
 def mi_film_to_bl_node(mi_context, mi_props):
@@ -99,6 +108,8 @@ def mi_film_to_bl_node(mi_context, mi_props):
     # Convert dependencies if any
     _convert_named_references(mi_context, mi_props, node)
 
+    node.prop_type = common.BlenderPropertiesNodeType.FILM
+    node.mi_props = mi_props
     return node
 
 def mi_bsdf_to_bl_node(mi_context, mi_props, mi_emitter=None):
@@ -245,6 +256,11 @@ def instantiate_bl_camera_object_node(mi_context, bl_node):
     mi_context.bl_collection.objects.link(bl_obj)
     mi_context.bl_scene.camera = bl_obj
 
+    # Instantiate children nodes. These include sampler and film properties.
+    for child_node in bl_node.children:
+        if not instantiate_bl_data_node(mi_context, child_node):
+            return False
+
     return True
 
 def instantiate_bl_light_object_node(mi_context, bl_node):
@@ -271,8 +287,41 @@ def instantiate_bl_object_node(mi_context, bl_node):
         return False
     return True
 
+def instantiate_film_properties_node(mi_context, bl_node):
+    if not renderer.apply_mi_film_properties(mi_context, bl_node.mi_props):
+        return False
+
+    # Instantiate child rfilter if present.
+    for child_node in bl_node.children:
+        if not instantiate_bl_data_node(mi_context, child_node):
+            return False
+
+    return True
+
+def instantiate_integrator_properties_node(mi_context, bl_node):
+    return renderer.apply_mi_integrator_properties(mi_context, bl_node.mi_props)
+
+def instantiate_rfilter_properties_node(mi_context, bl_node):
+    return renderer.apply_mi_rfilter_properties(mi_context, bl_node.mi_props)
+
+def instantiate_sampler_properties_node(mi_context, bl_node):
+    return renderer.apply_mi_sampler_properties(mi_context, bl_node.mi_props)
+
+_bl_properties_node_instantiators = {
+    common.BlenderPropertiesNodeType.FILM: instantiate_film_properties_node,
+    common.BlenderPropertiesNodeType.INTEGRATOR: instantiate_integrator_properties_node,
+    common.BlenderPropertiesNodeType.RFILTER: instantiate_rfilter_properties_node,
+    common.BlenderPropertiesNodeType.SAMPLER: instantiate_sampler_properties_node,
+}
+
 def instantiate_bl_properties_node(mi_context, bl_node):
-    # TODO: Set Blender properties here
+    node_prop_type = bl_node.prop_type
+    if node_prop_type not in _bl_properties_node_instantiators:
+        mi_context.log(f'Unknown Blender property node type "{node_prop_type}".', 'ERROR')
+        return False
+    if not _bl_properties_node_instantiators[node_prop_type](mi_context, bl_node):
+        mi_context.log(f'Failed to instantiate Blender property node "{node_prop_type}".', 'ERROR')
+        return False
     return True
 
 def instantiate_bl_material_node(mi_context, bl_node):

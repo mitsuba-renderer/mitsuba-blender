@@ -108,15 +108,23 @@ class BlenderObjectNode(BlenderNode):
     def is_object_type(self, type: BlenderObjectNodeType):
         return self.obj_type == type
 
+class BlenderPropertiesNodeType(Enum):
+    FILM = 0,
+    INTEGRATOR = 1,
+    RFILTER = 2,
+    SAMPLER = 3,
+
 class BlenderPropertiesNode(BlenderNode):
     ''' Define a Blender data node containing Mitsuba properties.
     These properties will be parsed as part of the scene's post-processing stage.
     '''
     def __init__(self, id=''):
         super(BlenderPropertiesNode, self).__init__(type=BlenderNodeType.PROPERTIES, id=id)
+        self.prop_type = None
+        self.mi_props = None
 
     def __repr__(self):
-        r = f'BlenderPropertiesNode({self.id}, {self.mi_cls}) [\n'
+        r = f'BlenderPropertiesNode({self.id}, {self.prop_type}) [\n'
         for child in self.children:
             r += f'{child}\n'
         r += ']'
