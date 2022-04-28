@@ -43,25 +43,161 @@ def mi_componentformat_to_bl_componentformat(mi_context, mi_component_format):
 ##  Integrator properties  ##
 #############################
 
-def apply_mi_integrator_properties(mi_context, mi_props):
-    # TODO: Implement
+def apply_mi_path_properties(mi_context, mi_props):
+    mi_renderer = mi_context.bl_scene.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_path_props = getattr(mi_renderer.available_integrators, 'path', None)
+    if bl_path_props is None:
+        mi_context.log(f'Mitsuba Integrator "path" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_renderer.active_integrator = 'path'
+    bl_path_props.max_depth = mi_props.get('max_depth', -1)
+    bl_path_props.rr_depth = mi_props.get('rr_depth', 5)
+    bl_path_props.hide_emitters = mi_props.get('hide_emitters', False)
+    # Cycles properties
+    bl_renderer.progressive = 'PATH'
+    bl_max_bounces = mi_props.get('max_depth', 1024)
+    bl_renderer.max_bounces = bl_max_bounces
+    bl_renderer.diffuse_bounces = bl_max_bounces
+    bl_renderer.glossy_bounces = bl_max_bounces
+    bl_renderer.transparent_max_bounces = bl_max_bounces
+    bl_renderer.transmission_bounces = bl_max_bounces
+    bl_renderer.volume_bounces = bl_max_bounces
+    bl_renderer.min_light_bounces = mi_props.get('rr_depth', 5)
+
     return True
+
+_mi_integrator_properties_converters = {
+    'path': apply_mi_path_properties
+}
+
+def apply_mi_integrator_properties(mi_context, mi_props):
+    mi_integrator_type = mi_props.plugin_name()
+    if mi_integrator_type not in _mi_integrator_properties_converters:
+        mi_context.log(f'Mitsuba Integrator "{mi_integrator_type}" is not supported.', 'ERROR')
+        return False
+    
+    return _mi_integrator_properties_converters[mi_integrator_type](mi_context, mi_props)
 
 ##########################
 ##  RFilter properties  ##
 ##########################
 
-def apply_mi_rfilter_properties(mi_context, mi_props):
-    # TODO: Implement
+def apply_mi_box_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_box_props = getattr(mi_camera.rfilters, 'box', None)
+    if bl_box_props is None:
+        mi_context.log(f'Mitsuba Reconstruction Filter "box" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_rfilter = 'box'
+    # Cycles properties
+    bl_renderer.pixel_filter_type = 'BOX'
+
     return True
+
+def apply_mi_gaussian_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_box_props = getattr(mi_camera.rfilters, 'gaussian', None)
+    if bl_box_props is None:
+        mi_context.log(f'Mitsuba Reconstruction Filter "gaussian" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_rfilter = 'gaussian'
+    bl_box_props.stddev = mi_props.get('stddev', 0.5)
+    # Cycles properties
+    bl_renderer.pixel_filter_type = 'BOX'
+    bl_renderer.filter_width = mi_props.get('stddev', 0.5)
+    return True
+
+_mi_rfilter_properties_converters = {
+    'box': apply_mi_box_properties,
+    'gaussian': apply_mi_gaussian_properties,
+}
+
+def apply_mi_rfilter_properties(mi_context, mi_props):
+    mi_rfilter_type = mi_props.plugin_name()
+    if mi_rfilter_type not in _mi_rfilter_properties_converters:
+        mi_context.log(f'Mitsuba Reconstruction Filter "{mi_rfilter_type}" is not supported.', 'ERROR')
+        return False
+    
+    return _mi_rfilter_properties_converters[mi_rfilter_type](mi_context, mi_props)
 
 ##########################
 ##  Sampler properties  ##
 ##########################
 
-def apply_mi_sampler_properties(mi_context, mi_props):
-    # TODO: Implement
+def apply_mi_independent_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_independent_props = getattr(mi_camera.samplers, 'independent', None)
+    if bl_independent_props is None:
+        mi_context.log(f'Mitsuba Sampler "independent" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_sampler = 'independent'
+    bl_independent_props.sample_count = mi_props.get('sample_count', 4)
+    bl_independent_props.seed = mi_props.get('seed', 0)
+    # Cycles properties
+    bl_renderer.sampling_pattern = 'SOBOL'
+    bl_renderer.samples = mi_props.get('sample_count', 4)
+    bl_renderer.preview_samples = mi_props.get('sample_count', 4)
+    bl_renderer.seed = mi_props.get('seed', 0)
     return True
+
+def apply_mi_stratified_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_stratified_props = getattr(mi_camera.samplers, 'stratified', None)
+    if bl_stratified_props is None:
+        mi_context.log(f'Mitsuba Sampler "stratified" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_sampler = 'stratified'
+    bl_stratified_props.sample_count = mi_props.get('sample_count', 4)
+    bl_stratified_props.seed = mi_props.get('seed', 0)
+    bl_stratified_props.jitter = mi_props.get('jitter', True)
+    # Cycles properties
+    # NOTE: There isn't any equivalent sampler in Blender. We use the default Sobol pattern.
+    bl_renderer.sampling_pattern = 'SOBOL'
+    bl_renderer.samples = mi_props.get('sample_count', 4)
+    bl_renderer.seed = mi_props.get('seed', 0)
+    return True
+
+def apply_mi_multijitter_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_renderer = mi_context.bl_scene.cycles
+    bl_multijitter_props = getattr(mi_camera.samplers, 'multijitter', None)
+    if bl_multijitter_props is None:
+        mi_context.log(f'Mitsuba Sampler "multijitter" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_sampler = 'multijitter'
+    bl_multijitter_props.sample_count = mi_props.get('sample_count', 4)
+    bl_multijitter_props.seed = mi_props.get('seed', 0)
+    bl_multijitter_props.jitter = mi_props.get('jitter', True)
+    # Cycles properties
+    bl_renderer.sampling_pattern = 'CORRELATED_MUTI_JITTER'
+    bl_renderer.samples = mi_props.get('sample_count', 4)
+    bl_renderer.seed = mi_props.get('seed', 0)
+    return True
+
+_mi_sampler_properties_converters = {
+    'independent': apply_mi_independent_properties,
+    'stratified': apply_mi_stratified_properties,
+    'multijitter': apply_mi_multijitter_properties,
+}
+
+def apply_mi_sampler_properties(mi_context, mi_props):
+    mi_sampler_type = mi_props.plugin_name()
+    if mi_sampler_type not in _mi_sampler_properties_converters:
+        mi_context.log(f'Mitsuba Sampler "{mi_sampler_type}" is not supported.', 'ERROR')
+        return False
+    
+    return _mi_sampler_properties_converters[mi_sampler_type](mi_context, mi_props)
 
 #######################
 ##  Film properties  ##
@@ -100,3 +236,16 @@ def apply_mi_film_properties(mi_context, mi_props):
         return False
     
     return _mi_film_properties_converters[mi_film_type](mi_context, mi_props)
+
+###########################
+##  Renderer properties  ##
+###########################
+
+def init_mitsuba_renderer(mi_context):
+    mi_context.bl_scene.render.engine = 'MITSUBA2'
+    mi_renderer = mi_context.bl_scene.mitsuba
+    if 'scalar_rgb' not in mi_renderer.variants():
+        mi_context.log('Mitsuba variant "scalar_rgb" not available.', 'ERROR')
+        return False
+    mi_renderer.variant = 'scalar_rgb'
+    return True

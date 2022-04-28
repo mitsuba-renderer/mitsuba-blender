@@ -387,6 +387,8 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
         mi_context.log('Failed to load Mitsuba scene', 'ERROR')
         return
     
+    renderer.init_mitsuba_renderer(mi_context)
+
     if not instantiate_bl_data_node(mi_context, bl_scene_data_node):
         mi_context.log('Failed to instantiate Blender scene', 'ERROR')
         return
