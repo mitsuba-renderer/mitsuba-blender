@@ -18,6 +18,29 @@ from . import mi_spectra_utils
 from . import mi_props_utils
 from . import textures
 
+#################
+##  Utilities  ##
+#################
+
+def _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, default):
+    ''' Evaluate the reflectance color of a BSDF for a perfect perpendicular reflection '''
+    from mitsuba import load_dict, BSDFContext, SurfaceInteraction3f, Vector3f
+    # Generate the BSDF properties dictionary
+    bsdf_dict = {
+        'type': mi_mat.plugin_name(),
+    }
+    for name in mi_mat.property_names():
+        bsdf_dict[name] = mi_mat.get(name)
+
+    bsdf = load_dict(bsdf_dict)
+    si = SurfaceInteraction3f()
+    si.wi = Vector3f(0.0, 0.0, 1.0)
+    wo = Vector3f(0.0, 0.0, 1.0)
+    color, pdf = bsdf.eval_pdf(BSDFContext(), si, wo)
+    if pdf == 0.0:
+        return default
+    return list(color / pdf)
+
 ################################
 ##  Misc property converters  ##
 ################################
@@ -401,7 +424,8 @@ def write_mi_conductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_b
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
     bl_glossy.distribution = 'SHARP'
-    write_mi_rgb_property(mi_context, mi_mat, 'specular_reflectance', bl_glossy_wrap, 'Color', [1.0, 1.0, 1.0])
+    reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
+    write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_glossy_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -410,7 +434,8 @@ def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
     bl_glossy.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
-    write_mi_rgb_property(mi_context, mi_mat, 'specular_reflectance', bl_glossy_wrap, 'Color', [1.0, 1.0, 1.0])
+    reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
+    write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.1)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_glossy_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
