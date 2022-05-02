@@ -84,6 +84,19 @@ def apply_mi_integrator_properties(mi_context, mi_props):
 ##  RFilter properties  ##
 ##########################
 
+def apply_mi_tent_properties(mi_context, mi_props):
+    mi_camera = mi_context.bl_scene.camera.data.mitsuba
+    bl_box_props = getattr(mi_camera.rfilters, 'tent', None)
+    if bl_box_props is None:
+        mi_context.log(f'Mitsuba Reconstruction Filter "tent" is not supported.', 'ERROR')
+        return False
+    # Mitsuba properties
+    mi_camera.active_rfilter = 'tent'
+    # Cycles properties
+    # NOTE: Cycles does not have any equivalent to the tent filter
+
+    return True
+
 def apply_mi_box_properties(mi_context, mi_props):
     mi_camera = mi_context.bl_scene.camera.data.mitsuba
     bl_renderer = mi_context.bl_scene.cycles
@@ -115,6 +128,7 @@ def apply_mi_gaussian_properties(mi_context, mi_props):
 
 _mi_rfilter_properties_converters = {
     'box': apply_mi_box_properties,
+    'tent': apply_mi_tent_properties,
     'gaussian': apply_mi_gaussian_properties,
 }
 
