@@ -78,6 +78,7 @@ def write_mi_envmap_emitter(mi_context, mi_emitter, bl_world_wrap, out_socket_id
     bl_environment = bl_world_wrap.ensure_node_type([out_socket_id, 'Color'], 'ShaderNodeTexEnvironment', 'Color')
     bl_environment.projection = 'EQUIRECTANGULAR'
     bl_environment.image = bl_image
+    # FIXME: Handle texture coordinate transforms
     return True
 
 ######################

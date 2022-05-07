@@ -1,10 +1,8 @@
 import bpy
 import tempfile
 import os
-from os.path import basename, dirname
-import sys
 import numpy as np
-from ..io.convert import SceneConverter
+from ..io.exporter import SceneConverter
 
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 

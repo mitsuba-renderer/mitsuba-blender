@@ -74,10 +74,13 @@ def mi_obj_to_bl_shape(mi_context, mi_shape):
 
     # Load the mesh from the file
     bl_meshes = bl_import_obj.load(abs_path)
+    # FIXME: Handle multiple objects if supported by Mistuba.
     if len(bl_meshes) > 1:
         mi_context.log('OBJ file containing more than one mesh. Only the first one will be loaded.', 'WARN')
     bl_mesh = bl_meshes[0]
     bl_mesh.name = mi_shape.id()
+
+    # FIXME: Support UV flipping.
 
     # Set face normals if requested
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))

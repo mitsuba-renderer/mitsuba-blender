@@ -1,11 +1,25 @@
-import bpy
 import os
-from .export_context import ExportContext
-from .materials import export_world
-from .geometry import export_object
-from .lights import export_light
-from .camera import export_camera
 
+if "bpy" in locals():
+    import importlib
+    if "export_context" in locals():
+        importlib.reload(export_context)
+    if "materials" in locals():
+        importlib.reload(materials)
+    if "geometry" in locals():
+        importlib.reload(geometry)
+    if "lights" in locals():
+        importlib.reload(lights)
+    if "camera" in locals():
+        importlib.reload(camera)
+
+import bpy
+
+from . import export_context
+from . import materials
+from . import geometry
+from . import lights
+from . import camera
 
 class SceneConverter:
     '''
@@ -13,7 +27,7 @@ class SceneConverter:
     Either save it as an XML or load it as a scene.
     '''
     def __init__(self, render=False):
-        self.export_ctx = ExportContext()
+        self.export_ctx = export_context.ExportContext()
         self.use_selection = False # Only export selection
         self.ignore_background = True
         self.render = render
@@ -47,7 +61,7 @@ class SceneConverter:
             }
         self.export_ctx.data_add(integrator)
 
-        export_world(self.export_ctx, b_scene.world, self.ignore_background)
+        materials.export_world(self.export_ctx, b_scene.world, self.ignore_background)
 
         # Establish list of particle objects
         particles = []
@@ -80,13 +94,13 @@ class SceneConverter:
                 self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
-                export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
+                geometry.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
                 if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
-                    export_camera(object_instance, b_scene, self.export_ctx)
+                    camera.export_camera(object_instance, b_scene, self.export_ctx)
             elif object_type == 'LIGHT':
-                export_light(object_instance, self.export_ctx)
+                lights.export_light(object_instance, self.export_ctx)
             else:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 

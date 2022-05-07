@@ -2,7 +2,9 @@ from collections import OrderedDict
 import os
 from shutil import copy2
 from numpy import pi
+
 from mathutils import Matrix
+
 import bpy
 
 texture_exts = {
