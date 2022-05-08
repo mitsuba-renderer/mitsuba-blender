@@ -9,6 +9,8 @@ if "bpy" in locals():
     
 import bpy
 
+from mathutils import Color
+
 from . import bl_shader_utils
 from . import mi_spectra_utils
 from . import bl_image_utils
@@ -139,6 +141,12 @@ def should_convert_mi_emitter_to_bl_world(mi_emitter):
     return mi_emitter.plugin_name() in _world_writers
 
 def create_default_bl_world():
-    ''' Create a default Blender world '''
+    ''' Create the default Blender world '''
     bl_world = bpy.data.worlds.new(name='World')
+    bl_world_wrap = bl_shader_utils.NodeWorldWrapper(bl_world, init_empty=True)
+    bl_background = bl_world_wrap.ensure_node_type(['Surface'], 'ShaderNodeBackground', 'Background')
+    # NOTE: This is the default Blender background color for worlds. This is required in order to be
+    #       compatible with the exporter and the 'ignore_background' property
+    bl_background.inputs['Color'].default_value = [0.05087608844041824]*3 + [1.0]
+    bl_world_wrap.format_node_tree()
     return bl_world
