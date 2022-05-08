@@ -1,3 +1,4 @@
 .vscode*
 *.blend*
 __pycache__*
+tests/**/out
