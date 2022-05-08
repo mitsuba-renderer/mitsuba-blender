@@ -387,11 +387,16 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
         mi_context.log('Failed to load Mitsuba scene', 'ERROR')
         return
     
+    # Initialize the Mitsuba renderer inside of Blender
     renderer.init_mitsuba_renderer(mi_context)
 
     if not instantiate_bl_data_node(mi_context, bl_scene_data_node):
         mi_context.log('Failed to instantiate Blender scene', 'ERROR')
         return
+
+    # Instantiate a default Blender world if none was created
+    if mi_context.bl_scene.world is None:
+        mi_context.bl_scene.world = world.create_default_bl_world()
     
     # Check that every property was accessed at least once as a sanity check
     for cls, prop in mi_scene_props:

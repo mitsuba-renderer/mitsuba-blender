@@ -137,3 +137,8 @@ def should_convert_mi_emitter_to_bl_world(mi_emitter):
     a Blender world.
     '''
     return mi_emitter.plugin_name() in _world_writers
+
+def create_default_bl_world():
+    ''' Create a default Blender world '''
+    bl_world = bpy.data.worlds.new(name='World')
+    return bl_world
