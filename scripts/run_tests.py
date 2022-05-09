@@ -9,6 +9,7 @@ class SetupPlugin:
         mi_addon_root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba2-blender')
         self.bl_addon_dir = os.path.join(bpy.utils.user_resource('SCRIPTS', 'addons'), 'mitsuba2-blender')
+        sys.path.append(self.mi_addon_dir)
 
     def pytest_configure(self, config):
         if os.path.exists(self.bl_addon_dir):
