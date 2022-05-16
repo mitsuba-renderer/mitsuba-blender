@@ -22,18 +22,25 @@ class SetupPlugin:
             os.symlink(self.mi_addon_dir, self.bl_addon_dir, target_is_directory=True)
         
         bpy.ops.preferences.addon_enable(module='mitsuba2-blender')
-        bpy.context.preferences.addons['mitsuba2-blender'].preferences.mitsuba_path = "C:\\Users\\doria\\Documents\\EPFL\\sp-blender-addon\\mitsuba3\\build\\Release"
+        bpy.context.preferences.addons['mitsuba2-blender'].preferences.mitsuba_path = "C:\\Users\\Dorian\\Documents\\EPFL\\sp-blender-addon\\mitsuba3\\build\\Release"
 
     def pytest_unconfigure(self):
         bpy.ops.preferences.addon_disable(module='mitsuba2-blender')
         
         os.remove(self.bl_addon_dir)
 
-pytest_args = ["tests", "-v"]
-try:
-    exit_code = pytest.main(pytest_args, plugins=[SetupPlugin()])
-except Exception as e:
-    print(e)
-    exit_code = 1
+if __name__ == '__main__':
+    pytest_args = ["tests"]
 
-sys.exit(exit_code)
+    try:
+        pytest_args += sys.argv[sys.argv.index('--')+1:]
+    except ValueError:
+        pass
+
+    try:
+        exit_code = pytest.main(pytest_args, plugins=[SetupPlugin()])
+    except Exception as e:
+        print(e)
+        exit_code = 1
+
+    sys.exit(exit_code)

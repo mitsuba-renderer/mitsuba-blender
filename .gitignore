@@ -2,3 +2,5 @@
 *.blend*
 __pycache__*
 tests/**/out
+.pytest_cache
+.coverage
