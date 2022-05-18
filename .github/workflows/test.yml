@@ -43,7 +43,8 @@ jobs:
 
     - name: Install Blender dependencies
       run: |
-        BLENDER_PYTHON=$(find blender -type f -name "bin/python*")
+        BLENDER_PYTHON=$(find blender/ -type f -path "*/bin/python*")
+        echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
         ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
