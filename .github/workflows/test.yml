@@ -23,7 +23,7 @@ jobs:
         blender:
         - {
           version: "2.93.9",
-          python: "3.9.2"
+          python: "3.9.7"
         }
         
     steps:
