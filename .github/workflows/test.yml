@@ -99,4 +99,5 @@ jobs:
 
     - name: Run Addon tests
       run: |
+        ls /home/runner/.config/blender/2.93/scripts/
         ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
