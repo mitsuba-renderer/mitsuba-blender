@@ -1,0 +1,61 @@
+name: Test suite
+
+# Triggers the workflow on push or pull request events but only for the main branch
+on:
+  push:
+    branches: [ sp-addon ]
+  pull_request:
+    branches: [ sp-addon ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Build job
+jobs:
+  build:
+    name: "${{ matrix.os }} | Blender ${{ matrix.blender.version }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Do not stop other jobs if one fails
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        blender:
+        - {
+          version: "2.93.9",
+          python: "3.9.2"
+        }
+        
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: "actions/setup-python@v2"
+      with:
+        python-version: "${{ matrix.blender.python }}"
+
+    - name: Download Blender
+      run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
+
+    - name: Install Blender dependencies
+      run: |
+        BLENDER_PYTHON=$(find blender -type f -name "bin/python*")
+        ./$BLENDER_PYTHON -m ensurepip
+        ./$BLENDER_PYTHON -m pip install -U pip
+        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
+
+    - name: Clone Mitsuba Repository
+      uses: actions/checkout@v2
+      with:
+        repository: mitsuba-renderer/mitsuba2
+        path: './mitsuba'
+        submodules: recursive
+        token: ${{ secrets.MITSUBA_REPO_TOKEN }}
+
+    - name: List directories
+      run: |
+        ls
+        ls blender
+        ls mitsuba
+
