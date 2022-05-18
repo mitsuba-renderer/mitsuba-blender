@@ -98,4 +98,4 @@ jobs:
         popd
 
     - name: Run Addon tests
-      run: ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+      run: MITSUBA_DIR=mitsuba/build ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
