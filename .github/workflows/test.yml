@@ -38,7 +38,15 @@ jobs:
     - name: Install Python dependencies
       run: python -m pip install --upgrade requests
 
+    - name: Cache Blender archive
+      id: cache-blender
+      uses: actions/cache@v3
+      with:
+        path: blender
+        key: ${{ matrix.os }}-${{ matrix.blender.version }}
+
     - name: Download Blender
+      if: steps.cache-blender.outputs.cache-hit != 'true'
       run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
 
     - name: Install Blender dependencies
