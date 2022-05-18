@@ -8,7 +8,7 @@ class SetupPlugin:
     def __init__(self):
         mi_addon_root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba2-blender')
-        bl_script_dirs = bpy.utils.script_path(use_user=True)
+        bl_script_dirs = bpy.utils.script_paths(use_user=True)
         self.bl_script_dir = None
         for dir in bl_script_dirs:
             if dir.endswith('scripts'):
