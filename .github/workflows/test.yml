@@ -34,6 +34,7 @@ jobs:
       uses: "actions/setup-python@v2"
       with:
         python-version: "${{ matrix.blender.python }}"
+      run: python -m pip install --upgrade requests
 
     - name: Download Blender
       run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
