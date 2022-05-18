@@ -100,4 +100,5 @@ jobs:
 
     - name: Run Addon tests
       run: |
-        MITSUBA_DIR=mitsuba/build/dist/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+        tree mitsuba/build
+        MITSUBA_DIR=mitsuba/build/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
