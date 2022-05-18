@@ -19,6 +19,7 @@ class SetupPlugin:
             import _winapi
             _winapi.CreateJunction(str(self.mi_addon_dir), str(self.bl_addon_dir))
         else:
+            os.makedirs(bpy.utils.user_resource('SCRIPTS', 'addons'), exist_ok=True)
             os.symlink(self.mi_addon_dir, self.bl_addon_dir, target_is_directory=True)
         
         bpy.ops.preferences.addon_enable(module='mitsuba2-blender')
