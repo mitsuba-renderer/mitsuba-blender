@@ -13,13 +13,25 @@ on:
 # Build job
 jobs:
   build:
-    name: "${{ matrix.os }} | Blender ${{ matrix.blender.version }}"
-    runs-on: ${{ matrix.os }}
+    name: "${{ matrix.environment.os }} | Blender ${{ matrix.blender.version }}"
+    runs-on: ${{ matrix.environment.os }}
     strategy:
       # Do not stop other jobs if one fails
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "windows-latest"]
+        environment:
+        - {
+          os: "ubuntu-latest",
+          cc: "clang-9",
+          cxx: "clang++-9",
+          cmake-generator: "Ninja"
+        },
+        - {
+          os: "windows-latest",
+          cc: "cl",
+          cxx: "cl",
+          cmake-generator: "Visual Studio 17 2022"
+        }
         blender:
         - {
           version: "2.93.9",
@@ -43,7 +55,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: blender
-        key: ${{ matrix.os }}-${{ matrix.blender.version }}
+        key: ${{ matrix.environment.os }}-${{ matrix.blender.version }}
 
     - name: Download Blender
       if: steps.cache-blender.outputs.cache-hit != 'true'
@@ -52,27 +64,22 @@ jobs:
     - name: Install Blender dependencies
       shell: bash
       run: |
-        BLENDER_PYTHON=$(find blender/ -type f -path "*/bin/python*")
+        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9][0-9]?)' -print -quit)
         echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
         ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
 
-    # - name: Install Blender dependencies (Windows)
-    #   if: startsWith(matrix.os, 'windows')
-    #   run: |
-    #     for /f %%i in ('dir /s /b *python.exe | findstr bin\python') do set BLENDER_PYTHON=%%i
-    #     echo "Blender Python is $BLENDER_PYTHON"
-    #     %BLENDER_PYTHON% -m ensurepip
-    #     %BLENDER_PYTHON% -m pip install -U pip
-    #     %BLENDER_PYTHON% -m pip install --upgrade pytest pytest-cov
-
     - name: Install Mitsuba build dependencies (Ubuntu)
-      if: startsWith(matrix.os, 'ubuntu')
+      if: startsWith(matrix.environment.os, 'ubuntu')
       run: |
         sudo apt install -y clang-9 libc++-9-dev libc++abi-9-dev cmake ninja-build
         sudo apt install -y libz-dev libpng-dev libjpeg-dev libxrandr-dev libxinerama-dev libxcursor-dev
         sudo apt install -y python3-dev python3-distutils python3-setuptools
+
+    - name: Install Mitsuba build dependencies (Windows)
+      if: startsWith(matrix.environment.os, 'windows')
+      uses: microsoft/setup-msbuild@v1.0.2
 
     - name: Clone Mitsuba Repository
       uses: actions/checkout@v2
@@ -85,6 +92,7 @@ jobs:
 
     - name: Retrieve Mitsuba version
       id: mitsuba-version
+      shell: bash
       run: |
         pushd mitsuba
         echo "::set-output name=GIT_HEAD_SHA::$(git rev-parse HEAD)"
@@ -95,22 +103,22 @@ jobs:
       uses: actions/cache@v3
       with:
         path: mitsuba/build
-        key: ${{ matrix.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}
+        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}
 
-    - name: Build Mitsuba (Ubuntu)
+    - name: Build Mitsuba
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
       env:
-        CC: clang-9
-        CXX: clang++-9
+        CC: ${{ matrix.environment.cc }}
+        CXX: ${{ matrix.environment.cxx }}
+      shell: bash
       run: |
         pushd mitsuba
         mkdir build
-        cd build
-        cmake -GNinja ..
-        ninja
+        cmake -S . -B build -G "${{ matrix.environment.cmake-generator }}" -A x64
+        cmake --build build --config Release
         popd
 
-    - name: Run Addon tests (Ubuntu)
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: Run Addon tests
+      shell: bash
       run: |
         MITSUBA_DIR=mitsuba/build/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
