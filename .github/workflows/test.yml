@@ -81,21 +81,13 @@ jobs:
       if: startsWith(matrix.environment.os, 'windows')
       uses: microsoft/setup-msbuild@v1.0.2
 
-    - name: Clone Mitsuba Repository
-      uses: actions/checkout@v2
-      with:
-        repository: ros-dorian/mitsuba3
-        ref: xml_to_prop
-        path: './mitsuba'
-        submodules: recursive
-        token: ${{ secrets.MITSUBA_REPO_TOKEN }}
-
     - name: Retrieve Mitsuba version
       id: mitsuba-version
       shell: bash
       run: |
+        mkdir mitsuba
         pushd mitsuba
-        echo "::set-output name=GIT_HEAD_SHA::$(git rev-parse HEAD)"
+        echo "::set-output name=GIT_HEAD_SHA::$(git ls-remote https://github.com/ros-dorian/mitsuba3.git xml_to_prop | head -1 | cut -f 1)"
         popd
 
     - name: Cache Mitsuba artifacts
@@ -104,6 +96,16 @@ jobs:
       with:
         path: mitsuba/build
         key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}
+
+    - name: Clone Mitsuba Repository
+      if: steps.cache-mitsuba.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: ros-dorian/mitsuba3
+        ref: xml_to_prop
+        path: './mitsuba'
+        submodules: recursive
+        token: ${{ secrets.MITSUBA_REPO_TOKEN }}
 
     - name: Build Mitsuba
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
