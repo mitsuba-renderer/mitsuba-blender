@@ -49,8 +49,7 @@ jobs:
       if: steps.cache-blender.outputs.cache-hit != 'true'
       run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
 
-    - name: Install Blender dependencies (Ubuntu)
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: Install Blender dependencies
       run: |
         BLENDER_PYTHON=$(find blender/ -type f -path "*/bin/python*")
         echo "Blender Python is $BLENDER_PYTHON"
@@ -58,14 +57,14 @@ jobs:
         ./$BLENDER_PYTHON -m pip install -U pip
         ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
 
-    - name: Install Blender dependencies (Windows)
-      if: startsWith(matrix.os, 'windows')
-      run: |
-        for /f %%i in ('dir /s /b *python.exe | findstr bin\python') do set BLENDER_PYTHON=%%i
-        echo "Blender Python is $BLENDER_PYTHON"
-        %BLENDER_PYTHON% -m ensurepip
-        %BLENDER_PYTHON% -m pip install -U pip
-        %BLENDER_PYTHON% -m pip install --upgrade pytest pytest-cov
+    # - name: Install Blender dependencies (Windows)
+    #   if: startsWith(matrix.os, 'windows')
+    #   run: |
+    #     for /f %%i in ('dir /s /b *python.exe | findstr bin\python') do set BLENDER_PYTHON=%%i
+    #     echo "Blender Python is $BLENDER_PYTHON"
+    #     %BLENDER_PYTHON% -m ensurepip
+    #     %BLENDER_PYTHON% -m pip install -U pip
+    #     %BLENDER_PYTHON% -m pip install --upgrade pytest pytest-cov
 
     - name: Install Mitsuba build dependencies (Ubuntu)
       if: startsWith(matrix.os, 'ubuntu')
@@ -99,11 +98,11 @@ jobs:
 
     - name: Build Mitsuba (Ubuntu)
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
-      if: startsWith(matrix.os, 'ubuntu')
+      env:
+        CC: clang-9
+        CXX: clang++-9
       run: |
         pushd mitsuba
-        export CC=clang-9
-        export CXX=clang++-9
         mkdir build
         cd build
         cmake -GNinja ..
