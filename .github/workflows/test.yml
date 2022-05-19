@@ -64,7 +64,7 @@ jobs:
     - name: Install Blender dependencies
       shell: bash
       run: |
-        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9][0-9]?)' -print -quit)
+        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9].[0-9]m?)' -print -quit)
         echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
