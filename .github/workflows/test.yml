@@ -50,6 +50,7 @@ jobs:
       run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
 
     - name: Install Blender dependencies
+      shell: bash
       run: |
         BLENDER_PYTHON=$(find blender/ -type f -path "*/bin/python*")
         echo "Blender Python is $BLENDER_PYTHON"
