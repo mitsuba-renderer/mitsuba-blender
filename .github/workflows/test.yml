@@ -142,4 +142,4 @@ jobs:
       env:
         MITSUBA_DIR: "mitsuba/build/Release/"
       run: |
-        blender/blender.exe -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+        ./blender/blender.exe -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
