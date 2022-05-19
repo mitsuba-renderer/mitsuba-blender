@@ -61,7 +61,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: blender
-        key: ${{ matrix.environment.os }}-${{ matrix.blender.version }}
+        key: ${{ matrix.environment.os }}-${{ matrix.blender.version }}-v1
 
     - name: Download Blender
       if: steps.cache-blender.outputs.cache-hit != 'true'
@@ -109,7 +109,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: mitsuba/build
-        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}
+        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}-v1
 
     - name: Build Mitsuba
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
@@ -128,7 +128,18 @@ jobs:
         cmake --build build --config Release
         popd
 
-    - name: Run Addon tests
+    - name: Run Addon tests (Ubuntu)
+      if: startsWith(matrix.environment.os, 'ubuntu')
       shell: bash
+      env:
+        MITSUBA_DIR: "mitsuba/build/"
       run: |
-        MITSUBA_DIR=mitsuba/build/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+        ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+
+    - name: Run Addon tests (Windows)
+      if: startsWith(matrix.environment.os, 'windows')
+      shell: bash
+      env:
+        MITSUBA_DIR: "mitsuba/build/Release/"
+      run: |
+        blender/blender.exe -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
