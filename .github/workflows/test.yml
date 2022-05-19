@@ -25,7 +25,7 @@ jobs:
           cc: "clang-9",
           cxx: "clang++-9",
           cmake-generator: "Ninja"
-        },
+        }
         - {
           os: "windows-latest",
           cc: "cl",
