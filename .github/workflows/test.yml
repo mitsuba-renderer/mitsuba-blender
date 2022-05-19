@@ -47,6 +47,11 @@ jobs:
       with:
         python-version: "${{ matrix.blender.python }}"
 
+    - name: Verify Python version
+      run: |
+        python --version
+        which python
+
     - name: Install Python dependencies
       run: python -m pip install --upgrade requests
 
