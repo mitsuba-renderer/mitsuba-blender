@@ -47,10 +47,11 @@ jobs:
       with:
         python-version: "${{ matrix.blender.python }}"
 
-    - name: Verify Python version
+    - name: Retrieve Python executable path
+      id: python-path
+      shell: bash
       run: |
-        python --version
-        which python
+        echo "::set-output name=PYTHON_EXECUTABLE::$(which python)"
 
     - name: Install Python dependencies
       run: python -m pip install --upgrade requests
@@ -119,7 +120,7 @@ jobs:
       run: |
         pushd mitsuba
         mkdir build
-        cmake -S . -B build -G "${{ matrix.environment.cmake-generator }}"
+        cmake -S . -B build -G "${{ matrix.environment.cmake-generator }} -DPYTHON_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}"
         cmake --build build --config Release
         popd
 
