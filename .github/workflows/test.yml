@@ -120,7 +120,11 @@ jobs:
       run: |
         pushd mitsuba
         mkdir build
-        cmake -S . -B build -G "${{ matrix.environment.cmake-generator }} -DPYTHON_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}"
+        cmake \
+          -S . \
+          -B build \
+          -G "${{ matrix.environment.cmake-generator }}" \
+          -DPYTHON_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}
         cmake --build build --config Release
         popd
 
