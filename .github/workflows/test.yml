@@ -124,7 +124,7 @@ jobs:
           -S . \
           -B build \
           -G "${{ matrix.environment.cmake-generator }}" \
-          -DPYTHON_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}
+          -DPython_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}
         cmake --build build --config Release
         popd
 
