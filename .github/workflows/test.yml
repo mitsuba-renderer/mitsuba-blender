@@ -19,7 +19,7 @@ jobs:
       # Do not stop other jobs if one fails
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
+        os: ["ubuntu-latest", "windows-latest"]
         blender:
         - {
           version: "2.93.9",
@@ -49,7 +49,8 @@ jobs:
       if: steps.cache-blender.outputs.cache-hit != 'true'
       run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
 
-    - name: Install Blender dependencies
+    - name: Install Blender dependencies (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
       run: |
         BLENDER_PYTHON=$(find blender/ -type f -path "*/bin/python*")
         echo "Blender Python is $BLENDER_PYTHON"
@@ -57,7 +58,17 @@ jobs:
         ./$BLENDER_PYTHON -m pip install -U pip
         ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
 
-    - name: Install Mitsuba build dependencies
+    - name: Install Blender dependencies (Windows)
+      if: startsWith(matrix.os, 'windows')
+      run: |
+        for /f %%i in ('dir /s /b *python.exe | findstr bin\python') do set BLENDER_PYTHON=%%i
+        echo "Blender Python is $BLENDER_PYTHON"
+        %BLENDER_PYTHON% -m ensurepip
+        %BLENDER_PYTHON% -m pip install -U pip
+        %BLENDER_PYTHON% -m pip install --upgrade pytest pytest-cov
+
+    - name: Install Mitsuba build dependencies (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
       run: |
         sudo apt install -y clang-9 libc++-9-dev libc++abi-9-dev cmake ninja-build
         sudo apt install -y libz-dev libpng-dev libjpeg-dev libxrandr-dev libxinerama-dev libxcursor-dev
@@ -86,8 +97,9 @@ jobs:
         path: mitsuba/build
         key: ${{ matrix.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}
 
-    - name: Build Mitsuba
+    - name: Build Mitsuba (Ubuntu)
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
+      if: startsWith(matrix.os, 'ubuntu')
       run: |
         pushd mitsuba
         export CC=clang-9
@@ -98,6 +110,7 @@ jobs:
         ninja
         popd
 
-    #- name: Run Addon tests
-    #  run: |
-    #    MITSUBA_DIR=mitsuba/build/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+    - name: Run Addon tests (Ubuntu)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        MITSUBA_DIR=mitsuba/build/ ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
