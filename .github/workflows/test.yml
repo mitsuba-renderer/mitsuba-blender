@@ -128,18 +128,18 @@ jobs:
         cmake --build build --config Release
         popd
 
-    - name: Run Addon tests (Ubuntu)
-      if: startsWith(matrix.environment.os, 'ubuntu')
-      shell: bash
-      env:
-        MITSUBA_DIR: "mitsuba/build/"
-      run: |
-        ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+    # - name: Run Addon tests (Ubuntu)
+    #   if: startsWith(matrix.environment.os, 'ubuntu')
+    #   shell: bash
+    #   env:
+    #     MITSUBA_DIR: "mitsuba/build/"
+    #   run: |
+    #     ./blender/blender -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
 
-    - name: Run Addon tests (Windows)
-      if: startsWith(matrix.environment.os, 'windows')
-      shell: bash
-      env:
-        MITSUBA_DIR: "mitsuba/build/Release/"
-      run: |
-        ./blender/blender.exe -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+    # - name: Run Addon tests (Windows)
+    #   if: startsWith(matrix.environment.os, 'windows')
+    #   shell: bash
+    #   env:
+    #     MITSUBA_DIR: "mitsuba/build/Release/"
+    #   run: |
+    #     ./blender/blender.exe -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
