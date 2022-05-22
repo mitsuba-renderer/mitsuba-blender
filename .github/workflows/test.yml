@@ -135,6 +135,6 @@ jobs:
       env:
         MITSUBA_DIR: "mitsuba/${{ matrix.environment.mitsuba-outdir }}"
       run: |
-        BLENDER_EXECUTABLE=$(find blender/ -regextype posix-extended -regex 'blender(.exe)?' -print -quit)
+        BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
         echo "Blender Executable is $BLENDER_EXECUTABLE"
         ./$BLENDER_EXECUTABLE -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
