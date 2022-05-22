@@ -35,7 +35,6 @@ class SetupPlugin:
         if mitsuba_path is None:
             raise RuntimeError("Please provide the Mitsuba build directory as the environment variable MITSUBA_DIR")
         bpy.context.preferences.addons['mitsuba2-blender'].preferences.mitsuba_path = os.path.realpath(mitsuba_path)
-        print(os.path.realpath(mitsuba_path))
 
     def pytest_unconfigure(self):
         bpy.ops.preferences.addon_disable(module='mitsuba2-blender')

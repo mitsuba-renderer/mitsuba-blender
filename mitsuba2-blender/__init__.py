@@ -16,17 +16,6 @@ import sys
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
 from . import io, engine
-#from export import MitsubaFileExport, MitsubaPrefs
-
-def get_mitsuba_path():
-    # Try to get the path to the Mitsuba 2 root folder
-    tokens = os.getenv('MITSUBA_DIR')
-    if tokens:
-        for token in tokens.split(':'):
-            path = token
-            if os.path.isdir(path):
-                return path
-    return ""
 
 def set_path(context):
     '''
@@ -120,7 +109,7 @@ class MitsubaPrefs(AddonPreferences):
         name="Build Path",
         description="Path to the Mitsuba 2 build directory",
         subtype='DIR_PATH',
-        default=get_mitsuba_path(),
+        default='',
         update=reload_mts
         )
 
