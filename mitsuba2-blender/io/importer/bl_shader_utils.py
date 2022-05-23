@@ -50,13 +50,13 @@ class NodeShaderWrapper:
     def _ensure_out_node(self):
         raise NotImplementedError('To implement in subclasses')
 
-    def _get_socket_with_id(self, socket_list, identifier: str):
+    def _get_socket_with_id(self, socket_list, identifier):
         for socket in socket_list:
             if socket.identifier == identifier:
                 return socket
         return None
 
-    def ensure_node_type(self, path: list[str], bl_idname: str, output_socket_id: str):
+    def ensure_node_type(self, path, bl_idname, output_socket_id):
         ''' Ensures that a node of a certain type exists at the correct location 
         in the graph. If another node already exists at that location, then it is
         removed.
