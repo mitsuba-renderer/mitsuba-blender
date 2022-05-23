@@ -37,7 +37,7 @@ jobs:
         blender:
         - {
           version: "2.83",
-          python: "3.7.4"
+          python: "3.7.9"
         }
         - {
           version: "2.93",
@@ -80,7 +80,7 @@ jobs:
     - name: Install Blender dependencies
       shell: bash
       run: |
-        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9].[0-9]m?)' -print -quit)
+        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9].[0-9]{1,2}m?)' -print -quit)
         echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
