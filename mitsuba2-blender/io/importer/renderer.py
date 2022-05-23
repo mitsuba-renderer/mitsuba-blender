@@ -228,7 +228,7 @@ def apply_mi_multijitter_properties(mi_context, mi_props):
     bl_multijitter_props.seed = mi_props.get('seed', 0)
     bl_multijitter_props.jitter = mi_props.get('jitter', True)
     # Cycles properties
-    bl_renderer.sampling_pattern = 'CORRELATED_MUTI_JITTER'
+    bl_renderer.sampling_pattern = 'CORRELATED_MUTI_JITTER' if bpy.app.version < (3, 0, 0) else 'PROGRESSIVE_MULTI_JITTER'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
     return True
