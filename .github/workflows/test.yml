@@ -36,8 +36,16 @@ jobs:
         }
         blender:
         - {
-          version: "2.93.9",
+          version: "2.83",
+          python: "3.7.4"
+        }
+        - {
+          version: "2.93",
           python: "3.9.2"
+        }
+        - {
+          version: "3.1",
+          python: "3.10.2"
         }
         
     steps:
