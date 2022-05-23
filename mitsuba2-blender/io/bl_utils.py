@@ -29,7 +29,10 @@ def init_empty_scene(bl_context, name='Scene', clear_all_scenes=True):
             if scene.name != 'mi-tmp':
                 bpy.data.scenes.remove(scene)
         # Clear all orphaned data
-        bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
+        if bpy.app.version < (2, 93, 0):
+            bpy.ops.outliner.orphans_purge()
+        else:
+            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
     
     # Check if the scene already exists
     bl_scene = bpy.data.scenes.get(name)
