@@ -3,6 +3,8 @@
 
 # Mitsuba 2 Blender Add-On
 
+[![Test suite](https://github.com/mitsuba-renderer/mitsuba2-blender/actions/workflows/test.yml/badge.svg?branch=sp-addon)](https://github.com/mitsuba-renderer/mitsuba2-blender/actions/workflows/test.yml)
+
 Author: Baptiste Nicolet.
 
 This Add-on allows to export a Blender scene to Mitsuba 2's file format.
