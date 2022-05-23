@@ -110,8 +110,8 @@ jobs:
       id: cache-mitsuba
       uses: actions/cache@v3
       with:
-        path: ${{ matrix.environment.mitsuba-outdir }}
-        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}-v2
+        path: mitsuba/${{ matrix.environment.mitsuba-outdir }}
+        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}-v3
 
     - name: Build Mitsuba
       if: steps.cache-mitsuba.outputs.cache-hit != 'true'
