@@ -41,6 +41,11 @@ class SetupPlugin:
         
         os.remove(self.bl_mi_addon_dir)
 
+    def pytest_runtest_setup(self, item):
+        bpy.ops.wm.read_homefile(use_empty=True)
+        if 'mitsuba2-blender' not in bpy.context.preferences.addons:
+            raise RuntimeError("Plugin was disabled by test reset")
+
 if __name__ == '__main__':
     pytest_args = ["tests"]
 
