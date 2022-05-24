@@ -109,24 +109,25 @@ def main(args):
     z.extractall()
     z.close()
 
-    extracted_dir = os.path.join(os.getcwd(), zdir)
-    output_dir = os.path.join(os.getcwd(), args.out)
+    if args.out != '':
+        extracted_dir = os.path.join(os.getcwd(), zdir)
+        output_dir = os.path.join(os.getcwd(), args.out)
 
-    os.makedirs(output_dir, exist_ok=True)
-    
-    for file in os.listdir(extracted_dir):
-        src_path = os.path.join(extracted_dir, file)
-        dst_path = os.path.join(output_dir, file)
-        shutil.move(src_path, dst_path)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        for file in os.listdir(extracted_dir):
+            src_path = os.path.join(extracted_dir, file)
+            dst_path = os.path.join(output_dir, file)
+            shutil.move(src_path, dst_path)
 
-    shutil.rmtree(extracted_dir)
+        shutil.rmtree(extracted_dir)
 
     print('Done.')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Blender archive downloader.')
     parser.add_argument('version', help='Blender version')
-    parser.add_argument('-o', '--out', default='blender', help='output file name')
+    parser.add_argument('-o', '--out', default='', help='output file name')
     
     args = parser.parse_args()
 
