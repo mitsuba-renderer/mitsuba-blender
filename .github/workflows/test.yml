@@ -66,12 +66,18 @@ jobs:
     - name: Install Python dependencies
       run: python -m pip install --upgrade requests
 
+    - name: Retrieve Blender full version
+      id: blender-version
+      shell: bash
+      run: |
+        echo "::set-output name=BLENDER_VERSION::$(python scripts/blender_downloader.py ${{ matrix.blender.version }} --print-version)"
+
     - name: Cache Blender archive
       id: cache-blender
       uses: actions/cache@v3
       with:
         path: blender
-        key: ${{ matrix.environment.os }}-${{ matrix.blender.version }}-v1
+        key: ${{ matrix.environment.os }}-${{ steps.blender-version.outputs.BLENDER_VERSION }}-v1
 
     - name: Download Blender
       if: steps.cache-blender.outputs.cache-hit != 'true'

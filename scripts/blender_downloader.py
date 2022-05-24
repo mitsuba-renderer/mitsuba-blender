@@ -84,11 +84,17 @@ def main(args):
     if url is None:
         raise RuntimeError(f'Cannot find mirror for Blender version {args.version}')
 
-    print(f'Downloading Blender archive from mirror: {url}')
-
     archive_file_name = url.split('/')[-1]
 
+    if args.print_version:
+        blender_version_parts = archive_file_name.split('-')
+        if len(blender_version_parts) < 2:
+            raise RuntimeError(f'Invalid blender version: {archive_file_name}')
+        print(f'{blender_version_parts[0]}-{blender_version_parts[1]}')
+        return
+
     if not os.path.exists(archive_file_name):
+        print(f'Downloading Blender archive from mirror: {url}')
         r = requests.get(url, stream=True)
         archive_file = open(archive_file_name, "wb")
         archive_file.write(r.content)
@@ -128,6 +134,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Blender archive downloader.')
     parser.add_argument('version', help='Blender version')
     parser.add_argument('-o', '--out', default='', help='output file name')
+    parser.add_argument('--print-version', action='store_const', const=True, default=False, help='print the Blender version instead of downloading the archive')
     
     args = parser.parse_args()
 
