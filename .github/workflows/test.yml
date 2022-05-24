@@ -144,11 +144,11 @@ jobs:
         cmake --build build --config Release
         popd
 
-    - name: Run Addon test suite
-      shell: bash
-      env:
-        MITSUBA_DIR: "mitsuba/${{ matrix.environment.mitsuba-outdir }}"
-      run: |
-        BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
-        echo "Blender Executable is $BLENDER_EXECUTABLE"
-        ./$BLENDER_EXECUTABLE -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
+    # - name: Run Addon test suite
+    #   shell: bash
+    #   env:
+    #     MITSUBA_DIR: "mitsuba/${{ matrix.environment.mitsuba-outdir }}"
+    #   run: |
+    #     BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
+    #     echo "Blender Executable is $BLENDER_EXECUTABLE"
+    #     ./$BLENDER_EXECUTABLE -b --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba2-blender
