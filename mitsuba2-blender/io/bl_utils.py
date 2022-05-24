@@ -1,7 +1,7 @@
 
 import bpy
 
-def init_empty_scene(bl_context, name='Scene', clear_all_scenes=True):
+def init_empty_scene(bl_context, name='Scene', clear_all_scenes=False):
     ''' Create an empty Blender scene with a specific name.
     
     If a scene already exists with the same name, it will be 
@@ -28,25 +28,23 @@ def init_empty_scene(bl_context, name='Scene', clear_all_scenes=True):
         for scene in bpy.data.scenes:
             if scene.name != 'mi-tmp':
                 bpy.data.scenes.remove(scene)
-        # Clear all orphaned data
-        if bpy.app.version < (2, 93, 0):
-            bpy.ops.outliner.orphans_purge()
-        else:
-            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
     
     # Check if the scene already exists
     bl_scene = bpy.data.scenes.get(name)
     if bl_scene is not None:
         # Delete the scene if it exists
-        for obj in bl_scene.objects:
-            bpy.data.objects.remove(obj)
         bpy.data.scenes.remove(bl_scene)
-    else:
-        # Create the new scene
-        bl_scene = bpy.data.scenes.new(name)
+
+    bl_scene = bpy.data.scenes.new(name)
 
     # Delete the temporary scene
     bpy.data.scenes.remove(tmp_scene)
+
+    # Clear all orphaned data
+    if bpy.app.version < (2, 93, 0):
+        bpy.ops.outliner.orphans_purge()
+    else:
+        bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
     
     return bl_scene
 

@@ -33,9 +33,9 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
     filter_glob: StringProperty(default="*.xml", options={'HIDDEN'})
 
     override_scene: BoolProperty(
-        name = 'Override Scene',
-        description = 'Override the current scene with imported Mitsuba scene. '
-                      'This will remove all current objects in the scene!',
+        name = 'Override Current Scene',
+        description = 'Override the current scene with the imported Mitsuba scene. '
+                      'Otherwise, creates a new scene for Mitsuba objects.',
         default = True,
     )
 
@@ -50,13 +50,12 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         ).to_4x4()
 
         if self.override_scene:
-            # Clear the scenes and create one for Mitsuba objects
-            scene = bl_utils.init_empty_scene(context, name='Mitsuba2')
-            collection = bl_utils.init_empty_collection(scene)
+            # Clear the current scene
+            scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
         else:
-            # Create a collection for Mitsuba objects
-            scene = context.scene
-            collection = bl_utils.init_empty_collection(scene, name='Mitsuba2')
+            # Create a new scene for Mitsuba objects
+            scene = bl_utils.init_empty_scene(context, name='Mitsuba2')
+        collection = scene.collection
 
         try:
             importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat)
@@ -64,6 +63,8 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba2 scene. See error log.")
             return {'CANCELLED'}
+
+        bpy.context.window.scene = scene
 
         self.report({'INFO'}, "Scene imported successfully.")
 
