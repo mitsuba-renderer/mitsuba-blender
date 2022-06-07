@@ -28,6 +28,26 @@ def init_empty_scene(bl_context, name='Scene', clear_all_scenes=False):
         for scene in bpy.data.scenes:
             if scene.name != 'mi-tmp':
                 bpy.data.scenes.remove(scene)
+        # Clear all orphaned data
+        if bpy.app.version < (2, 93, 0):
+            # NOTE: Calling `orphans_purge` on Blender 2.83 
+            #       results in a segfault.
+            for data_type in (
+                bpy.data.objects,
+                bpy.data.meshes,
+                bpy.data.cameras,
+                bpy.data.images,
+                bpy.data.lights,
+                bpy.data.materials,
+                bpy.data.meshes,
+                bpy.data.textures,
+                bpy.data.worlds
+            ):
+                for data in data_type:
+                    if data and data.users == 0:
+                        data_type.remove(data)
+        else:
+            bpy.ops.outliner.orphans_purge(do_local_ids=True, do_linked_ids=True, do_recursive=True)
     
     # Check if the scene already exists
     bl_scene = bpy.data.scenes.get(name)

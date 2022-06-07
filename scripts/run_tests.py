@@ -23,22 +23,29 @@ class SetupPlugin:
         if os.path.exists(self.bl_mi_addon_dir):
             os.remove(self.bl_mi_addon_dir)
         
+        # Create a symlink from the addon to the Blender script folder
         if sys.platform == 'win32':
             import _winapi
             _winapi.CreateJunction(str(self.mi_addon_dir), str(self.bl_mi_addon_dir))
         else:
             os.symlink(self.mi_addon_dir, self.bl_mi_addon_dir, target_is_directory=True)
         
-        bpy.ops.preferences.addon_enable(module='mitsuba2-blender')
+        if bpy.ops.preferences.addon_enable(module='mitsuba2-blender') != {'FINISHED'}:
+            raise RuntimeError('Cannot enable mitsuba2-blender addon')
 
         mitsuba_path = os.environ.get('MITSUBA_DIR', None)
         if mitsuba_path is None:
             raise RuntimeError("Please provide the Mitsuba build directory as the environment variable MITSUBA_DIR")
-        bpy.context.preferences.addons['mitsuba2-blender'].preferences.mitsuba_path = os.path.realpath(mitsuba_path)
+
+        mitsuba_path = os.path.realpath(mitsuba_path)
+        print(mitsuba_path)
+        bpy.context.preferences.addons['mitsuba2-blender'].preferences.mitsuba_path = mitsuba_path
+        if bpy.context.preferences.addons['mitsuba2-blender'].preferences.error_msg != '':
+            raise RuntimeError('Failed to load Mitsuba')
 
     def pytest_unconfigure(self):
         bpy.ops.preferences.addon_disable(module='mitsuba2-blender')
-        
+        # Remove the symlink
         os.remove(self.bl_mi_addon_dir)
 
     def pytest_runtest_setup(self, item):
