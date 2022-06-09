@@ -156,7 +156,7 @@ def apply_mi_gaussian_properties(mi_context, mi_props):
     mi_camera.active_rfilter = 'gaussian'
     bl_box_props.stddev = mi_props.get('stddev', 0.5)
     # Cycles properties
-    bl_renderer.pixel_filter_type = 'BOX'
+    bl_renderer.pixel_filter_type = 'GAUSSIAN'
     bl_renderer.filter_width = mi_props.get('stddev', 0.5)
     return True
 

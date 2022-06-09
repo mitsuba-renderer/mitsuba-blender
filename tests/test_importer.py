@@ -160,6 +160,9 @@ def test_importer_box_rfilter(resource_resolver, mitsuba_scene_parser, xml_scene
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_rfilter == 'box'
+
+    bl_cycles = bpy.context.scene.cycles
+    assert bl_cycles.pixel_filter_type == 'BOX'
     
     # assert len(mi_rfilter.unqueried()) == 0
 
@@ -191,6 +194,9 @@ def test_importer_gaussian_rfilter(resource_resolver, mitsuba_scene_parser, xml_
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_rfilter == 'gaussian'
     assert bl_camera.rfilters.gaussian.stddev == mi_rfilter.get('stddev')
+
+    bl_cycles = bpy.context.scene.cycles
+    assert bl_cycles.pixel_filter_type == 'GAUSSIAN'
     
     # assert len(mi_rfilter.unqueried()) == 0
 
