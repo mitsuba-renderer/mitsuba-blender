@@ -90,64 +90,10 @@ jobs:
         echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
-        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
-
-    - name: Install Mitsuba build dependencies (Ubuntu)
-      if: startsWith(matrix.environment.os, 'ubuntu')
-      run: |
-        sudo apt install -y clang-9 libc++-9-dev libc++abi-9-dev cmake ninja-build
-        sudo apt install -y libz-dev libpng-dev libjpeg-dev libxrandr-dev libxinerama-dev libxcursor-dev
-        sudo apt install -y python3-dev python3-distutils python3-setuptools
-
-    - name: Install Mitsuba build dependencies (Windows)
-      if: startsWith(matrix.environment.os, 'windows')
-      uses: microsoft/setup-msbuild@v1.0.2
-
-    - name: Clone Mitsuba Repository
-      uses: actions/checkout@v2
-      with:
-        repository: ros-dorian/mitsuba3
-        ref: xml_to_prop
-        path: './mitsuba'
-        submodules: recursive
-        token: ${{ secrets.MITSUBA_REPO_TOKEN }}
-
-    - name: Retrieve Mitsuba version
-      id: mitsuba-version
-      shell: bash
-      run: |
-        pushd mitsuba
-        echo "::set-output name=GIT_HEAD_SHA::$(git rev-parse HEAD)"
-        popd
-
-    - name: Cache Mitsuba artifacts
-      id: cache-mitsuba
-      uses: actions/cache@v3
-      with:
-        path: mitsuba/${{ matrix.environment.mitsuba-outdir }}
-        key: ${{ matrix.environment.os }}-${{ matrix.blender.python }}-${{ steps.mitsuba-version.outputs.GIT_HEAD_SHA }}-v3
-
-    - name: Build Mitsuba
-      if: steps.cache-mitsuba.outputs.cache-hit != 'true'
-      env:
-        CC: ${{ matrix.environment.cc }}
-        CXX: ${{ matrix.environment.cxx }}
-      shell: bash
-      run: |
-        pushd mitsuba
-        mkdir build
-        cmake \
-          -S . \
-          -B build \
-          -G "${{ matrix.environment.cmake-generator }}" \
-          -DPython_EXECUTABLE=${{ steps.python-path.outputs.PYTHON_EXECUTABLE }}
-        cmake --build build --config Release
-        popd
+        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov mitsuba
 
     - name: Run Addon test suite
       shell: bash
-      env:
-        MITSUBA_DIR: "mitsuba/${{ matrix.environment.mitsuba-outdir }}"
       run: |
         BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
         echo "Blender Executable is $BLENDER_EXECUTABLE"
