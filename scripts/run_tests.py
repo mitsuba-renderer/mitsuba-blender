@@ -33,8 +33,8 @@ class SetupPlugin:
         if bpy.ops.preferences.addon_enable(module='mitsuba2-blender') != {'FINISHED'}:
             raise RuntimeError('Cannot enable mitsuba2-blender addon')
 
-        if bpy.context.preferences.addons['mitsuba2-blender'].preferences.error_msg != '':
-            raise RuntimeError('Failed to find Mitsuba library')
+        if not bpy.context.preferences.addons['mitsuba2-blender'].preferences.is_mitsuba_initialized:
+            raise RuntimeError('Failed to initialize Mitsuba library')
 
     def pytest_unconfigure(self):
         bpy.ops.preferences.addon_disable(module='mitsuba2-blender')
