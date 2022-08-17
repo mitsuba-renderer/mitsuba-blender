@@ -1,13 +1,12 @@
 bl_info = {
-    "name": "Mitsuba2-Blender",
-    "author": "Baptiste Nicolet",
-    "version": (0, 1),
-    "blender": (2, 80, 0),
-    "category": "Exporter",
-    "location": "File > Export > Mitsuba 2",
-    "description": "Mitsuba2 export for Blender",
-    "warning": "alpha0",
-    "support": "TESTING"
+    'name': 'Mitsuba-Blender',
+    'author': 'Baptiste Nicolet, Dorian Ros',
+    'version': (0, 1),
+    'blender': (2, 90, 0),
+    'category': 'Render',
+    'location': 'File menu, render engine menu',
+    'description': 'Mitsuba integration for Blender',
+    'warning': 'alpha0',
 }
 
 import bpy
