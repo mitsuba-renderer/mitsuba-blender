@@ -21,31 +21,17 @@ jobs:
       matrix:
         environment:
         - {
-          os: "ubuntu-latest",
-          cc: "clang-9",
-          cxx: "clang++-9",
-          cmake-generator: "Ninja",
-          mitsuba-outdir: "build"
+          os: "ubuntu-latest"
         }
         - {
-          os: "windows-latest",
-          cc: "cl",
-          cxx: "cl",
-          cmake-generator: "Visual Studio 17 2022",
-          mitsuba-outdir: "build/Release"
+          os: "windows-latest"
         }
         blender:
         - {
-          version: "2.83",
-          python: "3.7.9"
+          version: "2.93"
         }
         - {
-          version: "2.93",
-          python: "3.9.2"
-        }
-        - {
-          version: "3.1",
-          python: "3.10.2"
+          version: "3.1"
         }
         
     steps:
@@ -54,14 +40,6 @@ jobs:
 
     - name: Setup Python
       uses: "actions/setup-python@v2"
-      with:
-        python-version: "${{ matrix.blender.python }}"
-
-    - name: Retrieve Python executable path
-      id: python-path
-      shell: bash
-      run: |
-        echo "::set-output name=PYTHON_EXECUTABLE::$(which python)"
 
     - name: Install Python dependencies
       run: python -m pip install --upgrade requests
