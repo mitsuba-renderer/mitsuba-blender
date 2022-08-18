@@ -6,9 +6,7 @@ on:
     branches: [ sp-addon ]
   pull_request:
     branches: [ sp-addon ]
-
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+  workflow_call:
 
 # Build job
 jobs:

@@ -1,0 +1,33 @@
+name: Release
+
+# Triggers the workflow on push or pull request events but only for the main branch
+on:
+  push:
+    branches-ignore:
+      - '*'
+      - '!sp-addon'
+    #tags:
+    #  - v*
+
+# Build job
+jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+  
+  package:
+    name: "Package Release"
+    needs: [tests]
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v2
+    
+    - name: Setup Python
+      uses: "actions/setup-python@v2"
+
+    - name: Create package
+      run: python release/package.py
+
+    - name: Verify
+      run: ls
