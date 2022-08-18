@@ -2,10 +2,12 @@ bl_info = {
     'name': 'Mitsuba-Blender',
     'author': 'Baptiste Nicolet, Dorian Ros',
     'version': (0, 1),
-    'blender': (2, 90, 0),
+    'blender': (2, 93, 0),
     'category': 'Render',
     'location': 'File menu, render engine menu',
     'description': 'Mitsuba integration for Blender',
+    'wiki_url': 'https://mitsuba.readthedocs.io/en/latest/',
+    'tracker_url': 'https://github.com/mitsuba-renderer/mitsuba2-blender/issues/new/choose',
     'warning': 'alpha0',
 }
 
