@@ -6,8 +6,8 @@ on:
     branches-ignore:
       - '*'
       - '!sp-addon'
-    #tags:
-    #  - v*
+    tags:
+      - v*
 
 # Build job
 jobs:
