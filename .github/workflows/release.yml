@@ -22,6 +22,10 @@ jobs:
     steps:
     - name: Git checkout
       uses: actions/checkout@v2
+
+    - name: Query Git Tag
+      id: git-tag
+      run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
     
     - name: Setup Python
       uses: "actions/setup-python@v2"
@@ -29,5 +33,13 @@ jobs:
     - name: Create package
       run: python release/package.py
 
-    - name: Verify
-      run: ls
+    - name: Create GitHub draft release
+      uses: ncipollo/release-action
+      env:
+        RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
+      with:
+        artifacts: "mitsuba-blender.zip"
+        artifactErrorsFailBuild: true
+        bodyFile: "scripts/release_body_template.md"
+        draft: true
+        name: "Mitsuba-Blender $RELEASE_VERSION"
