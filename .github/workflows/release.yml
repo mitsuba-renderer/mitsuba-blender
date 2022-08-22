@@ -13,7 +13,7 @@ jobs:
   
   package:
     name: "Package Release"
-    needs: [tests]
+    #needs: [tests]
     runs-on: "ubuntu-latest"
 
     steps:
