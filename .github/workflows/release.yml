@@ -8,12 +8,12 @@ on:
 
 # Build job
 jobs:
-  #tests:
-  #  uses: ./.github/workflows/test.yml
+  tests:
+    uses: ./.github/workflows/test.yml
   
   package:
     name: "Package Release"
-    #needs: [tests]
+    needs: [tests]
     runs-on: "ubuntu-latest"
 
     steps:
@@ -32,11 +32,9 @@ jobs:
 
     - name: Create GitHub draft release
       uses: ncipollo/release-action@v1
-      env:
-        RELEASE_VERSION: ${{ steps.git-tag.outputs.tag }}
       with:
         artifacts: "mitsuba-blender.zip"
         artifactErrorsFailBuild: true
         bodyFile: "release/release_body_template.md"
         draft: true
-        name: "Mitsuba-Blender $RELEASE_VERSION"
+        name: "Mitsuba-Blender ${{ steps.git-tag.outputs.tag }}"
