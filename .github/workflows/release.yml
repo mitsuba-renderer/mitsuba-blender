@@ -34,7 +34,7 @@ jobs:
       run: python release/package.py
 
     - name: Create GitHub draft release
-      uses: ncipollo/release-action
+      uses: ncipollo/release-action@v1
       env:
         RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
       with:
