@@ -37,4 +37,6 @@ jobs:
         replacesArtifacts: true
         artifacts: "mitsuba-blender.zip"
         artifactErrorsFailBuild: true
+        tag: "latest"
+        commit: "master"
         bodyFile: "release/nightly_release_body.md"
