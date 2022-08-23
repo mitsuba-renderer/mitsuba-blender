@@ -399,7 +399,7 @@ def convert_world(export_ctx, world, ignore_background):
 
     params = {}
 
-    if world.use_nodes:
+    if world is not None and world.use_nodes and world.node_tree is not None:
         output_node = world.node_tree.nodes['World Output']
         if not output_node.inputs["Surface"].is_linked:
             return
