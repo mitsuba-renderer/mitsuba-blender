@@ -227,9 +227,11 @@ class MitsubaPreferences(AddonPreferences):
 
         layout.operator(MITSUBA_OT_install_pip_dependencies.bl_idname, text='Install dependencies using pip')
 
-        layout.prop(self, 'using_mitsuba_custom_path', text='Use custom Mitsuba path')
+        box = layout.box()
+        box.label(text='Advanced Settings')
+        box.prop(self, 'using_mitsuba_custom_path', text='Use custom Mitsuba path')
         if self.using_mitsuba_custom_path:
-            layout.prop(self, 'mitsuba_custom_path')
+            box.prop(self, 'mitsuba_custom_path')
         
 classes = (
     MITSUBA_OT_install_pip_dependencies,
