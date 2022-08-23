@@ -1,14 +1,19 @@
+# This workflow runs on every pull request and push on any other branch other than master.
+# It executes the test suite on different environments to validate the add-on.
 name: Test suite
 
-# Triggers the workflow on push or pull request events but only for the main branch
+# Triggers the workflow on pull requests created for the master branch as well as
+# push events on other branches than master.
 on:
   push:
-    branches: [ master ]
+    branches:
+      - "*"
+      - "!master"
   pull_request:
     branches: [ master ]
   workflow_call:
 
-# Build job
+# Workflow steps
 jobs:
   build:
     name: "${{ matrix.environment.os }} | Blender ${{ matrix.blender.version }}"

@@ -1,13 +1,12 @@
-# This workflow runs on every pushed version tags. It runs the tests and
-# packages the release. It then creates a new entry in the release section
-# of the repo.
-name: Release
+# This workflow runs on every commit on the master branch. It runs the test suite
+# and packages the add-on. It then updates the "nightly release" in the release section
+# of the repository.
+name: Nightly Release
 
-# Triggers the workflow on tags with a specific format
+# Triggers the workflow on pushes on the master branch
 on:
   push:
-    tags:
-      - v*
+    branches: [master]
 
 # Workflow steps
 jobs:
@@ -23,10 +22,6 @@ jobs:
     - name: Git checkout
       uses: actions/checkout@v2
 
-    - name: Query Git Tag
-      id: git-tag
-      run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-
     - name: Setup Python
       uses: "actions/setup-python@v2"
 
@@ -36,8 +31,10 @@ jobs:
     - name: Create GitHub draft release
       uses: ncipollo/release-action@v1
       with:
+        name: "Mitsuba-Blender Latest Build"
+        prerelease: true
+        allowUpdates: true
+        replacesArtifacts: true
         artifacts: "mitsuba-blender.zip"
         artifactErrorsFailBuild: true
-        bodyFile: "release/release_body_template.md"
-        draft: true
-        name: "Mitsuba-Blender ${{ steps.git-tag.outputs.tag }}"
+        bodyFile: "release/nightly_release_body.md"
