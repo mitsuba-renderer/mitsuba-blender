@@ -1,6 +1,6 @@
 name: Release
 
-# Triggers the workflow on push or pull request events but only for the main branch
+# Triggers the workflow on tags with a specific format
 on:
   push:
     tags:
