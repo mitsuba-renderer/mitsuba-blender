@@ -1,4 +1,4 @@
-![Addon Banner](img/banner.png)
+![Addon Banner](res/banner.png)
 
 # Mitsuba Blender Add-on
 
@@ -24,7 +24,7 @@ More in-depth information about the features of the add-on are available on the 
 
 The add-on should display a checkmark once Mitsuba is correctly detected and initialized.
 
-![Found Mitsuba](img/found_mitsuba.png)
+![Found Mitsuba](res/found_mitsuba.png)
 
 ### Requirements
 
