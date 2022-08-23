@@ -472,15 +472,14 @@ def convert_world(export_ctx, world, ignore_background):
                     'type': 'constant',
                     'radiance': export_ctx.spectrum(radiance)
                 })
-
         else:
             raise NotImplementedError("Only Background and Emission nodes are supported as final nodes for World export, got '%s'" % surface_node.name)
     else:
         # Single color field for emission, no nodes
-                params.update({
-                    'type': 'constant',
-                    'radiance': export_ctx.spectrum(world.color)
-                })
+        params.update({
+            'type': 'constant',
+            'radiance': export_ctx.spectrum(world.color)
+        })
 
     if export_ctx.export_ids:
         export_ctx.data_add(params, "World")
