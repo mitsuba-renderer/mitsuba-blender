@@ -2,7 +2,7 @@
 
 # Mitsuba Blender Add-on
 
-[![Test suite](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml/badge.svg?branch=sp-addon)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml)
+[![Test suite](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml)
 
 This add-on integrates the Mitsuba renderer into Blender.
 
