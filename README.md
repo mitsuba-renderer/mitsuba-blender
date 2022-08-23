@@ -1,4 +1,4 @@
-![Header Render](img/readme.png)
+![Addon Banner](img/banner.png)
 
 # Mitsuba Blender Add-on
 
