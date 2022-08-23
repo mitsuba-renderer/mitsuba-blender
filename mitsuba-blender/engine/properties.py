@@ -29,7 +29,7 @@ def create_plugin_props(name, arg_dict, depth=1, prefix=""):
     Params
     ------
 
-    name: the name of the Mitsuba 2 plugin
+    name: the name of the Mitsuba plugin
     arg_dict: the labels, description and properties defined in the JSON plugin files
     depth: Recursion depth (for nested plugins, e.g. Stokes integrator) We only allow a certain amount of nesting, to avoid infinite definition of properties
     prefix: Prefix to use to declare a class with a unique name
@@ -379,7 +379,7 @@ class MITSUBA_RENDER_PT_integrator(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'render'
-    COMPAT_ENGINES = {'MITSUBA2'}
+    COMPAT_ENGINES = {'MITSUBA'}
 
     @classmethod
     def poll(cls, context):
@@ -423,7 +423,7 @@ def draw_device(self, context):
     layout.use_property_split = True
     layout.use_property_decorate = False
 
-    if context.engine == 'MITSUBA2':
+    if context.engine == 'MITSUBA':
         mts_settings = scene.mitsuba
 
         col = layout.column()

@@ -11,7 +11,7 @@ def test_importer_override_current_scene_conserves_name(resource_resolver, xml_s
     assert len(bpy.data.scenes) == 1
     scene_name_before = bpy.data.scenes[0].name
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file, override_scene=True) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file, override_scene=True) == {'FINISHED'}
 
     assert len(bpy.data.scenes) == 1
     assert bpy.data.scenes[0].name == scene_name_before
@@ -22,12 +22,12 @@ def test_importer_multiple_scene_imports(resource_resolver, xml_scene):
 
     assert len(bpy.data.scenes) == 1
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file, override_scene=False) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file, override_scene=False) == {'FINISHED'}
     object_count_before = len(bpy.context.scene.objects)
 
     assert len(bpy.data.scenes) == 2
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file, override_scene=False) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file, override_scene=False) == {'FINISHED'}
     assert len(bpy.context.scene.objects) == object_count_before
 
     assert len(bpy.data.scenes) == 2
@@ -39,7 +39,7 @@ def test_importer_set_new_scene_as_active(resource_resolver, xml_scene):
     assert len(bpy.data.scenes) == 1
     scene_name_before = bpy.data.scenes[0].name
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file, override_scene=False) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file, override_scene=False) == {'FINISHED'}
 
     assert len(bpy.data.scenes) == 2
     assert bpy.context.scene.name != scene_name_before
@@ -48,9 +48,9 @@ def test_importer_set_new_scene_as_active(resource_resolver, xml_scene):
 def test_importer_initializes_mitsuba_renderer(resource_resolver, xml_scene):
     scene_file = resource_resolver.get_absolute_resource_path(xml_scene)
     
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
-    assert bpy.context.scene.render.engine == 'MITSUBA2'
+    assert bpy.context.scene.render.engine == 'MITSUBA'
     assert bpy.context.scene.mitsuba.variant == 'scalar_rgb'
 
 @pytest.mark.parametrize("xml_scene", ["scenes/integrator_path.xml"])
@@ -61,7 +61,7 @@ def test_importer_path_integrator(resource_resolver, mitsuba_scene_parser, xml_s
     mi_integrator = mitsuba_scene_parser.get_props_by_name('path')
     assert mi_integrator
     
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_scene = bpy.context.scene
     assert bl_scene.mitsuba.active_integrator == 'path'
@@ -82,7 +82,7 @@ def test_importer_moment_integrator(resource_resolver, mitsuba_scene_parser, xml
     mi_child_integrator = mitsuba_scene_parser.get_props_by_name('path')
     assert mi_child_integrator
     
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_scene = bpy.context.scene
     assert bl_scene.mitsuba.active_integrator == 'moment'
@@ -103,7 +103,7 @@ def test_importer_independent_sampler(resource_resolver, mitsuba_scene_parser, x
     mi_sampler = mitsuba_scene_parser.get_props_by_name('independent')
     assert mi_sampler
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_sampler == 'independent'
@@ -120,7 +120,7 @@ def test_importer_stratified_sampler(resource_resolver, mitsuba_scene_parser, xm
     mi_sampler = mitsuba_scene_parser.get_props_by_name('stratified')
     assert mi_sampler
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_sampler == 'stratified'
@@ -138,7 +138,7 @@ def test_importer_multijitter_sampler(resource_resolver, mitsuba_scene_parser, x
     mi_sampler = mitsuba_scene_parser.get_props_by_name('multijitter')
     assert mi_sampler
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_sampler == 'multijitter'
@@ -156,7 +156,7 @@ def test_importer_box_rfilter(resource_resolver, mitsuba_scene_parser, xml_scene
     mi_rfilter = mitsuba_scene_parser.get_props_by_name('box')
     assert mi_rfilter
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_rfilter == 'box'
@@ -174,7 +174,7 @@ def test_importer_tent_rfilter(resource_resolver, mitsuba_scene_parser, xml_scen
     mi_rfilter = mitsuba_scene_parser.get_props_by_name('tent')
     assert mi_rfilter
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_rfilter == 'tent'
@@ -189,7 +189,7 @@ def test_importer_gaussian_rfilter(resource_resolver, mitsuba_scene_parser, xml_
     mi_rfilter = mitsuba_scene_parser.get_props_by_name('gaussian')
     assert mi_rfilter
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_camera = bpy.context.scene.camera.data.mitsuba
     assert bl_camera.active_rfilter == 'gaussian'
@@ -208,7 +208,7 @@ def test_importer_hdrfilm_film(resource_resolver, mitsuba_scene_parser, xml_scen
     mi_film = mitsuba_scene_parser.get_props_by_name('hdrfilm')
     assert mi_film
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=scene_file) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
 
     bl_render = bpy.context.scene.render
     assert bl_render.resolution_percentage == 100

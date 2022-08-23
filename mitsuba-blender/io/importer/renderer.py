@@ -290,7 +290,7 @@ def apply_mi_film_properties(mi_context, mi_props):
 ###########################
 
 def init_mitsuba_renderer(mi_context):
-    mi_context.bl_scene.render.engine = 'MITSUBA2'
+    mi_context.bl_scene.render.engine = 'MITSUBA'
     mi_renderer = mi_context.bl_scene.mitsuba
     if 'scalar_rgb' not in mi_renderer.variants():
         mi_context.log('Mitsuba variant "scalar_rgb" not available.', 'ERROR')

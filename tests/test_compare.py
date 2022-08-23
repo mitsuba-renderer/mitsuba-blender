@@ -20,7 +20,7 @@ def test_round_trip(xml_scene, resource_resolver, mitsuba_scene_ztest):
     test_output_dir = resource_resolver.ensure_resource_dir(f'out/{ref_scene_name}')
     output_scene_file = os.path.join(test_output_dir, f'{ref_scene_name}_out.xml')
 
-    assert bpy.ops.import_scene.mitsuba2(filepath=ref_scene_file) == {'FINISHED'}
-    assert bpy.ops.export_scene.mitsuba2(filepath=output_scene_file, ignore_background=True) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(filepath=ref_scene_file) == {'FINISHED'}
+    assert bpy.ops.export_scene.mitsuba(filepath=output_scene_file, ignore_background=True) == {'FINISHED'}
 
     assert mitsuba_scene_ztest.compare_scenes(ref_scene_file, output_scene_file, spp, resolution, test_output_dir)

@@ -19,7 +19,7 @@ def export_camera(camera_instance, b_scene, export_ctx):
     init_rot = Matrix.Rotation(np.pi, 4, 'Y')
     params['to_world'] = export_ctx.transform_matrix(b_camera.matrix_world @ init_rot)
 
-    if b_scene.render.engine == 'MITSUBA2':
+    if b_scene.render.engine == 'MITSUBA':
         sampler = getattr(b_camera.data.mitsuba.samplers, b_camera.data.mitsuba.active_sampler).to_dict()
     else:
         sampler = {'type' : 'independent'}
@@ -35,7 +35,7 @@ def export_camera(camera_instance, b_scene, export_ctx):
     film['height'] = int(b_scene.render.resolution_y * scale)
 
 
-    if b_scene.render.engine == 'MITSUBA2':
+    if b_scene.render.engine == 'MITSUBA':
         film['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
     elif b_scene.render.engine == 'CYCLES':
         if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':

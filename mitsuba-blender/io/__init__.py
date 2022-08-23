@@ -25,9 +25,9 @@ from . import exporter
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
 class ImportMistuba(bpy.types.Operator, ImportHelper):
-    """Import a Mitsuba 2 scene"""
-    bl_idname = "import_scene.mitsuba2"
-    bl_label = "Mitsuba 2 Import"
+    """Import a Mitsuba scene"""
+    bl_idname = "import_scene.mitsuba"
+    bl_label = "Mitsuba Import"
 
     filename_ext = ".xml"
     filter_glob: StringProperty(default="*.xml", options={'HIDDEN'})
@@ -54,14 +54,14 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
             scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
         else:
             # Create a new scene for Mitsuba objects
-            scene = bl_utils.init_empty_scene(context, name='Mitsuba2')
+            scene = bl_utils.init_empty_scene(context, name='Mitsuba')
         collection = scene.collection
 
         try:
             importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat)
         except (RuntimeError, NotImplementedError) as e:
             print(e)
-            self.report({'ERROR'}, "Failed to load Mitsuba2 scene. See error log.")
+            self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")
             return {'CANCELLED'}
 
         bpy.context.window.scene = scene
@@ -73,9 +73,9 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
 class ExportMitsuba(bpy.types.Operator, ExportHelper):
-    """Export as a Mitsuba 2 scene"""
-    bl_idname = "export_scene.mitsuba2"
-    bl_label = "Mitsuba 2 Export"
+    """Export as a Mitsuba scene"""
+    bl_idname = "export_scene.mitsuba"
+    bl_label = "Mitsuba Export"
 
     filename_ext = ".xml"
     filter_glob: StringProperty(default="*.xml", options={'HIDDEN'})
@@ -148,10 +148,10 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
 
 def menu_export_func(self, context):
-    self.layout.operator(ExportMitsuba.bl_idname, text="Mitsuba 2 (.xml)")
+    self.layout.operator(ExportMitsuba.bl_idname, text="Mitsuba (.xml)")
 
 def menu_import_func(self, context):
-    self.layout.operator(ImportMistuba.bl_idname, text="Mitsuba 2 (.xml)")
+    self.layout.operator(ImportMistuba.bl_idname, text="Mitsuba (.xml)")
 
 
 classes = (

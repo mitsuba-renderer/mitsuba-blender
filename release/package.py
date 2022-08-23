@@ -3,7 +3,7 @@ from zipfile import ZipFile
 import os
 
 def main(args):
-    addon_name = 'mitsuba2-blender'
+    addon_name = 'mitsuba-blender'
     base_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     addon_dir = os.path.join(base_dir, addon_name)
 

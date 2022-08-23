@@ -4,9 +4,9 @@ from mathutils import Matrix
 
 def test_prespective_sensor():
     import importlib
-    sensors = importlib.import_module("mitsuba2-blender.io.importer.sensors")
+    sensors = importlib.import_module("mitsuba-blender.io.importer.sensors")
     assert sensors
-    common = importlib.import_module("mitsuba2-blender.io.importer.common")
+    common = importlib.import_module("mitsuba-blender.io.importer.common")
     assert common
 
     from mitsuba import Properties

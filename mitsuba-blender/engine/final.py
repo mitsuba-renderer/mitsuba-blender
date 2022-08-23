@@ -6,8 +6,8 @@ from ..io.exporter import SceneConverter
 
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 
-    bl_idname = "MITSUBA2"
-    bl_label = "Mitsuba 2"
+    bl_idname = "MITSUBA"
+    bl_label = "Mitsuba"
     bl_use_preview = False
 
     # Init is called whenever a new render engine instance is created. Multiple

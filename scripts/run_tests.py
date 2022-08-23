@@ -7,7 +7,7 @@ import pytest
 class SetupPlugin:
     def __init__(self):
         mi_addon_root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba2-blender')
+        self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba-blender')
         bl_script_dirs = bpy.utils.script_paths(use_user=True)
         self.bl_script_dir = None
         for dir in bl_script_dirs:
@@ -16,7 +16,7 @@ class SetupPlugin:
         if self.bl_script_dir is None:
             raise RuntimeError('Cannot resolve Blender script directory')
         self.bl_addon_dir = os.path.join(self.bl_script_dir, 'addons')
-        self.bl_mi_addon_dir = os.path.join(self.bl_addon_dir, 'mitsuba2-blender')
+        self.bl_mi_addon_dir = os.path.join(self.bl_addon_dir, 'mitsuba-blender')
         sys.path.append(self.mi_addon_dir)
 
     def pytest_configure(self, config):
@@ -30,20 +30,20 @@ class SetupPlugin:
         else:
             os.symlink(self.mi_addon_dir, self.bl_mi_addon_dir, target_is_directory=True)
         
-        if bpy.ops.preferences.addon_enable(module='mitsuba2-blender') != {'FINISHED'}:
+        if bpy.ops.preferences.addon_enable(module='mitsuba-blender') != {'FINISHED'}:
             raise RuntimeError('Cannot enable mitsuba2-blender addon')
 
-        if not bpy.context.preferences.addons['mitsuba2-blender'].preferences.is_mitsuba_initialized:
+        if not bpy.context.preferences.addons['mitsuba-blender'].preferences.is_mitsuba_initialized:
             raise RuntimeError('Failed to initialize Mitsuba library')
 
     def pytest_unconfigure(self):
-        bpy.ops.preferences.addon_disable(module='mitsuba2-blender')
+        bpy.ops.preferences.addon_disable(module='mitsuba-blender')
         # Remove the symlink
         os.remove(self.bl_mi_addon_dir)
 
     def pytest_runtest_setup(self, item):
         bpy.ops.wm.read_homefile(use_empty=True)
-        if 'mitsuba2-blender' not in bpy.context.preferences.addons:
+        if 'mitsuba-blender' not in bpy.context.preferences.addons:
             raise RuntimeError("Plugin was disabled by test reset")
 
 if __name__ == '__main__':

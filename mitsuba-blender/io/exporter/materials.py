@@ -83,7 +83,7 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
         })
     """
     if current_node.inputs['Roughness'].is_linked or current_node.inputs['Roughness'].default_value != 0.0:
-        export_ctx.log("Warning: rough diffuse BSDF is currently not supported in Mitsuba 2. Ignoring alpha parameter.", 'WARN')
+        export_ctx.log("Warning: rough diffuse BSDF is currently not supported in Mitsuba. Ignoring alpha parameter.", 'WARN')
     #Rough diffuse BSDF is currently not supported in Mitsuba
     params.update({
         'type': 'diffuse'
@@ -128,7 +128,7 @@ def convert_glass_materials_cycles(export_ctx, current_node):
     params = {}
 
     if current_node.inputs['IOR'].is_linked:
-        raise NotImplementedError("Only default IOR value is supported in Mitsuba 2.")
+        raise NotImplementedError("Only default IOR value is supported in Mitsuba.")
 
     ior = current_node.inputs['IOR'].default_value
 
@@ -316,7 +316,7 @@ def cycles_material_to_dict(export_ctx, node):
     if node.type in cycles_converters:
         params = cycles_converters[node.type](export_ctx, node)
     else:
-        raise NotImplementedError("Node type: %s is not supported in Mitsuba 2." % node.type)
+        raise NotImplementedError("Node type: %s is not supported in Mitsuba." % node.type)
 
     return params
 
@@ -370,7 +370,7 @@ def export_material(export_ctx, material):
     else:
         if mat_params['type'] == 'area': # Emitter with no bsdf
             mats = {}
-            # We want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
+            # We want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba
             if not export_ctx.data_get('empty-emitter-bsdf'): # We only need to add one of this, but we may have multiple emitter materials
                 empty_bsdf = {
                     'type':'diffuse',
