@@ -33,7 +33,7 @@ jobs:
       with:
         script: |
           try {
-            await github.git.deleteRef({
+            await github.rest.git.deleteRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: "tags/latest"
@@ -41,7 +41,7 @@ jobs:
           } catch (e) {
             console.log("The latest tag doesn't exist yet: " + e)
           }
-          await github.git.createRef({
+          await github.rest.git.createRef({
             owner: context.repo.owner,
             repo: context.repo.repo,
             ref: "refs/tags/latest",
