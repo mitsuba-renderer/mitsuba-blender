@@ -1,0 +1,18 @@
+<scene version="2.1.0">
+
+    <sensor type="perspective">
+        <film type="hdrfilm">
+            <integer name="width" value="1280" />
+            <integer name="height" value="720" />
+            <string name="file_format" value="openexr" />
+            <string name="pixel_format" value="rgba" />
+            <string name="component_format" value="float32" />
+            <integer name="crop_offset_x" value="0" />
+            <integer name="crop_offset_y" value="0" />
+            <integer name="crop_width" value="640" />
+            <integer name="crop_height" value="360" />
+            <boolean name="high_quality_edges" value="false" />
+        </film>
+    </sensor>
+
+</scene>

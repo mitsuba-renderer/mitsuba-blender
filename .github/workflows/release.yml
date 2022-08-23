@@ -1,0 +1,40 @@
+name: Release
+
+# Triggers the workflow on push or pull request events but only for the main branch
+on:
+  push:
+    tags:
+      - v*
+
+# Build job
+jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+  
+  package:
+    name: "Package Release"
+    needs: [tests]
+    runs-on: "ubuntu-latest"
+
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v2
+
+    - name: Query Git Tag
+      id: git-tag
+      run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
+
+    - name: Setup Python
+      uses: "actions/setup-python@v2"
+
+    - name: Create package
+      run: python release/package.py
+
+    - name: Create GitHub draft release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "mitsuba-blender.zip"
+        artifactErrorsFailBuild: true
+        bodyFile: "release/release_body_template.md"
+        draft: true
+        name: "Mitsuba-Blender ${{ steps.git-tag.outputs.tag }}"

@@ -1,0 +1,71 @@
+{
+    "independent" : {
+        "label" : "Independent",
+        "description" : "Produces independent and uniformly distributed samples.",
+        "parameters" : {
+            "sample_count" : {
+                "label" : "Sample Count",
+                "description" : "Number of samples per pixel.",
+                "type" : "integer",
+                "default" : 4,
+                "min" : 1
+            },
+            "seed" : {
+                "label" : "Seed",
+                "description" : "Seed offset.",
+                "type" : "integer",
+                "default" : 0
+            }
+        }
+    },
+    "stratified" : {
+        "label" : "Stratified",
+        "description" : "Divides the domain into a discrete number of strata and produces a sample within each one of them.",
+        "parameters" : {
+            "sample_count" : {
+                "label" : "Sample Count",
+                "description" : "Number of samples per pixel.",
+                "type" : "integer",
+                "default" : 4,
+                "min" : 1
+            },
+            "seed" : {
+                "label" : "Seed",
+                "description" : "Seed offset.",
+                "type" : "integer",
+                "default" : 0
+            },
+            "jitter": {
+                "label": "Jitter",
+                "description": "Additional random jitter withing the stratum.",
+                "type": "boolean",
+                "default": true
+            }
+        }
+    },
+    "multijitter" : {
+        "label" : "Multijitter",
+        "description" : "Produces samples that are well stratified in 2D but also well stratified when projected onto one dimension.",
+        "parameters" : {
+            "sample_count" : {
+                "label" : "Sample Count",
+                "description" : "Number of samples per pixel.",
+                "type" : "integer",
+                "default" : 4,
+                "min" : 1
+            },
+            "seed" : {
+                "label" : "Seed",
+                "description" : "Seed offset.",
+                "type" : "integer",
+                "default" : 0
+            },
+            "jitter": {
+                "label": "Jitter",
+                "description": "Additional random jitter withing the substratum.",
+                "type": "boolean",
+                "default": true
+            }
+        }
+    }
+}

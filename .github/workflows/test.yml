@@ -1,0 +1,76 @@
+name: Test suite
+
+# Triggers the workflow on push or pull request events but only for the main branch
+on:
+  push:
+    branches: [ sp-addon ]
+  pull_request:
+    branches: [ sp-addon ]
+  workflow_call:
+
+# Build job
+jobs:
+  build:
+    name: "${{ matrix.environment.os }} | Blender ${{ matrix.blender.version }}"
+    runs-on: ${{ matrix.environment.os }}
+    strategy:
+      # Do not stop other jobs if one fails
+      fail-fast: false
+      matrix:
+        environment:
+        - {
+          os: "ubuntu-latest"
+        }
+        - {
+          os: "windows-latest"
+        }
+        blender:
+        - {
+          version: "2.93"
+        }
+        - {
+          version: "3.1"
+        }
+        
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v2
+
+    - name: Setup Python
+      uses: "actions/setup-python@v2"
+
+    - name: Install Python dependencies
+      run: python -m pip install --upgrade requests
+
+    - name: Retrieve Blender full version
+      id: blender-version
+      shell: bash
+      run: |
+        echo "::set-output name=BLENDER_VERSION::$(python scripts/blender_downloader.py ${{ matrix.blender.version }} --print-version)"
+
+    - name: Cache Blender archive
+      id: cache-blender
+      uses: actions/cache@v3
+      with:
+        path: blender
+        key: ${{ matrix.environment.os }}-${{ steps.blender-version.outputs.BLENDER_VERSION }}-v1
+
+    - name: Download Blender
+      if: steps.cache-blender.outputs.cache-hit != 'true'
+      run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
+
+    - name: Install Blender dependencies
+      shell: bash
+      run: |
+        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9].[0-9]{1,2}m?)' -print -quit)
+        echo "Blender Python is $BLENDER_PYTHON"
+        ./$BLENDER_PYTHON -m ensurepip
+        ./$BLENDER_PYTHON -m pip install -U pip
+        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov mitsuba
+
+    - name: Run Addon test suite
+      shell: bash
+      run: |
+        BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
+        echo "Blender Executable is $BLENDER_EXECUTABLE"
+        ./$BLENDER_EXECUTABLE -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba-blender

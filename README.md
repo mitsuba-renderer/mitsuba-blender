@@ -1,71 +1,31 @@
-![Header Render](img/readme.png)
-=======================
+![Addon Banner](img/banner.png)
 
-# Mitsuba 2 Blender Add-On
+# Mitsuba Blender Add-on
 
-Author: Baptiste Nicolet.
+[![Test suite](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml/badge.svg?branch=sp-addon)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml)
 
-This Add-on allows to export a Blender scene to Mitsuba 2's file format.
+This add-on integrates the Mitsuba renderer into Blender.
 
-## How to install the Add-on
+## Main Features
 
-:warning: Before installing the add-on, make sure that Mitsuba 2 was compiled with the **same major version** of python that Blender uses (3.7x for Blender 2.82)
+* **Mitsuba scene import**: Import Mitsuba XML scenes in Blender to edit and preview them. Materials are converted to Cycles shader node trees.
 
-There are two independent ways of installing the addon, depending on your needs:
+* **Mitsuba scene export**: Export a Blender scene to a Mitsuba XML scene for rendering.
 
-### Option 1: In Blender.
+More in-depth information about the features of the add-on are available on the [wiki](https://github.com/mitsuba-renderer/mitsuba-blender/wiki).
 
-- Download the latest release or clone this repository as a `zip` archive.
-- In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**
-- Select the downloaded archive
-- Enable the Add-on:
-	- Point `Path` to Mitsuba 2's build directory. If the environment variable `MITSUBA_DIR` was set (cf. Mitsuba 2 install instructions), this field will automatically be filled with the path it contains.
-- Save the preferences. The **Save Preferences** button is in a menu in the bottom left corner of the preferences window.
+## Installation
 
-:warning: If you can't find the add-on in the add-ons list, make sure the *Testing* category is selected.
+- Download the latest release from the [release section](https://github.com/mitsuba-renderer/mitsuba-blender/releases).
+- In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**.
+- Select the downloaded ZIP archive.
+- Find the add-on using the search bar and enable it.
+- To point the add-on to the Mitsuba dependencies, either click on *Install dependencies using pip* to download the latest package, or check *Use custom Mitsuba path* and browse to your Mitsuba build directory. You can find more information on how to build Mitsuba [here](https://mitsuba.readthedocs.io/en/latest/src/developer_guide/compiling.html).
 
-### Option 2: Installing the Add-on from the repository.
-There are a couple ways to keep up to date with the repository without doing the method described above every time. You can do either of the following:
+The add-on should display a checkmark once Mitsuba is correctly detected and initialized.
 
--  Clone the add-on wherever you want in your system, and create a symbolic link to the cloned repository location in the *addons* folder of Blender. This directory is stored:
-	- Linux: `$HOME/.config/blender/2.82/scripts/addons/`
-  	- MacOS: `/Users/$USER/Library/Application Support/Blender/2.82/scripts/addons/`
-  	- Windows: `%USERPROFILE%\AppData\Roaming\Blender Foundation\Blender\2.82\scripts\addons`
-- Alternatively, create a directory called `addons` in the location of your work and clone this repository there. Then specify the path to the parent folder of the `addons` directory in the preferences in Blender ( **Edit** -> **Preferences** -> **File Paths** -> **Scripts**).  For more detailed information, see [here](https://docs.blender.org/manual/en/latest/editors/preferences/addons.html#rd-party-add-ons).
+![Found Mitsuba](img/found_mitsuba.png)
 
-After that, follow the same procedure as option #1
+### Requirements
 
-Make sure you restart Blender to update the Add-on.
-
-## How to use the Add-on
-
-The current scene can be exported as a Mitsuba 2 scene under **File** -> **Export** -> **Mitsuba 2**
-
-Some log messages are printed the console. To see them under Windows, enable the console window under **Window** -> **Toggle System Console**. Under MacOS and Linux, run blender from the command line.
-
-## What's supported ?
-
-Currently, this add-on only allows you to save a Blender scene as a Mitsuba 2-compatible scene. Future versions may support more fancy features, such as custom nodes for materials or in-blender rendering.
-
-Export of the following is supported:
-
-- Objects:
-  - Meshes
-  - Metaballs
-  - Text
-  - Nurbs surfaces
-- Material Nodes:
-  - Diffuse BSDF :warning: *Mitsuba 2 does not handle rough diffuse BSDFs currently*
-  - Glossy BSDF
-  - Emission BSDF
-  - Glass BSDF
-  - Image Texture
-  - Vertex Colors
-  - Mix Shader
-  - Add Shader :warning: *Adding two BSDFs is not supported*
-- Light Sources:
-  - Point Light
-  - Spot Light
-  - Sun Light
-  - Area Lights :warning: *Ellipse area lights are not supported*
-  - Environment Maps
+* `Blender >= 2.93`

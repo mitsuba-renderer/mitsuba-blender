@@ -2,7 +2,10 @@ from collections import OrderedDict
 import os
 from shutil import copy2
 from numpy import pi
+
 from mathutils import Matrix
+
+import bpy
 
 texture_exts = {
     'BMP': '.bmp',
@@ -55,18 +58,28 @@ class Files:
     CAMS = 4
     #TODO: Volumes
 
-class FileExportContext:
+class ExportContext:
     '''
-    File API
+    Export Context
     '''
 
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
-        self.counter = 0 #counter to create unique IDs.
+        self.counter = 0 # Counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
+        self.export_ids = False # Export Object IDs in the XML file
         self.exported_ids = set()
+        # All the args defined below are set in the Converter
         self.directory = ''
-        self.axis_mat = Matrix()#overwritten in main export method
+        self.axis_mat = Matrix() # Coordinate shift
+        self.deg = None # Dependency graph
+        self.subfolders = {
+            'texture': 'textures',
+            'emitter': 'textures',
+            'shape': 'meshes',
+            'spectrum': 'spectra'
+                            }
+
 
     def data_add(self, mts_dict, name=''):
         '''
@@ -95,16 +108,7 @@ class FileExportContext:
     def data_get(self, name):
         return self.scene_data.get(name)
 
-    def set_filename(self, name, split_files=False):
-        from mitsuba.python.xml import WriteXML
-        self.xml_writer = WriteXML(name, split_files)
-        self.directory = self.xml_writer.directory
-
-    def write(self):
-        self.xml_writer.process(self.scene_data)
-
-    @staticmethod
-    def log(message, level='INFO'):
+    def log(self, message, level='INFO'):
         '''
         Log something using mitsuba's logging API
 
@@ -114,7 +118,7 @@ class FileExportContext:
         message: What to write
         level: Level of logging
         '''
-        from mitsuba.core import Log, LogLevel
+        from mitsuba import Log, LogLevel
         log_level = {
             'DEBUG': LogLevel.Debug,
             'INFO': LogLevel.Info,
@@ -133,29 +137,27 @@ class FileExportContext:
 
         image : The Blender Image object
         """
-        if image.packed_file or image.file_format in convert_format:
-            if image.file_format in convert_format:
-                msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
-                FileExportContext.log(msg, 'WARN')
-                image.file_format = convert_format[image.file_format]
-
-            original_name = os.path.basename(image.filepath)
-            if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
-                base_name, _ = os.path.splitext(original_name)
-                name = image.name.replace(original_name, base_name, 1) # Remove the extension
-                name += texture_exts[image.file_format]
-            else:
-                name = "%s%s" % (image.name, texture_exts[image.file_format])
-            target_path = os.path.join(self.xml_writer.textures_folder, name)
-            if not os.path.isdir(self.xml_writer.textures_folder):
-                os.makedirs(self.xml_writer.textures_folder)
-            old_filepath = image.filepath
-            image.filepath = target_path
-            image.save()
-            image.filepath = old_filepath
-            return target_path
-        # If not packed or converted, just store it as is, it will be copied in the XMLWriter
-        return image.filepath_from_user()
+        # TODO: don't save packed images but convert them to a mitsuba texture, and let the XML writer save
+        textures_folder = os.path.join(self.directory, self.subfolders['texture'])
+        if image.file_format in convert_format:
+            msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
+            self.log(msg, 'WARN')
+            image.file_format = convert_format[image.file_format]
+        original_name = os.path.basename(image.filepath)
+        if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
+            base_name, _ = os.path.splitext(original_name)
+            name = image.name.replace(original_name, base_name, 1) # Remove the extension
+            name += texture_exts[image.file_format]
+        else:
+            name = "%s%s" % (image.name, texture_exts[image.file_format])
+        target_path = os.path.join(textures_folder, name)
+        if not os.path.isdir(textures_folder):
+            os.makedirs(textures_folder)
+        old_filepath = image.filepath
+        image.filepath_raw = target_path
+        image.save()
+        image.filepath_raw = old_filepath
+        return f"{self.subfolders['texture']}/{name}"
 
     def spectrum(self, value, mode='rgb'):
         '''
@@ -206,10 +208,9 @@ class FileExportContext:
         '''
         Apply coordinate shift and convert to a mitsuba Transform 4f
         '''
-        from mitsuba.core import Transform4f
-
+        from mitsuba import ScalarTransform4f
         if len(matrix) == 4:
             mat = self.axis_mat @ matrix
         else: #3x3
             mat = matrix.to_4x4()
-        return Transform4f(list([list(x) for x in mat]))
+        return ScalarTransform4f(list([list(x) for x in mat]))

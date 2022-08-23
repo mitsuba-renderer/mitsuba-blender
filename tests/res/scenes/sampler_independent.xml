@@ -1,0 +1,10 @@
+<scene version="2.1.0">
+
+    <sensor type="perspective">
+        <sampler type="independent">
+            <integer name="sample_count" value="12"/>
+            <integer name="seed" value="1"/>
+        </sampler>
+    </sensor>
+
+</scene>

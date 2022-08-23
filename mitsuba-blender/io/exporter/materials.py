@@ -1,6 +1,6 @@
 import numpy as np
 from mathutils import Matrix
-from .file_api import Files
+from .export_context import Files
 
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
@@ -12,7 +12,7 @@ def export_texture_node(export_ctx, tex_node):
     #get the relative path to the copied texture from the full path to the original texture
     params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
-    if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw']:
+    if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
     elif tex_node.image.colorspace_settings.name != 'sRGB':
@@ -48,7 +48,7 @@ def convert_color_texture_node(export_ctx, socket):
         if node.type == "TEX_IMAGE":
             params = export_texture_node(export_ctx, node)
 
-        elif node.type == "RGB": 
+        elif node.type == "RGB":
             #input rgb node
             params = export_ctx.spectrum(node.color)
         elif node.type == "VERTEX_COLOR":
@@ -83,7 +83,7 @@ def convert_diffuse_materials_cycles(export_ctx, current_node):
         })
     """
     if current_node.inputs['Roughness'].is_linked or current_node.inputs['Roughness'].default_value != 0.0:
-        export_ctx.log("Warning: rough diffuse BSDF is currently not supported in Mitsuba 2. Ignoring alpha parameter.", 'WARN')
+        export_ctx.log("Warning: rough diffuse BSDF is currently not supported in Mitsuba. Ignoring alpha parameter.", 'WARN')
     #Rough diffuse BSDF is currently not supported in Mitsuba
     params.update({
         'type': 'diffuse'
@@ -128,10 +128,10 @@ def convert_glass_materials_cycles(export_ctx, current_node):
     params = {}
 
     if current_node.inputs['IOR'].is_linked:
-        raise NotImplementedError("Only default IOR value is supported in Mitsuba 2.")
+        raise NotImplementedError("Only default IOR value is supported in Mitsuba.")
 
     ior = current_node.inputs['IOR'].default_value
-    
+
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
     if roughness and current_node.distribution != 'SHARP':
@@ -146,7 +146,7 @@ def convert_glass_materials_cycles(export_ctx, current_node):
             params['type'] = 'thindielectric'
         else:
             params['type'] = 'dielectric'
-    
+
     params['int_ior'] = ior
 
     specular_transmittance = convert_color_texture_node(export_ctx, current_node.inputs['Color'])
@@ -257,8 +257,51 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
     else:#one bsdf, one emitter
         raise NotImplementedError("Mixing a BSDF and an emitter is not supported. Consider using an Add shader instead.")
 
-#TODO: Add more support for other materials: refraction, transparent, translucent, principled
+def convert_principled_materials_cycles(export_ctx, current_node):
+    params = {}
+    base_color = convert_color_texture_node(export_ctx, current_node.inputs['Base Color'])
+    specular = convert_float_texture_node(export_ctx, current_node.inputs['Specular'])
+    specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
+    specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission'])
+    roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
+    metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
+    anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
+    sheen = convert_float_texture_node(export_ctx, current_node.inputs['Sheen'])
+    sheen_tint = convert_float_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
+    clearcoat = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat'])
+    clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat Roughness'])
+
+    # Undo default roughness transform done by the exporter
+    if type(roughness) is float:
+        roughness = np.sqrt(roughness)
+    if type(clearcoat_roughness) is float:
+        clearcoat_roughness = np.sqrt(clearcoat_roughness)
+
+    params.update({
+        'type': 'principled',
+        'base_color': base_color,
+        'specular': specular,
+        'spec_tint': specular_tint,
+        'spec_trans': specular_trans,
+        'metallic': metallic,
+        'anisotropic': anisotropic,
+        'roughness': roughness,
+        'sheen': sheen,
+        'sheen_tint': sheen_tint,
+        'clearcoat': clearcoat,
+        'clearcoat_gloss': clearcoat_roughness
+    })
+
+    # If the BSDF has a transmission component, don't make it two-sided
+    if type(specular_trans) is not float or specular_trans > 0:
+        return params
+
+    return two_sided_bsdf(params)
+
+
+#TODO: Add more support for other materials: refraction, transparent, translucent
 cycles_converters = {
+    'BSDF_PRINCIPLED': convert_principled_materials_cycles,
     "BSDF_DIFFUSE": convert_diffuse_materials_cycles,
     'BSDF_GLOSSY': convert_glossy_materials_cycles,
     'BSDF_GLASS': convert_glass_materials_cycles,
@@ -273,7 +316,7 @@ def cycles_material_to_dict(export_ctx, node):
     if node.type in cycles_converters:
         params = cycles_converters[node.type](export_ctx, node)
     else:
-        raise NotImplementedError("Node type: %s is not supported in Mitsuba 2." % node.type)
+        raise NotImplementedError("Node type: %s is not supported in Mitsuba." % node.type)
 
     return params
 
@@ -327,7 +370,7 @@ def export_material(export_ctx, material):
     else:
         if mat_params['type'] == 'area': # Emitter with no bsdf
             mats = {}
-            # We want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba 2
+            # We want the emitter object to be "shadeless", so we need to add it a dummy, empty bsdf, because all objects have a bsdf by default in mitsuba
             if not export_ctx.data_get('empty-emitter-bsdf'): # We only need to add one of this, but we may have multiple emitter materials
                 empty_bsdf = {
                     'type':'diffuse',
@@ -342,7 +385,7 @@ def export_material(export_ctx, material):
         else: # Usual case
             export_ctx.data_add(mat_params, mat_id)
 
-def convert_world(export_ctx, surface_node, ignore_background):
+def convert_world(export_ctx, world, ignore_background):
     """
     convert environment lighting. Constant emitter and envmaps are supported
 
@@ -353,78 +396,91 @@ def convert_world(export_ctx, surface_node, ignore_background):
     surface_node: the final node of the shader
     ignore_background: whether we want to export blender's default background or not
     """
+
     params = {}
-    if surface_node.inputs['Strength'].is_linked:
-        raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
-    strength = surface_node.inputs['Strength'].default_value
 
-    if strength == 0: # Don't add an emitter if it emits nothing
-        export_ctx.log('Ignoring envmap with zero strength.', 'INFO')
-        return
+    if world.use_nodes:
+        output_node = world.node_tree.nodes['World Output']
+        if not output_node.inputs["Surface"].is_linked:
+            return
+        surface_node = output_node.inputs["Surface"].links[0].from_node
+        if surface_node.inputs['Strength'].is_linked:
+            raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
+        strength = surface_node.inputs['Strength'].default_value
 
-    if surface_node.type in ['BACKGROUND', 'EMISSION']:
-        socket = surface_node.inputs["Color"]
-        if socket.is_linked:
-            color_node = socket.links[0].from_node
-            if color_node.type == 'TEX_ENVIRONMENT':
-                params.update({
-                    'type': 'envmap',
-                    'filename': export_ctx.export_texture(color_node.image),
-                    'scale': strength
-                })
-                coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))
-                to_world = Matrix()#4x4 Identity
-                if color_node.inputs["Vector"].is_linked:
-                    vector_node = color_node.inputs["Vector"].links[0].from_node
-                    if vector_node.type != 'MAPPING':
-                        raise NotImplementedError("Node: %s is not supported. Only a mapping node is supported" % vector_node.bl_idname)
-                    if not vector_node.inputs["Vector"].is_linked:
-                        raise NotImplementedError("The node %s should be linked with a Texture coordinate node." % vector_node.bl_idname)
-                    coord_node = vector_node.inputs["Vector"].links[0].from_node
-                    coord_socket = vector_node.inputs["Vector"].links[0].from_socket
-                    if coord_node.type != 'TEX_COORD':
-                        raise NotImplementedError("Unsupported node type: %s." % coord_node.bl_idname)
-                    if coord_socket.name != 'Generated':
-                        raise NotImplementedError("Link should come from 'Generated'.")
-                    #only supported node setup for transform
-                    if vector_node.vector_type != 'TEXTURE':
-                        raise NotImplementedError("Only 'Texture' mapping mode is supported.")
-                    if vector_node.inputs["Location"].is_linked or vector_node.inputs["Rotation"].is_linked or vector_node.inputs["Scale"].is_linked:
-                        raise NotImplementedError("Transfrom inputs shouldn't be linked.")
+        if strength == 0: # Don't add an emitter if it emits nothing
+            export_ctx.log('Ignoring envmap with zero strength.', 'INFO')
+            return
 
-                    rotation = vector_node.inputs["Rotation"].default_value.to_matrix()
-                    scale = vector_node.inputs["Scale"].default_value
-                    location = vector_node.inputs["Location"].default_value
-                    for i in range(3):
-                        for j in range(3):
-                            to_world[i][j] = rotation[i][j]
-                        to_world[i][i] *= scale[i]
-                        to_world[i][3] = location[i]
-                    to_world = to_world
-                #TODO: support other types of mappings (vector, point...)
-                #change default position, apply transform and change coordinates
-                params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
-            elif color_node.type == 'RGB':
-                color = color_node.color
+        if surface_node.type in ['BACKGROUND', 'EMISSION']:
+            socket = surface_node.inputs["Color"]
+            if socket.is_linked:
+                color_node = socket.links[0].from_node
+                if color_node.type == 'TEX_ENVIRONMENT':
+                    params.update({
+                        'type': 'envmap',
+                        'filename': export_ctx.export_texture(color_node.image),
+                        'scale': strength
+                    })
+                    coordinate_mat = Matrix(((0,0,1,0),(1,0,0,0),(0,1,0,0),(0,0,0,1)))
+                    to_world = Matrix()#4x4 Identity
+                    if color_node.inputs["Vector"].is_linked:
+                        vector_node = color_node.inputs["Vector"].links[0].from_node
+                        if vector_node.type != 'MAPPING':
+                            raise NotImplementedError("Node: %s is not supported. Only a mapping node is supported" % vector_node.bl_idname)
+                        if not vector_node.inputs["Vector"].is_linked:
+                            raise NotImplementedError("The node %s should be linked with a Texture coordinate node." % vector_node.bl_idname)
+                        coord_node = vector_node.inputs["Vector"].links[0].from_node
+                        coord_socket = vector_node.inputs["Vector"].links[0].from_socket
+                        if coord_node.type != 'TEX_COORD':
+                            raise NotImplementedError("Unsupported node type: %s." % coord_node.bl_idname)
+                        if coord_socket.name != 'Generated':
+                            raise NotImplementedError("Link should come from 'Generated'.")
+                        #only supported node setup for transform
+                        if vector_node.vector_type != 'TEXTURE':
+                            raise NotImplementedError("Only 'Texture' mapping mode is supported.")
+                        if vector_node.inputs["Location"].is_linked or vector_node.inputs["Rotation"].is_linked or vector_node.inputs["Scale"].is_linked:
+                            raise NotImplementedError("Transfrom inputs shouldn't be linked.")
+
+                        rotation = vector_node.inputs["Rotation"].default_value.to_matrix()
+                        scale = vector_node.inputs["Scale"].default_value
+                        location = vector_node.inputs["Location"].default_value
+                        for i in range(3):
+                            for j in range(3):
+                                to_world[i][j] = rotation[i][j]
+                            to_world[i][i] *= scale[i]
+                            to_world[i][3] = location[i]
+                        to_world = to_world
+                    #TODO: support other types of mappings (vector, point...)
+                    #change default position, apply transform and change coordinates
+                    params['to_world'] = export_ctx.transform_matrix(to_world @ coordinate_mat)
+                elif color_node.type == 'RGB':
+                    color = color_node.color
+                else:
+                    raise NotImplementedError("Node type %s is not supported. Consider using an environment texture or RGB node instead." % color_node.bl_idname)
             else:
-                raise NotImplementedError("Node type %s is not supported. Consider using an environment texture or RGB node instead." % color_node.bl_idname)
+                color = socket.default_value
+            if 'type' not in params: # Not an envmap
+                radiance = [x * strength for x in color[:3]]
+                if ignore_background and radiance == [0.05087608844041824]*3:
+                    export_ctx.log("Ignoring Blender's default background...", 'INFO')
+                    return
+                if np.sum(radiance) == 0:
+                    export_ctx.log("Ignoring background emitter with zero emission.", 'INFO')
+                    return
+                params.update({
+                    'type': 'constant',
+                    'radiance': export_ctx.spectrum(radiance)
+                })
         else:
-            color = socket.default_value
-        if 'type' not in params: # Not an envmap
-            radiance = [x * strength for x in color[:3]]
-            if ignore_background and radiance == [0.05087608844041824]*3:
-                export_ctx.log("Ignoring Blender's default background...", 'INFO')
-                return
-            if np.sum(radiance) == 0:
-                export_ctx.log("Ignoring background emitter with zero emission.", 'INFO')
-                return
-            params.update({
-                'type': 'constant',
-                'radiance': export_ctx.spectrum(radiance)
-            })
-
+            raise NotImplementedError("Only Background and Emission nodes are supported as final nodes for World export, got '%s'" % surface_node.name)
     else:
-        raise NotImplementedError("Only Background and Emission nodes are supported as final nodes for World export, got '%s'" % surface_node.name)
+        # Single color field for emission, no nodes
+        params.update({
+            'type': 'constant',
+            'radiance': export_ctx.spectrum(world.color)
+        })
+
     if export_ctx.export_ids:
         export_ctx.data_add(params, "World")
     else:
@@ -436,11 +492,8 @@ def export_world(export_ctx, world, ignore_background):
     world: blender 'world' object
     ignore_background: whether we ignore blender's default grey background or not.
     '''
-    output_node = world.node_tree.nodes['World Output']
-    if not output_node.inputs["Surface"].is_linked:
-        return
-    surface_node = output_node.inputs["Surface"].links[0].from_node
+
     try:
-        convert_world(export_ctx, surface_node, ignore_background)
+        convert_world(export_ctx, world, ignore_background)
     except NotImplementedError as err:
         export_ctx.log("Error while exporting world: %s. Not exporting it." % err.args[0], 'WARN')

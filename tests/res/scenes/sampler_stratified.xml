@@ -1,0 +1,11 @@
+<scene version="2.1.0">
+
+    <sensor type="perspective">
+        <sampler type="stratified">
+            <integer name="sample_count" value="12"/>
+            <integer name="seed" value="1"/>
+            <boolean name="jitter" value="False"/>
+        </sampler>
+    </sensor>
+
+</scene>
