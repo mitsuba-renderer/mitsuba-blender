@@ -14,8 +14,8 @@ def export_camera(camera_instance, b_scene, export_ctx):
     # Extract fov
     sensor_fit = b_camera.data.sensor_fit
     if sensor_fit == 'AUTO':
-        params['fov_axis'] = 'x'
-        params['fov'] = degrees(b_camera.data.angle_x if res_x >= res_y else b_camera.data.angle_y)
+        params['fov_axis'] = 'x' if res_x >= res_y else 'y'
+        params['fov'] = degrees(b_camera.data.angle_x)
     elif sensor_fit == 'HORIZONTAL':
         params['fov_axis'] = 'x'
         params['fov'] = degrees(b_camera.data.angle_x)
