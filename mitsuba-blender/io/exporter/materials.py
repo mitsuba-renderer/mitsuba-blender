@@ -320,6 +320,12 @@ def cycles_material_to_dict(export_ctx, node):
 
     return params
 
+def get_dummy_material(export_ctx):
+    return {
+        'type': 'diffuse',
+        'reflectance': export_ctx.spectrum([1.0, 0.0, 0.3]),
+    }
+
 def b_material_to_dict(export_ctx, b_mat):
     ''' Converting one material from Blender / Cycles to Mitsuba'''
 
@@ -327,15 +333,17 @@ def b_material_to_dict(export_ctx, b_mat):
 
     if b_mat.use_nodes:
         try:
-            output_node = b_mat.node_tree.nodes["Material Output"]
-            surface_node = output_node.inputs["Surface"].links[0].from_node
-            mat_params = cycles_material_to_dict(export_ctx, surface_node)
-
-        except NotImplementedError as err:
-            export_ctx.log("Export of material %s failed : %s Exporting a dummy texture instead." % (b_mat.name, err.args[0]), 'WARN')
-            mat_params = {'type':'diffuse'}
-            mat_params['reflectance'] = export_ctx.spectrum([1.0,0.0,0.3])
-
+            output_node_id = 'Material Output'
+            if output_node_id in b_mat.node_tree.nodes:
+                output_node = b_mat.node_tree.nodes[output_node_id]
+                surface_node = output_node.inputs["Surface"].links[0].from_node
+                mat_params = cycles_material_to_dict(export_ctx, surface_node)
+            else:
+                export_ctx.log(f'Export of material {b_mat.name} failed: Cannot find material output node. Exporting a dummy material instead.', 'WARN')
+                mat_params = get_dummy_material(export_ctx)
+        except NotImplementedError as e:
+            export_ctx.log(f'Export of material \'{b_mat.name}\' failed: {e.args[0]}. Exporting a dummy material instead.', 'WARN')
+            mat_params = get_dummy_material(export_ctx)
     else:
         mat_params = {'type':'diffuse'}
         mat_params['reflectance'] = export_ctx.spectrum(b_mat.diffuse_color)
@@ -399,8 +407,16 @@ def convert_world(export_ctx, world, ignore_background):
 
     params = {}
 
-    if world is not None and world.use_nodes and world.node_tree is not None:
-        output_node = world.node_tree.nodes['World Output']
+    if world is None:
+        export_ctx.log('No Blender world to export.', 'INFO')
+        return
+
+    if world.use_nodes and world.node_tree is not None:
+        output_node_id = 'World Output'
+        if output_node_id not in world.node_tree.nodes:
+            export_ctx.log('Failed to export world: Cannot find world output node.', 'WARN')
+            return
+        output_node = world.node_tree.nodes[output_node_id]
         if not output_node.inputs["Surface"].is_linked:
             return
         surface_node = output_node.inputs["Surface"].links[0].from_node
