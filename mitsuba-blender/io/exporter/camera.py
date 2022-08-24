@@ -1,14 +1,29 @@
 from mathutils import Matrix
 import numpy as np
+from math import degrees
 
 def export_camera(camera_instance, b_scene, export_ctx):
     #camera
     b_camera = camera_instance.object#TODO: instances here too?
     params = {}
     params['type'] = 'perspective'
-    #extract fov
-    params['fov_axis'] = 'x'
-    params['fov'] = b_camera.data.angle_x * 180 / np.pi#TODO: check cam.sensor_fit
+
+    res_x = b_scene.render.resolution_x
+    res_y = b_scene.render.resolution_y
+
+    # Extract fov
+    sensor_fit = b_camera.data.sensor_fit
+    if sensor_fit == 'AUTO':
+        params['fov_axis'] = 'x'
+        params['fov'] = degrees(b_camera.data.angle_x if res_x >= res_y else b_camera.data.angle_y)
+    elif sensor_fit == 'HORIZONTAL':
+        params['fov_axis'] = 'x'
+        params['fov'] = degrees(b_camera.data.angle_x)
+    elif sensor_fit == 'VERTICAL':
+        params['fov_axis'] = 'y'
+        params['fov'] = degrees(b_camera.data.angle_y)
+    else:
+        export_ctx.log(f'Unknown \'sensor_fit\' value when exporting camera: {sensor_fit}', 'ERROR')
 
     #TODO: test other parameters relevance (camera.lens, orthographic_scale, dof...)
     params['near_clip'] = b_camera.data.clip_start
@@ -31,8 +46,8 @@ def export_camera(camera_instance, b_scene, export_ctx):
     film['type'] = 'hdrfilm'
 
     scale = b_scene.render.resolution_percentage / 100
-    film['width'] = int(b_scene.render.resolution_x * scale)
-    film['height'] = int(b_scene.render.resolution_y * scale)
+    film['width'] = int(res_x * scale)
+    film['height'] = int(res_y * scale)
 
 
     if b_scene.render.engine == 'MITSUBA':
