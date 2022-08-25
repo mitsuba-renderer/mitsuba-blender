@@ -20,11 +20,9 @@ More in-depth information about the features of the add-on are available on the 
 - In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**.
 - Select the downloaded ZIP archive.
 - Find the add-on using the search bar and enable it.
-- To point the add-on to the Mitsuba dependencies, either click on *Install dependencies using pip* to download the latest package, or check *Use custom Mitsuba path* and browse to your Mitsuba build directory. You can find more information on how to build Mitsuba [here](https://mitsuba.readthedocs.io/en/latest/src/developer_guide/compiling.html).
+- To point the add-on to the Mitsuba dependencies, either click on *Install dependencies using pip* to download the latest package, or check *Use custom Mitsuba path* and browse to your Mitsuba build directory.
 
-The add-on should display a checkmark once Mitsuba is correctly detected and initialized.
-
-![Found Mitsuba](res/found_mitsuba.jpg)
+You can refer to the [Installation & Update Guide](https://github.com/mitsuba-renderer/mitsuba-blender/wiki/Installation-&-Update-Guide) on the wiki for more detailed instructions.
 
 ### Requirements
 
