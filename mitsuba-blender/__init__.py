@@ -8,7 +8,7 @@ bl_info = {
     'description': 'Mitsuba integration for Blender',
     'wiki_url': 'https://mitsuba.readthedocs.io/en/latest/',
     'tracker_url': 'https://github.com/mitsuba-renderer/mitsuba-blender/issues/new/choose',
-    'warning': 'alpha0',
+    'warning': 'alpha',
 }
 
 import bpy
@@ -91,6 +91,10 @@ def try_reload_mitsuba(context):
     if try_register_mitsuba(context):
         # Save user preferences
         bpy.ops.wm.save_userpref()
+
+def ensure_pip():
+    result = subprocess.run([sys.executable, '-m', 'ensurepip'], capture_output=True)
+    return result.returncode == 0
 
 def check_pip_dependencies(context):
     prefs = get_addon_preferences(context)
@@ -246,10 +250,13 @@ def register():
     prefs = get_addon_preferences(context)
     prefs.require_restart = False
 
+    if not ensure_pip():
+        raise RuntimeError('Cannot activate mitsuba-blender add-on. Python pip module cannot be initialized.')
+
     check_pip_dependencies(context)
     if try_register_mitsuba(context):
         import mitsuba
-        print(f'mitsuba-blender {".".join(str(e) for e in bl_info["version"])} registered (with mitsuba {mitsuba.__version__})')
+        print(f'mitsuba-blender v{".".join(str(e) for e in bl_info["version"])}{bl_info["warning"] if "warning" in bl_info else ""} registered (with mitsuba v{mitsuba.__version__})')
 
 def unregister():
     for cls in classes:
