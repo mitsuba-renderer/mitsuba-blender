@@ -138,10 +138,13 @@ class MITSUBA_OT_install_pip_dependencies(Operator):
         return not prefs.has_pip_package
 
     def execute(self, context):
-        result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'mitsuba'])
+        result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'mitsuba'], capture_output=True)
         if result.returncode != 0:
             self.report({'ERROR'}, f'Failed to install Mitsuba with return code {result.returncode}.')
             return {'CANCELLED'} 
+
+        prefs = get_addon_preferences(context)
+        prefs.has_pip_package = True
 
         try_reload_mitsuba(context)
 
