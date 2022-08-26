@@ -1,0 +1,14 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="thindielectric" id="bsdf">
+    <string name="int_ior" value="water"/>
+    <float name="ext_ior" value="1.6789"/>
+    <rgb name="specular_reflectance" value="0.2, 0.25, 0.7"/>
+    <rgb name="specular_transmittance" value="0.24, 0.1, 0.5"/>
+</bsdf>
+
+</scene>

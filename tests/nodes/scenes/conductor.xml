@@ -1,0 +1,12 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="conductor" id="bsdf">
+    <string name="material" value="Ag"/>
+    <rgb name="specular_reflectance" value="0.9, 0.9, 0.9"/>
+</bsdf>
+
+</scene>

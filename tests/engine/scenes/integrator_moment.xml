@@ -1,0 +1,11 @@
+<scene version="2.1.0">
+
+    <integrator type="moment" id="moment">
+        <integrator type="path">
+            <integer name="max_depth" value="2"/>
+            <integer name="rr_depth" value="4"/>
+            <boolean name="hide_emitters" value="true"/>
+        </integrator>
+    </integrator>
+
+</scene>

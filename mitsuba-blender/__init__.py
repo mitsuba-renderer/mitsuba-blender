@@ -18,22 +18,35 @@ from bpy.utils import register_class, unregister_class
 
 import os
 import sys
-import subprocess
 
-from . import io, engine
+from . import (
+    engine, nodes, properties, operators, ui
+)
+
+from .utils import pip_ensure, pip_install_package, pip_package_version
 
 DEPS_MITSUBA_VERSION = '3.0.1'
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
 
-def init_mitsuba(context):
-    # Make sure we can load mitsuba from blender
+def get_addon_version_string():
+    return f'{".".join(str(e) for e in bl_info["version"])}{bl_info["warning"] if "warning" in bl_info else ""}'
+
+def get_mitsuba_version_string():
+    import mitsuba
+    return mitsuba.__version__
+
+def get_addon_info_string():
+    return f'mitsuba-blender v{get_addon_version_string()} registered (with mitsuba v{get_mitsuba_version_string()})'
+
+def init_mitsuba():
+    # Make sure we can load Mitsuba from Blender
     try:
         os.environ['DRJIT_NO_RTLD_DEEPBIND'] = 'True'
         should_reload_mitsuba = 'mitsuba' in sys.modules
         import mitsuba
-        # If mitsuba was already loaded and we change the path, we need to reload it, since the import above will be ignored
+        # If Mitsuba was already loaded and we change the path, we need to reload it, since the import above will be ignored
         if should_reload_mitsuba:
             import importlib
             importlib.reload(mitsuba)
@@ -45,150 +58,87 @@ def init_mitsuba(context):
     except ModuleNotFoundError:
         return False
 
-def try_register_mitsuba(context):
+def register_addon(context):
     prefs = get_addon_preferences(context)
-    prefs.mitsuba_dependencies_status_message = ''
+    prefs.status_message = ''
 
-    could_init_mitsuba = False
     if prefs.using_mitsuba_custom_path:
-        update_additional_custom_paths(prefs, context)
-        could_init_mitsuba = init_mitsuba(context)
+        prefs.update_additional_custom_paths(context)
+        could_init_mitsuba = init_mitsuba()
         if could_init_mitsuba:
-            import mitsuba
-            prefs.mitsuba_custom_version = mitsuba.__version__
+            prefs.mitsuba_custom_version = get_mitsuba_version_string()
             if prefs.has_valid_mitsuba_custom_version:
-                prefs.mitsuba_dependencies_status_message = f'Found custom Mitsuba v{prefs.mitsuba_custom_version}.'
+                prefs.status_message = f'Found custom Mitsuba v{prefs.mitsuba_custom_version}.'
             else:
-                prefs.mitsuba_dependencies_status_message = f'Found custom Mitsuba v{prefs.mitsuba_custom_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
+                prefs.status_message = f'Found custom Mitsuba v{prefs.mitsuba_custom_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
         else:
-            prefs.mitsuba_dependencies_status_message = 'Failed to load custom Mitsuba. Please verify the path to the build directory.'
-    elif prefs.has_pip_dependencies:
+            prefs.status_message = 'Failed to load custom Mitsuba. Please verify the path to the build directory.'
+    elif prefs.is_mitsuba_installed:
         if prefs.has_valid_dependencies_version:
-            could_init_mitsuba = init_mitsuba(context)
+            could_init_mitsuba = init_mitsuba()
             if could_init_mitsuba:
-                import mitsuba
-                prefs.mitsuba_dependencies_status_message = f'Found pip Mitsuba v{mitsuba.__version__}.'
+                prefs.status_message = f'Found pip Mitsuba v{get_mitsuba_version_string()}.'
             else:
-                prefs.mitsuba_dependencies_status_message = 'Failed to load Mitsuba package.'
+                prefs.status_message = 'Failed to load Mitsuba package.'
         else:
-            prefs.mitsuba_dependencies_status_message = f'Found pip Mitsuba v{prefs.installed_dependencies_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
+            prefs.status_message = f'Found pip Mitsuba v{prefs.installed_dependencies_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
     else:
-        prefs.mitsuba_dependencies_status_message = 'Mitsuba dependencies not installed.'
+        prefs.status_message = 'Mitsuba dependencies not installed.'
 
     prefs.is_mitsuba_initialized = could_init_mitsuba
 
     if could_init_mitsuba:
-        io.register()
+        properties.register()
+        operators.register()
+        ui.register()
         engine.register()
+        nodes.register()
 
     return could_init_mitsuba
 
-def try_unregister_mitsuba():
+def unregister_addon():
     '''
     Try unregistering Addon classes.
     This may fail if Mitsuba wasn't found, hence the try catch guard
     '''
     try:
-        io.unregister()
+        nodes.unregister()
         engine.unregister()
+        ui.unregister()
+        operators.unregister()
+        properties.unregister()
         return True
     except RuntimeError:
         return False
 
-def try_reload_mitsuba(context):
-    try_unregister_mitsuba()
-    if try_register_mitsuba(context):
+def reload_addon(context):
+    unregister_addon()
+    if register_addon(context):
         # Save user preferences
         bpy.ops.wm.save_userpref()
 
-def ensure_pip():
-    result = subprocess.run([sys.executable, '-m', 'ensurepip'], capture_output=True)
-    return result.returncode == 0
-
-def check_pip_dependencies(context):
-    prefs = get_addon_preferences(context)
-    result = subprocess.run([sys.executable, '-m', 'pip', 'list'], capture_output=True)
-    
-    prefs.has_pip_dependencies = False
-    prefs.has_valid_dependencies_version = False
-
-    if result.returncode == 0:
-        output_str = result.stdout.decode('utf-8')
-        lines = output_str.splitlines(keepends=False)
-        for line in lines:
-            parts = line.split()
-            if len(parts) >= 2 and parts[0] == 'mitsuba':
-                prefs.has_pip_dependencies = True
-                prefs.installed_dependencies_version = parts[1]
-
-def clean_additional_custom_paths(self, context):
-    # Remove old values from system PATH and sys.path
-    if self.additional_python_path in sys.path:
-        sys.path.remove(self.additional_python_path)
-    if self.additional_path and self.additional_path in os.environ['PATH']:
-        items = os.environ['PATH'].split(os.pathsep)
-        items.remove(self.additional_path)
-        os.environ['PATH'] = os.pathsep.join(items)
-
-def update_additional_custom_paths(self, context):
-    build_path = bpy.path.abspath(self.mitsuba_custom_path)
-    if len(build_path) > 0:
-        clean_additional_custom_paths(self, context)
-
-        # Add path to the binaries to the system PATH
-        self.additional_path = build_path
-        if self.additional_path not in os.environ['PATH']:
-            os.environ['PATH'] += os.pathsep + self.additional_path
-        
-        # Add path to python libs to sys.path
-        self.additional_python_path = os.path.join(build_path, 'python')
-        if self.additional_python_path not in sys.path:
-            # NOTE: We insert in the first position here, so that the custom path
-            #       supersede the pip version
-            sys.path.insert(0, self.additional_python_path)
-
-class MITSUBA_OT_install_pip_dependencies(Operator):
-    bl_idname = 'mitsuba.install_pip_dependencies'
-    bl_label = 'Install Mitsuba pip dependencies'
-    bl_description = 'Use pip to install the add-on\'s required dependencies'
+class MITSUBA_OT_download_package_dependencies(Operator):
+    bl_idname = 'mitsuba.download_package_dependencies'
+    bl_label = 'Download the recommended Mitsuba dependencies'
+    bl_description = 'Use pip to download the add-on\'s required dependencies'
 
     @classmethod
     def poll(cls, context):
         prefs = get_addon_preferences(context)
-        return not prefs.has_pip_dependencies or not prefs.has_valid_dependencies_version
+        return not prefs.is_mitsuba_installed or not prefs.has_valid_dependencies_version
 
     def execute(self, context):
-        result = subprocess.run([sys.executable, '-m', 'pip', 'install', f'mitsuba=={DEPS_MITSUBA_VERSION}', '--force-reinstall'], capture_output=False)
-        if result.returncode != 0:
-            self.report({'ERROR'}, f'Failed to install Mitsuba with return code {result.returncode}.')
-            return {'CANCELLED'} 
+        if not pip_install_package('mitsuba', version=DEPS_MITSUBA_VERSION):
+            self.report({'ERROR'}, 'Failed to download Mitsuba package with pip.')
+            return {'CANCELLED'}
 
-        check_pip_dependencies(context)
+        prefs = get_addon_preferences(context)
+        prefs.is_mitsuba_installed = True
+        prefs.installed_dependencies_version = DEPS_MITSUBA_VERSION
 
-        try_reload_mitsuba(context)
+        reload_addon(context)
 
         return {'FINISHED'}
-
-def update_using_mitsuba_custom_path(self, context):
-    self.require_restart = True
-    if self.using_mitsuba_custom_path:
-        update_mitsuba_custom_path(self, context)
-    else:
-        clean_additional_custom_paths(self, context)
-
-def update_mitsuba_custom_path(self, context):
-    if self.is_mitsuba_initialized:
-        self.require_restart = True
-    if self.using_mitsuba_custom_path and len(self.mitsuba_custom_path) > 0:
-        update_additional_custom_paths(self, context)
-        if not self.is_mitsuba_initialized:
-            try_reload_mitsuba(context)
-
-def update_installed_dependencies_version(self, context):
-    self.has_valid_dependencies_version = self.installed_dependencies_version == DEPS_MITSUBA_VERSION
-
-def update_mitsuba_custom_version(self, context):
-    self.has_valid_mitsuba_custom_version = self.mitsuba_custom_version == DEPS_MITSUBA_VERSION
 
 class MitsubaPreferences(AddonPreferences):
     bl_idname = __name__
@@ -197,9 +147,16 @@ class MitsubaPreferences(AddonPreferences):
         name = 'Is Mitsuba initialized',
     )
 
-    has_pip_dependencies : BoolProperty(
-        name = 'Has pip dependencies installed',
+    is_mitsuba_installed : BoolProperty(
+        name = 'Is the Mitsuba package installed',
     )
+
+    is_restart_required : BoolProperty(
+        name = 'Is a Blender restart required',
+    )
+
+    def update_installed_dependencies_version(self, context):
+        self.has_valid_dependencies_version = self.installed_dependencies_version == DEPS_MITSUBA_VERSION
 
     installed_dependencies_version : StringProperty(
         name = 'Installed Mitsuba dependencies version string',
@@ -211,20 +168,70 @@ class MitsubaPreferences(AddonPreferences):
         name = 'Has the correct version of dependencies'
     )
 
-    mitsuba_dependencies_status_message : StringProperty(
-        name = 'Mitsuba dependencies status message',
+    status_message : StringProperty(
+        name = 'Add-on status message',
         default = '',
-    )
-
-    require_restart : BoolProperty(
-        name = 'Require a Blender restart',
     )
 
     # Advanced settings
 
+    def clean_additional_custom_paths(self, context):
+        # Remove old values from system PATH and sys.path
+        if self.additional_python_path in sys.path:
+            sys.path.remove(self.additional_python_path)
+        if self.additional_path and self.additional_path in os.environ['PATH']:
+            items = os.environ['PATH'].split(os.pathsep)
+            items.remove(self.additional_path)
+            os.environ['PATH'] = os.pathsep.join(items)
+
+    def update_additional_custom_paths(self, context):
+        build_path = bpy.path.abspath(self.mitsuba_custom_path)
+        if len(build_path) > 0:
+            self.clean_additional_custom_paths(context)
+
+            # Add path to the binaries to the system PATH
+            self.additional_path = build_path
+            if self.additional_path not in os.environ['PATH']:
+                os.environ['PATH'] += os.pathsep + self.additional_path
+            
+            # Add path to python libs to sys.path
+            self.additional_python_path = os.path.join(build_path, 'python')
+            if self.additional_python_path not in sys.path:
+                # NOTE: We insert in the first position here, so that the custom path
+                #       supersede the pip version
+                sys.path.insert(0, self.additional_python_path)
+
+    def update_mitsuba_custom_path(self, context):
+        if self.is_mitsuba_initialized:
+            self.is_restart_required = True
+        if self.using_mitsuba_custom_path and len(self.mitsuba_custom_path) > 0:
+            self.update_additional_custom_paths(context)
+            if not self.is_mitsuba_initialized:
+                reload_addon(context)
+
+    def update_using_mitsuba_custom_path(self, context):
+        self.require_restart = True
+        if self.using_mitsuba_custom_path:
+            self.update_mitsuba_custom_path(context)
+        else:
+            self.clean_additional_custom_paths(context)
+
+    def update_mitsuba_custom_version(self, context):
+        self.has_valid_mitsuba_custom_version = self.mitsuba_custom_version == DEPS_MITSUBA_VERSION
+
     using_mitsuba_custom_path : BoolProperty(
         name = 'Using custom Mitsuba path',
         update = update_using_mitsuba_custom_path,
+    )
+
+    mitsuba_custom_version : StringProperty(
+        name = 'Custom Mitsuba build version',
+        default = '',
+        update = update_mitsuba_custom_version,
+    )
+
+    has_valid_mitsuba_custom_version : BoolProperty(
+        name = 'Has the correct version of custom Mitsuba build'
     )
 
     mitsuba_custom_path : StringProperty(
@@ -263,17 +270,17 @@ class MitsubaPreferences(AddonPreferences):
         row = layout.row()
         icon = 'ERROR'
         row.alert = True
-        if self.require_restart:
-            self.mitsuba_dependencies_status_message = 'A restart is required to apply the changes.'
+        if self.is_restart_required:
+            self.status_message = 'A restart is required to apply the changes.'
         elif self.is_mitsuba_initialized and (not self.using_mitsuba_custom_path or (self.using_mitsuba_custom_path and self.has_valid_mitsuba_custom_version)):
             icon = 'CHECKMARK'
             row.alert = False
-        row.label(text=self.mitsuba_dependencies_status_message, icon=icon)
+        row.label(text=self.status_message, icon=icon)
 
-        operator_text = 'Install dependencies'
-        if self.has_pip_dependencies and not self.has_valid_dependencies_version:
-            operator_text = 'Update dependencies'
-        layout.operator(MITSUBA_OT_install_pip_dependencies.bl_idname, text=operator_text)
+        download_operator_text = 'Install Mitsuba'
+        if self.is_mitsuba_installed and not self.has_valid_dependencies_version:
+            download_operator_text = 'Update Mitsuba'
+        layout.operator(MITSUBA_OT_download_package_dependencies.bl_idname, text=download_operator_text)
 
         box = layout.box()
         box.label(text='Advanced Settings')
@@ -282,7 +289,7 @@ class MitsubaPreferences(AddonPreferences):
             box.prop(self, 'mitsuba_custom_path')
         
 classes = (
-    MITSUBA_OT_install_pip_dependencies,
+    MITSUBA_OT_download_package_dependencies,
     MitsubaPreferences,
 )
 
@@ -290,19 +297,25 @@ def register():
     for cls in classes:
         register_class(cls)
 
-    context = bpy.context
-    prefs = get_addon_preferences(context)
-    prefs.require_restart = False
-
-    if not ensure_pip():
+    if not pip_ensure():
         raise RuntimeError('Cannot activate mitsuba-blender add-on. Python pip module cannot be initialized.')
 
-    check_pip_dependencies(context)
-    if try_register_mitsuba(context):
-        import mitsuba
-        print(f'mitsuba-blender v{".".join(str(e) for e in bl_info["version"])}{bl_info["warning"] if "warning" in bl_info else ""} registered (with mitsuba v{mitsuba.__version__})')
+    context = bpy.context
+    prefs = get_addon_preferences(context)
+    prefs.is_mitsuba_initialized = False
+    mitsuba_installed_version = pip_package_version('mitsuba')
+    prefs.is_mitsuba_installed = mitsuba_installed_version != None
+    prefs.installed_dependencies_version = mitsuba_installed_version if mitsuba_installed_version is not None else ''
+    prefs.is_restart_required = False
+
+    if register_addon(context):
+        print(get_addon_info_string())
 
 def unregister():
     for cls in classes:
         unregister_class(cls)
-    try_unregister_mitsuba()
+    if not unregister_addon():
+        print('FAILED TO UNREGISTER ADDON')
+
+if __name__ == '__main__':
+    register()

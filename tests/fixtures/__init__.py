@@ -1,3 +1,5 @@
+import bpy
+
 import pytest
 import numpy as np
 
@@ -8,8 +10,9 @@ import os
 ################################
 
 class ResourceResolver:
-    def __init__(self):
-        self.root = os.path.join(os.getcwd(), 'tests/res')
+    def __init__(self, function_path, function_name):
+        self.root = os.path.dirname(function_path)
+        self.function_name = function_name
 
     def get_absolute_resource_path(self, relative_path):
         return os.path.join(self.root, relative_path)
@@ -19,27 +22,41 @@ class ResourceResolver:
         os.makedirs(absolute_dir, exist_ok=True)
         return absolute_dir
 
+    def ensure_output_dir(self):
+        return self.ensure_resource_dir(f'out/{self.function_name}')
+
 @pytest.fixture
-def resource_resolver():
-    return ResourceResolver()
+def resource_resolver(request):
+    return ResourceResolver(request.path, request.node.name.split('[')[0])
 
 ##################################
 ##  MitsubaSceneParser fixture  ##
 ##################################
 
-class MitsubaSceneParser:
-    def __init__(self):
-        self.props = None
+class MitsubaPropsWrapper:
+    def __init__(self, props):
+        self.props = props
 
-    def load_xml(self, scene_file):
-        import mitsuba
-        self.props = mitsuba.xml_to_props(scene_file)
+    def __repr__(self):
+        return str(self.props)
 
     def get_props_by_name(self, plugin_name):
         for _, props in self.props:
             if props.plugin_name() == plugin_name:
                 return props
         return None
+
+    def get_props_by_id(self, plugin_id):
+        for _, props in self.props:
+            if props.id() == plugin_id:
+                return props
+        return None
+
+class MitsubaSceneParser:
+    def load_xml(self, scene_file):
+        import mitsuba
+        props = mitsuba.xml_to_props(scene_file)
+        return MitsubaPropsWrapper(props)
 
 @pytest.fixture
 def mitsuba_scene_parser():
@@ -115,7 +132,7 @@ class MitsubaRenderTester:
         return p_value
 
     def xyz_to_rgb_bmp(self, arr):
-        """Convert an XYZ image to RGB"""
+        ''' Convert an XYZ image to RGB '''
         from mitsuba import Bitmap, Struct
         xyz_bmp = Bitmap(arr, Bitmap.PixelFormat.XYZ)
         return xyz_bmp.convert(Bitmap.PixelFormat.RGB, Struct.Type.Float32, False)
@@ -151,3 +168,61 @@ class MitsubaRenderTester:
 @pytest.fixture
 def mitsuba_scene_ztest(mitsuba_scene_renderer):
     return MitsubaRenderTester(mitsuba_scene_renderer)
+
+###################################
+##  MitsubaParserTester fixture  ##
+###################################
+
+class MitsubaParserTester:
+    def __init__(self, resolver, parser):
+        self.resolver = resolver
+        self.parser = parser
+
+    def _check_plugin(self, ref_props, output_props, plugin_name):
+        from mitsuba import Properties, traverse
+
+        ref_plugin_props = ref_props.get_props_by_name(plugin_name)
+        assert ref_plugin_props
+        output_plugin_props = output_props.get_props_by_name(plugin_name)
+        assert output_plugin_props
+
+        for ref_plugin_prop_name in ref_plugin_props.property_names():
+            ref_plugin_prop = ref_plugin_props.get(ref_plugin_prop_name)
+            ref_plugin_prop_type = ref_plugin_props.type(ref_plugin_prop_name)
+
+            if ref_plugin_prop_type == Properties.Type.NamedReference:
+                ref_other_plugin_props = ref_props.get_props_by_id(ref_plugin_prop)
+                self._check_plugin(ref_props, output_props, ref_other_plugin_props.plugin_name())
+            elif ref_plugin_prop_type == Properties.Type.Object:
+                assert output_plugin_props.has_property(ref_plugin_prop_name)
+                output_plugin_prop = output_plugin_props.get(ref_plugin_prop_name)
+                ref_plugin_prop_params = traverse(ref_plugin_prop)
+                output_plugin_prop_params = traverse(output_plugin_prop)
+                for (key, value) in ref_plugin_prop_params.items():
+                    assert key in output_plugin_prop_params
+                    assert value == output_plugin_prop_params[key]
+            else:
+                assert output_plugin_props.has_property(ref_plugin_prop_name)
+                output_plugin_prop = output_plugin_props.get(ref_plugin_prop_name)
+                if ref_plugin_prop != output_plugin_prop:
+                    print(ref_plugin_prop)
+                    print(output_plugin_prop)
+                assert ref_plugin_prop == output_plugin_prop
+
+    def check_scene_plugin(self, scene_file, plugin_name):
+        ref_scene_file = self.resolver.get_absolute_resource_path(scene_file)
+        ref_scene_name, _ = os.path.splitext(os.path.basename(ref_scene_file))
+        test_output_dir = self.resolver.ensure_output_dir()
+        output_scene_file = os.path.join(test_output_dir, f'{ref_scene_name}_out.xml')
+
+        assert bpy.ops.mitsuba.scene_import(filepath=ref_scene_file, create_cycles_node_tree=False) == {'FINISHED'}
+        assert bpy.ops.mitsuba.scene_export(filepath=output_scene_file, ignore_background=True) == {'FINISHED'}
+
+        ref_props = self.parser.load_xml(ref_scene_file)
+        output_props = self.parser.load_xml(output_scene_file)
+        
+        self._check_plugin(ref_props, output_props, plugin_name)
+
+@pytest.fixture
+def mitsuba_parser_tester(resource_resolver, mitsuba_scene_parser):
+    return MitsubaParserTester(resource_resolver, mitsuba_scene_parser)

@@ -2,13 +2,19 @@ import bpy
 import tempfile
 import os
 import numpy as np
-from ..io.exporter import SceneConverter
+from ..exporter import SceneConverter
 
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 
     bl_idname = "MITSUBA"
     bl_label = "Mitsuba"
     bl_use_preview = False
+    bl_use_texture_preview = False
+    # Hide Cycles shader nodes in the shading menu
+    bl_use_shading_nodes_custom = False
+    # FIXME: This is used to get a visual feedback of the shapes,
+    #        it does not produce a correct result.
+    bl_use_eevee_viewport = True
 
     # Init is called whenever a new render engine instance is created. Multiple
     # instances may exist at the same time, for example for a viewport and final
