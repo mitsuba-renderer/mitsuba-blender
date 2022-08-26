@@ -6,7 +6,7 @@ bl_info = {
     'category': 'Render',
     'location': 'File menu, render engine menu',
     'description': 'Mitsuba integration for Blender',
-    'wiki_url': 'https://mitsuba.readthedocs.io/en/latest/',
+    'wiki_url': 'https://github.com/mitsuba-renderer/mitsuba-blender/wiki',
     'tracker_url': 'https://github.com/mitsuba-renderer/mitsuba-blender/issues/new/choose',
     'warning': 'alpha',
 }
