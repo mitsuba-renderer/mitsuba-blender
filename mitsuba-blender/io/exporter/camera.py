@@ -25,6 +25,9 @@ def export_camera(camera_instance, b_scene, export_ctx):
     else:
         export_ctx.log(f'Unknown \'sensor_fit\' value when exporting camera: {sensor_fit}', 'ERROR')
 
+    params["principal_point_offset_x"] = b_camera.data.shift_x
+    params["principal_point_offset_y"] = -b_camera.data.shift_y / res_x * res_y
+
     #TODO: test other parameters relevance (camera.lens, orthographic_scale, dof...)
     params['near_clip'] = b_camera.data.clip_start
     params['far_clip'] = b_camera.data.clip_end
