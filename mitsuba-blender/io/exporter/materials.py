@@ -260,9 +260,10 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
 def convert_principled_materials_cycles(export_ctx, current_node):
     params = {}
     base_color = convert_color_texture_node(export_ctx, current_node.inputs['Base Color'])
-    specular = convert_float_texture_node(export_ctx, current_node.inputs['Specular'])
+    specular = current_node.inputs['Specular'].default_value
     specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
     specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission'])
+    ior = current_node.inputs['IOR'].default_value
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
     metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
     anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
@@ -280,7 +281,6 @@ def convert_principled_materials_cycles(export_ctx, current_node):
     params.update({
         'type': 'principled',
         'base_color': base_color,
-        'specular': specular,
         'spec_tint': specular_tint,
         'spec_trans': specular_trans,
         'metallic': metallic,
@@ -292,11 +292,23 @@ def convert_principled_materials_cycles(export_ctx, current_node):
         'clearcoat_gloss': clearcoat_roughness
     })
 
-    # If the BSDF has a transmission component, don't make it two-sided
+    # NOTE: Blender uses the 'specular' value for dielectric/metallic reflections and the
+    #       'IOR' value for transmission. Mitsuba only has one value for both which can either
+    #       be defined by 'specular' or 'eta' ('specular' will be converted into the corresponding
+    #       'eta' value by Mitsuba).
     if type(specular_trans) is not float or specular_trans > 0:
+        # Export 'eta' if the material has a transmission component
+        params.update({
+            'eta': max(ior, 1+1e-3),
+        })
+        # Transmissive material should not be twosided
         return params
-
-    return two_sided_bsdf(params)
+    else:
+        # Export 'specular' if the material is only reflective
+        params.update({
+            'specular': max(specular, 1e-3)
+        })
+        return two_sided_bsdf(params)
 
 
 #TODO: Add more support for other materials: refraction, transparent, translucent
