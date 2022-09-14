@@ -43,7 +43,7 @@ class SceneConverter:
         # Give the path to the export context, for saving meshes and files
         self.export_ctx.directory, _ = os.path.split(name)
 
-    def scene_to_dict(self, depsgraph, window_manager):
+    def scene_to_dict(self, depsgraph, window_manager=None):
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -75,7 +75,8 @@ class SceneConverter:
         progress_counter = 0
         # Main export loop
         for object_instance in depsgraph.object_instances:
-            window_manager.progress_update(progress_counter)
+            if window_manager:
+                window_manager.progress_update(progress_counter)
             progress_counter += 1
 
             if self.use_selection:
