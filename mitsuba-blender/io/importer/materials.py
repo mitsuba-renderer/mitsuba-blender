@@ -18,6 +18,8 @@ from . import mi_spectra_utils
 from . import mi_props_utils
 from . import textures
 
+from ipdb import set_trace
+
 #################
 ##  Utilities  ##
 #################
@@ -253,7 +255,10 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
             assert mi_texture is not None
             write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
         elif mi_prop_type == Properties.Type.Object:
+            print(mi_prop_name)
+            set_trace()
             mi_obj = mi_mat.get(mi_prop_name)
+            
             write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to rgb.', 'ERROR')

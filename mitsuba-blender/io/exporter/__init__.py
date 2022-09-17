@@ -20,6 +20,7 @@ from . import materials
 from . import geometry
 from . import lights
 from . import camera
+from .downgrade import convert
 
 class SceneConverter:
     '''

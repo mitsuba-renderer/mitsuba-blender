@@ -111,6 +111,7 @@ def clean_additional_custom_paths(self, context):
         os.environ['PATH'] = os.pathsep.join(items)
 
 def update_additional_custom_paths(self, context):
+    print("update_additional_custom_paths")
     build_path = bpy.path.abspath(self.mitsuba_custom_path)
     if len(build_path) > 0:
         clean_additional_custom_paths(self, context)
@@ -151,6 +152,7 @@ class MITSUBA_OT_install_pip_dependencies(Operator):
         return {'FINISHED'}
 
 def update_using_mitsuba_custom_path(self, context):
+    print("update_using_mitsuba_custom_path")
     if self.is_mitsuba_initialized:
         self.require_restart = True
     if self.using_mitsuba_custom_path:
@@ -159,6 +161,7 @@ def update_using_mitsuba_custom_path(self, context):
         clean_additional_custom_paths(self, context)
 
 def update_mitsuba_custom_path(self, context):
+    print("update_mitsuba_custom_path")
     if self.is_mitsuba_initialized:
         self.require_restart = True
     if self.using_mitsuba_custom_path and len(self.mitsuba_custom_path) > 0:
