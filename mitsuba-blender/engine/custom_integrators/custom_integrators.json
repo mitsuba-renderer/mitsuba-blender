@@ -1,0 +1,6 @@
+{
+  "mydirect" : {
+        "label" : "My Direct Illumination Integrator",
+        "description" : "Direct illumination integrator with multi-importance sampling."
+  }
+}

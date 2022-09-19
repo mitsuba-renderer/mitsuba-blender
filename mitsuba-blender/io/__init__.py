@@ -19,6 +19,8 @@ from bpy_extras.io_utils import (
         axis_conversion
     )
 
+from os import path as osp
+from glob import glob
 from . import bl_utils
 from . import importer
 from . import exporter

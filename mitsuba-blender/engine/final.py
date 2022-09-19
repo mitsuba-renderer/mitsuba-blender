@@ -4,6 +4,7 @@ import os
 import numpy as np
 from ..io.exporter import SceneConverter
 
+
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 
     bl_idname = "MITSUBA"
@@ -29,6 +30,10 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         from mitsuba import set_variant
         b_scene = depsgraph.scene
         set_variant(b_scene.mitsuba.variant)
+        # need to call only setting a variant
+        from . import custom_integrators
+        custom_integrators.register()
+        # ---
         from mitsuba import ScopedSetThreadEnvironment, Thread
         with ScopedSetThreadEnvironment(b_scene.thread_env):
             scale = b_scene.render.resolution_percentage / 100.0

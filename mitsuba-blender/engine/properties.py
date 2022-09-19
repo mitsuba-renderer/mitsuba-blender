@@ -21,6 +21,10 @@ with open(os.path.join(dirname(__file__), "samplers.json")) as file:
 with open(os.path.join(dirname(__file__), "rfilters.json")) as file:
     rfilter_data = json.load(file)
 
+with open(os.path.join(dirname(__file__), "custom_integrators", "custom_integrators.json")) as file:
+    custom_integrator_data = json.load(file)
+    integrator_data = {**integrator_data, **custom_integrator_data}
+
 def create_plugin_props(name, arg_dict, depth=1, prefix=""):
     '''
     Dynamically create a PropertyGroup for a given plugin defined in arg_dict.
