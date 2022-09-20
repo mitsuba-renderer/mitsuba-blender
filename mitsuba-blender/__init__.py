@@ -19,6 +19,7 @@ from bpy.utils import register_class, unregister_class
 import os
 import sys
 import subprocess
+import traceback
 
 from . import io, engine
 
@@ -40,7 +41,11 @@ def init_mitsuba(context):
         bpy.types.Scene.thread_env = ThreadEnvironment()
         return True
     except ModuleNotFoundError:
-        return False
+        pass
+    except Exception:
+        print('Failed to initialize mitsuba-blender add-on with exception:')
+        traceback.print_exc()
+    return False
 
 def try_register_mitsuba(context):
     prefs = get_addon_preferences(context)
@@ -225,7 +230,7 @@ class MitsubaPreferences(AddonPreferences):
             self.mitsuba_dependencies_status_message = 'A restart is required to apply the changes.'
             row.alert = True
             icon = 'ERROR'
-        elif self.has_pip_package or self.has_valid_mitsuba_custom_path:
+        elif (self.has_pip_package or self.has_valid_mitsuba_custom_path) and self.is_mitsuba_initialized:
             icon = 'CHECKMARK'
         else:
             icon = 'CANCEL'
