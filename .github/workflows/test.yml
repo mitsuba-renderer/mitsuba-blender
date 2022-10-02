@@ -34,7 +34,7 @@ jobs:
           version: "2.93"
         }
         - {
-          version: "3.1"
+          version: "3.3"
         }
         
     steps:
