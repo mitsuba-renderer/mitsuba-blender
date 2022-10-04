@@ -24,17 +24,19 @@ jobs:
       matrix:
         environment:
         - {
-          os: "ubuntu-latest"
+          os: "ubuntu-latest",
+          mitsuba-version: "3.0.1"
         }
         - {
-          os: "windows-latest"
+          os: "windows-latest",
+          mitsuba-version: "3.0.1"
         }
         blender:
         - {
           version: "2.93"
         }
         - {
-          version: "3.1"
+          version: "3.3"
         }
         
     steps:
@@ -71,7 +73,8 @@ jobs:
         echo "Blender Python is $BLENDER_PYTHON"
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
-        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov mitsuba
+        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
+        ./$BLENDER_PYTHON -m pip install mitsuba==${{ matrix.environment.mitsuba-version }} --force-reinstall
 
     - name: Run Addon test suite
       shell: bash
