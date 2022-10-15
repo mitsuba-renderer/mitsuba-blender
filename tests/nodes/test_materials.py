@@ -5,8 +5,8 @@ import pytest
 from fixtures import *
 
 @pytest.mark.parametrize('scene, plugin', [
-    ('scenes/diffuse.xml', 'diffuse'),
-    # ('scenes/null.xml', 'null'),
+    # ('scenes/diffuse.xml', 'diffuse'),
+    ('scenes/null.xml', 'null'),
     # ('scenes/plastic.xml', 'plastic'),
     # ('scenes/roughplastic.xml', 'roughplastic'),
     # ('scenes/dielectric.xml', 'dielectric'),

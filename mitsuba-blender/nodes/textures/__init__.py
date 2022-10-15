@@ -5,8 +5,8 @@ from . import (
 )
 
 classes = (
-    bitmap.MitsubaNodeBitmapTexture,
-    checkerboard.MitsubaNodeCheckerboardTexture,
+    # bitmap.MitsubaNodeBitmapTexture,
+    # checkerboard.MitsubaNodeCheckerboardTexture,
 )
 
 def register():

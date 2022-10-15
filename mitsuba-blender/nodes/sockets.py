@@ -73,12 +73,12 @@ MitsubaSocket2DTransform.valid_inputs = { MitsubaSocket2DTransform }
 
 classes = (
     MitsubaSocketBSDF,
-    MitsubaSocketColorTexture,
-    MitsubaSocketNormalMap,
-    MitsubaSocketFloatTextureNoDefault,
-    MitsubaSocketFloatTextureUnbounded,
-    MitsubaSocketFloatTextureBounded0to1,
-    MitsubaSocket2DTransform,
+    # MitsubaSocketColorTexture,
+    # MitsubaSocketNormalMap,
+    # MitsubaSocketFloatTextureNoDefault,
+    # MitsubaSocketFloatTextureUnbounded,
+    # MitsubaSocketFloatTextureBounded0to1,
+    # MitsubaSocket2DTransform,
 )
 
 def register():

@@ -32,33 +32,33 @@ class MitsubaNodeCategoryMaterial(NodeCategory):
 
 mitsuba_node_categories_material = [
     MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_BSDF', 'BSDFs', items=[
-        NodeItem('MitsubaNodeTwosidedBSDF', label='Twosided'),
-        NodeItem('MitsubaNodeDiffuseBSDF', label='Diffuse'),
-        NodeItem('MitsubaNodeDielectricBSDF', label='Dielectric'),
-        NodeItem('MitsubaNodeThinDielectricBSDF', label='Thin Dielectric'),
-        NodeItem('MitsubaNodeRoughDielectricBSDF', label='Rough Dielectric'),
-        NodeItem('MitsubaNodeConductorBSDF', label='Conductor'),
-        NodeItem('MitsubaNodeRoughConductorBSDF', label='Rough Conductor'),
-        NodeItem('MitsubaNodePlasticBSDF', label='Plastic'),
-        NodeItem('MitsubaNodeRoughPlasticBSDF', label='Rough Plastic'),
-        NodeItem('MitsubaNodeBumpMapBSDF', label='Bump Map'),
-        NodeItem('MitsubaNodeNormalMapBSDF', label='Normal Map'),
-        NodeItem('MitsubaNodeBlendBSDF', label='Blend'),
-        NodeItem('MitsubaNodeMaskBSDF', label='Opacity Mask'),
+    #     NodeItem('MitsubaNodeTwosidedBSDF', label='Twosided'),
+    #     NodeItem('MitsubaNodeDiffuseBSDF', label='Diffuse'),
+    #     NodeItem('MitsubaNodeDielectricBSDF', label='Dielectric'),
+    #     NodeItem('MitsubaNodeThinDielectricBSDF', label='Thin Dielectric'),
+    #     NodeItem('MitsubaNodeRoughDielectricBSDF', label='Rough Dielectric'),
+    #     NodeItem('MitsubaNodeConductorBSDF', label='Conductor'),
+    #     NodeItem('MitsubaNodeRoughConductorBSDF', label='Rough Conductor'),
+    #     NodeItem('MitsubaNodePlasticBSDF', label='Plastic'),
+    #     NodeItem('MitsubaNodeRoughPlasticBSDF', label='Rough Plastic'),
+    #     NodeItem('MitsubaNodeBumpMapBSDF', label='Bump Map'),
+    #     NodeItem('MitsubaNodeNormalMapBSDF', label='Normal Map'),
+    #     NodeItem('MitsubaNodeBlendBSDF', label='Blend'),
+    #     NodeItem('MitsubaNodeMaskBSDF', label='Opacity Mask'),
         NodeItem('MitsubaNodeNullBSDF', label='Null'),
-        NodeItem('MitsubaNodePrincipledBSDF', label='Principled'),
+    #     NodeItem('MitsubaNodePrincipledBSDF', label='Principled'),
     ]),
 
-    MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_TEXTURE', 'Textures', items=[
-        NodeItem('MitsubaNodeBitmapTexture', label='Bitmap'),
-        NodeItem('MitsubaNodeCheckerboardTexture', label='Checkerboard'),
-    ]),
+    # MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_TEXTURE', 'Textures', items=[
+    #     NodeItem('MitsubaNodeBitmapTexture', label='Bitmap'),
+    #     NodeItem('MitsubaNodeCheckerboardTexture', label='Checkerboard'),
+    # ]),
 
     MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_OUTPUT', 'Output', items=[
         NodeItem('MitsubaNodeOutputMaterial', label='Output'),
     ]),
 
-    MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_TRANSFORM', 'Transforms', items=[
-        NodeItem('MitsubaNode2DTransform', label='Transform 2D'),
-    ]),
+    # MitsubaNodeCategoryMaterial('MITSUBA_MATERIAL_TRANSFORM', 'Transforms', items=[
+    #     NodeItem('MitsubaNode2DTransform', label='Transform 2D'),
+    # ]),
 ]

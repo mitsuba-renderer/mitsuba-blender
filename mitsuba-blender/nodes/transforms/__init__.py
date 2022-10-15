@@ -5,7 +5,7 @@ from . import (
 )
 
 classes = (
-    transform2d.MitsubaNode2DTransform,
+    # transform2d.MitsubaNode2DTransform,
 )
 
 def register():

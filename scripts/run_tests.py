@@ -8,7 +8,7 @@ class SetupPlugin:
     def __init__(self, args):
         # If this flag is set, skip the add-on installation process.
         # This assumes that the add-on is already installed in the executing Blender instance.
-        self.skip_install = args['--skip-install']
+        self.no_install = args['--no-install']
 
         # If this flag is set, Blender's temporary directory is set to a local folder.
         # This is useful to save crash logs in a common place across environments.
@@ -39,7 +39,7 @@ class SetupPlugin:
             os.makedirs(self.bl_tmp_dir, exist_ok=True)
             bpy.context.preferences.filepaths.temporary_directory = str(self.bl_tmp_dir)
 
-        if not self.skip_install:
+        if not self.no_install:
             if os.path.exists(self.bl_mi_addon_dir):
                 os.remove(self.bl_mi_addon_dir)
             
@@ -59,7 +59,7 @@ class SetupPlugin:
         print(bpy.context.preferences.filepaths.temporary_directory)            
 
     def pytest_unconfigure(self):
-        if not self.skip_install:
+        if not self.no_install:
             bpy.ops.preferences.addon_disable(module='mitsuba-blender')
             bpy.ops.wm.save_userpref()
             # Remove the symlink
@@ -79,7 +79,7 @@ def main(args):
         pass
 
     other_args = {
-        '--skip-install': False,
+        '--no-install': False,
         '--local-tmp': False,
     }
 
