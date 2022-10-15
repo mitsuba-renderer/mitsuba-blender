@@ -23,7 +23,7 @@ from . import (
     engine, nodes, properties, operators, ui
 )
 
-from .utils import pip_ensure, pip_install_package, pip_package_version
+from .utils import pip_ensure, pip_package_install, pip_package_version
 
 DEPS_MITSUBA_VERSION = '3.0.1'
 
@@ -74,14 +74,14 @@ def register_addon(context):
         else:
             prefs.status_message = 'Failed to load custom Mitsuba. Please verify the path to the build directory.'
     elif prefs.is_mitsuba_installed:
-        if prefs.has_valid_dependencies_version:
+        if prefs.has_valid_mitsuba_version:
             could_init_mitsuba = init_mitsuba()
             if could_init_mitsuba:
                 prefs.status_message = f'Found pip Mitsuba v{get_mitsuba_version_string()}.'
             else:
                 prefs.status_message = 'Failed to load Mitsuba package.'
         else:
-            prefs.status_message = f'Found pip Mitsuba v{prefs.installed_dependencies_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
+            prefs.status_message = f'Found pip Mitsuba v{prefs.installed_mitsuba_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
     else:
         prefs.status_message = 'Mitsuba dependencies not installed.'
 
@@ -125,16 +125,16 @@ class MITSUBA_OT_download_package_dependencies(Operator):
     @classmethod
     def poll(cls, context):
         prefs = get_addon_preferences(context)
-        return not prefs.is_mitsuba_installed or not prefs.has_valid_dependencies_version
+        return not prefs.is_mitsuba_installed or not prefs.has_valid_mitsuba_version
 
     def execute(self, context):
-        if not pip_install_package('mitsuba', version=DEPS_MITSUBA_VERSION):
+        if not pip_package_install('mitsuba', version=DEPS_MITSUBA_VERSION):
             self.report({'ERROR'}, 'Failed to download Mitsuba package with pip.')
             return {'CANCELLED'}
 
         prefs = get_addon_preferences(context)
         prefs.is_mitsuba_installed = True
-        prefs.installed_dependencies_version = DEPS_MITSUBA_VERSION
+        prefs.installed_mitsuba_version = DEPS_MITSUBA_VERSION
 
         reload_addon(context)
 
@@ -155,16 +155,16 @@ class MitsubaPreferences(AddonPreferences):
         name = 'Is a Blender restart required',
     )
 
-    def update_installed_dependencies_version(self, context):
-        self.has_valid_dependencies_version = self.installed_dependencies_version == DEPS_MITSUBA_VERSION
+    def update_installed_mitsuba_version(self, context):
+        self.has_valid_mitsuba_version = self.installed_mitsuba_version == DEPS_MITSUBA_VERSION
 
-    installed_dependencies_version : StringProperty(
+    installed_mitsuba_version : StringProperty(
         name = 'Installed Mitsuba dependencies version string',
         default = '',
-        update = update_installed_dependencies_version,
+        update = update_installed_mitsuba_version,
     )
 
-    has_valid_dependencies_version : BoolProperty(
+    has_valid_mitsuba_version : BoolProperty(
         name = 'Has the correct version of dependencies'
     )
 
@@ -278,7 +278,7 @@ class MitsubaPreferences(AddonPreferences):
         row.label(text=self.status_message, icon=icon)
 
         download_operator_text = 'Install Mitsuba'
-        if self.is_mitsuba_installed and not self.has_valid_dependencies_version:
+        if self.is_mitsuba_installed and not self.has_valid_mitsuba_version:
             download_operator_text = 'Update Mitsuba'
         layout.operator(MITSUBA_OT_download_package_dependencies.bl_idname, text=download_operator_text)
 
@@ -305,7 +305,7 @@ def register():
     prefs.is_mitsuba_initialized = False
     mitsuba_installed_version = pip_package_version('mitsuba')
     prefs.is_mitsuba_installed = mitsuba_installed_version != None
-    prefs.installed_dependencies_version = mitsuba_installed_version if mitsuba_installed_version is not None else ''
+    prefs.installed_mitsuba_version = mitsuba_installed_version if mitsuba_installed_version is not None else ''
     prefs.is_restart_required = False
 
     if register_addon(context):

@@ -12,12 +12,12 @@ def pip_ensure():
     result = subprocess.run([sys.executable, '-m', 'ensurepip'], capture_output=True)
     return result.returncode == 0
 
-def pip_has_package(package: str):
+def pip_package_is_installed(package: str):
     ''' Check if the executing Python environment has a specified package. '''
     result = subprocess.run([sys.executable, '-m', 'pip', 'show', package], capture_output=True)
     return result.returncode == 0
 
-def pip_install_package(package: str, version: str = None):
+def pip_package_install(package: str, version: str = None):
     ''' Install a specified package in the executing Python environment. '''
     if version is None:
         result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--upgrade', package], capture_output=True)
