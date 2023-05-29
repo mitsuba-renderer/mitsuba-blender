@@ -2,6 +2,7 @@ from mathutils import Matrix
 import numpy as np
 from math import degrees
 
+
 def export_camera(camera_instance, b_scene, export_ctx):
     #camera
     b_camera = camera_instance.object#TODO: instances here too?
@@ -63,6 +64,8 @@ def export_camera(camera_instance, b_scene, export_ctx):
             }
         elif b_scene.cycles.pixel_filter_type == 'BOX':
             film['rfilter'] = {'type' : 'box'}
+        elif b_scene.cycles.pixel_filter_type == 'BLACKMAN_HARRIS':
+            export_ctx.log("BLACKMAN_HARRIS filter is not supported by Mitsuba!", 'WARN')
 
     params['film'] = film
 

@@ -8,6 +8,7 @@ if "bpy" in locals():
         importlib.reload(exporter)
 
 import bpy
+import os, sys
 from bpy.props import (
         StringProperty,
         BoolProperty,
@@ -125,7 +126,12 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
         # Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)
+        # avoid rewrite interpolated texture over original ones
 
+        # if 'textures' in os.listdir(os.path.split(self.filepath)[0]):
+        #     self.converter.export_ctx.log('Change the output dir, texture and mesh are aleady in current path!', 'WARN')
+        #     self.report({'INFO'}, "Scene export fail, please change the output dir!")
+        #     return {'CANCELLED'}
         window_manager = context.window_manager
 
         deps_graph = context.evaluated_depsgraph_get()

@@ -52,6 +52,7 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
         else:
             props[f'vertex_{color_layer.name}'] = color_layer.data[0].as_pointer()
 
+
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
 
     if '.corner_vert' in b_mesh.attributes:
@@ -98,6 +99,7 @@ def export_object(deg_instance, export_ctx, is_particle):
     """
     Convert a blender object to mitsuba and save it as Binary PLY
     """
+    
 
     b_object = deg_instance.object
     # Remove spurious characters such as slashes
@@ -137,7 +139,10 @@ def export_object(deg_instance, export_ctx, is_particle):
                                         mat_nr)
                 if mts_mesh is not None and mts_mesh.face_count() > 0:
                     converted_parts.append((mat_nr, mts_mesh))
+                    print("start exporting {} material".format(b_mesh.name))
                     export_material(export_ctx, b_mesh.materials[mat_nr])
+                    print("finish exporting {} material".format(b_mesh.name))
+
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()

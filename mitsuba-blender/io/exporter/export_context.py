@@ -90,7 +90,7 @@ class ExportContext:
         '''
         if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
             return False
-
+ 
         if not name:
             try:
                 name = mts_dict['id']
@@ -98,7 +98,7 @@ class ExportContext:
                 del mts_dict['id']
 
             except KeyError:
-                name = '__elm__%i' % self.counter
+                name = 'elm__%i' % self.counter
 
         self.scene_data.update([(name, mts_dict)])
         self.counter += 1
@@ -130,7 +130,7 @@ class ExportContext:
             raise ValueError("Invalid logging level '%s'!" % level)
         Log(log_level[level], message)
 
-    def export_texture(self, image):
+    def export_texture(self, image, suffix=''):
         """
         Return the path to a texture.
         Ensure the image is on disk and of a correct type
@@ -143,13 +143,14 @@ class ExportContext:
             msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
             self.log(msg, 'WARN')
             image.file_format = convert_format[image.file_format]
-        original_name = os.path.basename(image.filepath)
+        original_name = os.path.basename(image.filepath.replace('\\', '//'))
         if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
             base_name, _ = os.path.splitext(original_name)
             name = image.name.replace(original_name, base_name, 1) # Remove the extension
             name += texture_exts[image.file_format]
         else:
             name = "%s%s" % (image.name, texture_exts[image.file_format])
+        name = os.path.splitext(name)[0] + suffix + os.path.splitext(name)[1]
         target_path = os.path.join(textures_folder, name)
         if not os.path.isdir(textures_folder):
             os.makedirs(textures_folder)
