@@ -20,8 +20,11 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
                   for logging/debug purposes.
     mat_nr:       The material ID to export.
     '''
-    from mitsuba import load_dict
-    props = {'type': 'blender'}
+    from mitsuba import load_dict, Point3i
+    props = {
+        'type': 'blender',
+        'version': ".".join(map(str,bpy.app.version))
+    }
     b_mesh.calc_normals()
     # Compute the triangle tesselation
     b_mesh.calc_loop_triangles()
@@ -53,7 +56,14 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     # Apply coordinate change
     if matrix_world:
         props['to_world'] = export_ctx.transform_matrix(matrix_world)
+
+    # material index to export, as only a single material per mesh is suported in mitsuba
     props['mat_nr'] = mat_nr
+    if 'material_index' in b_mesh.attributes:
+        props['mat_indices'] = b_mesh.attributes['material_index'].data[0].as_pointer()
+    else:
+        props['mat_indices'] = 0
+
     # Return the mitsuba mesh
     return load_dict(props)
 
