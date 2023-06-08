@@ -41,7 +41,10 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
         export_ctx.log(f"Mesh: '{name}' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render.", 'WARN')
     for uv_layer in b_mesh.uv_layers:
         if uv_layer.active_render: # If there is only 1 UV layer, it is always active
-            props['uvs'] = uv_layer.data[0].as_pointer()
+            if uv_layer.name in b_mesh.attributes:
+                props['uvs'] = b_mesh.attributes[uv_layer.name].data[0].as_pointer()
+            else:
+                props['uvs'] = uv_layer.data[0].as_pointer()
             break
 
     for color_layer in b_mesh.vertex_colors:
