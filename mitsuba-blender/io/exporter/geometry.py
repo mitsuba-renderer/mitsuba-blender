@@ -47,7 +47,10 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
             break
 
     for color_layer in b_mesh.vertex_colors:
-        props['vertex_%s' % color_layer.name] = color_layer.data[0].as_pointer()
+        if color_layer.name in b_mesh.attributes:
+            props[f'vertex_{color_layer.name}'] = b_mesh.attributes[color_layer.name].data[0].as_pointer()
+        else:
+            props[f'vertex_{color_layer.name}'] = color_layer.data[0].as_pointer()
 
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
     props['loops'] = b_mesh.loops[0].as_pointer()
