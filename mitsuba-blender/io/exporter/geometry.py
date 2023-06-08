@@ -49,7 +49,11 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
     props['loops'] = b_mesh.loops[0].as_pointer()
     props['polys'] = b_mesh.polygons[0].as_pointer()
-    props['verts'] = b_mesh.vertices[0].as_pointer()
+    if 'position' in b_mesh.attributes:
+        props['verts'] = b_mesh.attributes['position'].data[0].as_pointer()
+    else:
+        props['verts'] = b_mesh.vertices[0].as_pointer()
+
     if bpy.app.version > (3, 0, 0):
         props['normals'] = b_mesh.vertex_normals[0].as_pointer()
     props['vert_count'] = len(b_mesh.vertices)
