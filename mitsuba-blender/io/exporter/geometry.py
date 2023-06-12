@@ -54,15 +54,30 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
             props[f'vertex_{color_layer.name}'] = color_layer.data[0].as_pointer()
 
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
-    props['loops'] = b_mesh.loops[0].as_pointer()
-    props['polys'] = b_mesh.polygons[0].as_pointer()
+
+    if '.corner_vert' in b_mesh.attributes:
+        # Blender 3.6+ layout
+        props['loops'] = b_mesh.attributes['.corner_vert'].data[0].as_pointer()
+    else:
+        props['loops'] = b_mesh.loops[0].as_pointer()
+
+    if 'sharp_face' in b_mesh.attributes:
+        props['sharp_face'] = b_mesh.attributes['sharp_face'].data[0].as_pointer()
+
+    if bpy.app.version >= (3, 6, 0):
+        props['polys'] = b_mesh.loop_triangle_polygons[0].as_pointer()
+    else:
+        props['polys'] = b_mesh.polygons[0].as_pointer()
+
     if 'position' in b_mesh.attributes:
+        # Blender 3.5+ layout
         props['verts'] = b_mesh.attributes['position'].data[0].as_pointer()
     else:
         props['verts'] = b_mesh.vertices[0].as_pointer()
 
     if bpy.app.version > (3, 0, 0):
         props['normals'] = b_mesh.vertex_normals[0].as_pointer()
+
     props['vert_count'] = len(b_mesh.vertices)
     # Apply coordinate change
     if matrix_world:
@@ -71,6 +86,7 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     # material index to export, as only a single material per mesh is suported in mitsuba
     props['mat_nr'] = mat_nr
     if 'material_index' in b_mesh.attributes:
+        # Blender 3.4+ layout
         props['mat_indices'] = b_mesh.attributes['material_index'].data[0].as_pointer()
     else:
         props['mat_indices'] = 0
