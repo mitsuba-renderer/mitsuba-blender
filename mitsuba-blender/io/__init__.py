@@ -25,7 +25,8 @@ from . import bl_utils
 from . import importer
 from . import exporter
 
-@orientation_helper(axis_forward='-Z', axis_up='Y')
+# @orientation_helper(axis_forward='-Z', axis_up='Y')
+@orientation_helper(axis_forward='Y', axis_up='Z')
 class ImportMistuba(bpy.types.Operator, ImportHelper):
     """Import a Mitsuba scene"""
     bl_idname = "import_scene.mitsuba"
@@ -51,6 +52,8 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
             to_up=self.axis_up,
         ).to_4x4()
 
+        # print(f"ImportMistuba axis_mat\n{axis_mat}")
+
         if self.override_scene:
             # Clear the current scene
             scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
@@ -73,7 +76,8 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         return {'FINISHED'}
 
 
-@orientation_helper(axis_forward='-Z', axis_up='Y')
+# @orientation_helper(axis_forward='-Z', axis_up='Y')
+@orientation_helper(axis_forward='Y', axis_up='Z')
 class ExportMitsuba(bpy.types.Operator, ExportHelper):
     """Export as a Mitsuba scene"""
     bl_idname = "export_scene.mitsuba"
@@ -124,6 +128,8 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 	            to_forward=self.axis_forward,
 	            to_up=self.axis_up,
 	        ).to_4x4()
+
+        # print(f"ExportMistuba axis_mat\n{axis_mat}")
 
         self.converter.export_ctx.axis_mat = axis_mat
         # Add IDs to all base plugins (shape, emitter, sensor...)
@@ -185,6 +191,7 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_import_func)
 
 def unregister():
+    print("io unregister")
     for cls in classes:
         bpy.utils.unregister_class(cls)
 

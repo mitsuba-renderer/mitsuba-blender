@@ -26,4 +26,4 @@ You can refer to the [Installation & Update Guide](https://github.com/mitsuba-re
 
 ### Requirements
 
-* `Blender >= 2.93`
+* `Blender >= 2.93, <=3.3`

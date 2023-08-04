@@ -22,6 +22,8 @@ import subprocess
 
 from . import io, engine
 
+# from ipdb import set_trace
+
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
 
@@ -45,10 +47,11 @@ def init_mitsuba(context):
 def try_register_mitsuba(context):
     prefs = get_addon_preferences(context)
     prefs.mitsuba_dependencies_status_message = ''
-
+    # prefs.using_mitsuba_custom_path = False
     could_init_mitsuba = False
     if prefs.using_mitsuba_custom_path:
         update_additional_custom_paths(prefs, context)
+        print("back in try_register_mitsuba")
         could_init_mitsuba = init_mitsuba(context)
         prefs.has_valid_mitsuba_custom_path = could_init_mitsuba
         if could_init_mitsuba:
@@ -80,6 +83,7 @@ def try_unregister_mitsuba():
     This may fail if Mitsuba wasn't found, hence the try catch guard
     '''
     try:
+        print("try_unregister_mitsuba")
         io.unregister()
         engine.unregister()
         return True
@@ -87,6 +91,7 @@ def try_unregister_mitsuba():
         return False
 
 def try_reload_mitsuba(context):
+    print("try_reload_mitsuba")
     try_unregister_mitsuba()
     if try_register_mitsuba(context):
         # Save user preferences
@@ -127,6 +132,7 @@ def update_additional_custom_paths(self, context):
             # NOTE: We insert in the first position here, so that the custom path
             #       supersede the pip version
             sys.path.insert(0, self.additional_python_path)
+    print("exit update_additional_custom_paths")
 
 class MITSUBA_OT_install_pip_dependencies(Operator):
     bl_idname = 'mitsuba.install_pip_dependencies'
@@ -142,6 +148,16 @@ class MITSUBA_OT_install_pip_dependencies(Operator):
         result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'mitsuba'], capture_output=True)
         if result.returncode != 0:
             self.report({'ERROR'}, f'Failed to install Mitsuba with return code {result.returncode}.')
+            return {'CANCELLED'} 
+
+        result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'inflection'], capture_output=True)
+        if result.returncode != 0:
+            self.report({'ERROR'}, f'Failed to install inflection with return code {result.returncode}.')
+            return {'CANCELLED'} 
+
+        result = subprocess.run([sys.executable, '-m', 'pip', 'install', 'glob'], capture_output=True)
+        if result.returncode != 0:
+            self.report({'ERROR'}, f'Failed to install glob with return code {result.returncode}.')
             return {'CANCELLED'} 
 
         prefs = get_addon_preferences(context)
@@ -166,8 +182,11 @@ def update_mitsuba_custom_path(self, context):
         self.require_restart = True
     if self.using_mitsuba_custom_path and len(self.mitsuba_custom_path) > 0:
         update_additional_custom_paths(self, context)
+        print("back in update_mitsuba_custom_path")
         if not self.is_mitsuba_initialized:
             try_reload_mitsuba(context)
+
+    print("exit update_mitsuba_custom_path")
 
 class MitsubaPreferences(AddonPreferences):
     bl_idname = __name__

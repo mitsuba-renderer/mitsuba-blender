@@ -158,12 +158,13 @@ def mi_shape_to_bl_node(mi_context, mi_props):
     node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
     
     mi_mats = mi_props_utils.named_references_with_class(mi_context, mi_props, 'BSDF')
-    assert len(mi_mats) == 1
+    # assert len(mi_mats) == 1
     mi_emitters = mi_props_utils.named_references_with_class(mi_context, mi_props, 'Emitter')
     assert len(mi_emitters) <= 1
 
-    mi_mat_node = mi_bsdf_to_bl_node(mi_context, mi_mats[0], mi_emitter=mi_emitters[0] if len(mi_emitters) == 1 else None)
-    node.add_child(mi_mat_node)
+    if len(mi_mats) > 0:
+        mi_mat_node = mi_bsdf_to_bl_node(mi_context, mi_mats[0], mi_emitter=mi_emitters[0] if len(mi_emitters) == 1 else None)
+        node.add_child(mi_mat_node)
 
     # Convert the shape
     bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)

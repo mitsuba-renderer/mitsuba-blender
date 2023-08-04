@@ -26,6 +26,7 @@ def register():
         panel.COMPAT_ENGINES.add('MITSUBA')
 
 def unregister():
+    print("engine unregister")
     from . import properties
     properties.unregister()
     bpy.utils.unregister_class(MitsubaRenderEngine)

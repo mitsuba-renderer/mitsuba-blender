@@ -278,12 +278,25 @@ class MitsubaRenderSettings(PropertyGroup):
     if config.MI_DEFAULT_VARIANT:
         default_variant = config.MI_DEFAULT_VARIANT
     default_variant = variant()
-
+    
     variant : EnumProperty(
         name = "Variant",
         items = enum_variants,
         default = default_variant
     )
+
+    # EnumProperty - (identifier, name, description)
+    version : EnumProperty(
+        name = "Version",
+        items = [("v1", "v1", ""), ("v3", "v3", "")],
+        default = "v3"
+    )
+
+    mtsv1exe : StringProperty(
+        name = "Mitsuba v1 exe path",
+        default = "/home/arpit/projects/practical-path-guiding/mitsuba/dist/mitsuba"
+    )
+
     # TODO: break variant into its subcomponents (backend/color/polarization/precision)
     enum_integrators = [(name, integrator['label'], integrator['description']) for name, integrator in integrator_data.items()]
 
@@ -432,6 +445,8 @@ def draw_device(self, context):
 
         col = layout.column()
         col.prop(mts_settings, "variant")
+        col.prop(mts_settings, "version")
+        col.prop(mts_settings, "mtsv1exe")
 
 def register():
     bpy.types.RENDER_PT_context.append(draw_device)
