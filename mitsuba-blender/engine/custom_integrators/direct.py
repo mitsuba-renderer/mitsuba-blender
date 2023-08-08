@@ -1,8 +1,9 @@
 import mitsuba as mi
+from mitsuba import SamplingIntegrator
 
-class MyDirectIntegrator(mi.SamplingIntegrator):
+class MyDirectIntegrator(SamplingIntegrator):
     def __init__(self, props):
-        super().__init__(self, props)
+        SamplingIntegrator.__init__(self, props)
 
     def sample(self, scene, sampler, ray, medium, active):
         result, is_valid, depth = self.integrator_sample(scene, sampler, ray, medium, active)

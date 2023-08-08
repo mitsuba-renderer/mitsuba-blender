@@ -22,6 +22,8 @@ from . import lights
 from . import camera
 from .downgrade import convert
 
+from ipdb import set_trace
+
 class SceneConverter:
     '''
     Converts a blender scene to a Mitsuba-compatible dict.
@@ -45,6 +47,8 @@ class SceneConverter:
         self.export_ctx.directory, _ = os.path.split(name)
 
     def scene_to_dict(self, depsgraph, window_manager=None):
+        import mitsuba as mi
+        print(f"mitsuba variant - {mi.variant()}")
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -54,7 +58,10 @@ class SceneConverter:
 
         b_scene = depsgraph.scene #TODO: what if there are multiple scenes?
         if b_scene.render.engine == 'MITSUBA':
-            integrator = getattr(b_scene.mitsuba.available_integrators,b_scene.mitsuba.active_integrator).to_dict()
+            print("get dict for integrator")
+            attr = getattr(b_scene.mitsuba.available_integrators,b_scene.mitsuba.active_integrator)
+            integrator = attr.to_dict()
+            print(integrator)
         else:
             integrator = {
                 'type':'path',
@@ -107,8 +114,14 @@ class SceneConverter:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 
     def dict_to_xml(self):
+        import mitsuba as mi
+        print(f"mitsuba variant - {mi.variant()}")
+        # print(self.export_ctx.scene_data)
         self.xml_writer.process(self.export_ctx.scene_data)
 
     def dict_to_scene(self):
+        import mitsuba as mi
+        print(f"mitsuba variant - {mi.variant()}")
         from mitsuba import load_dict
+        print(self.export_ctx.scene_data)
         return load_dict(self.export_ctx.scene_data)

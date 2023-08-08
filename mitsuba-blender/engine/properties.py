@@ -226,6 +226,13 @@ def create_plugin_props(name, arg_dict, depth=1, prefix=""):
                         setattr(plugin_props, choice, BoolProperty(
                             name = label
                         ))
+            elif param_type == 'string':
+                props_draw.add(param_name)
+                setattr(plugin_props, param_name, StringProperty(
+                    name = label,
+                    description = description,
+                    default = param_dict.get('default', ""),
+                ))
             else:
                 raise NotImplementedError("Unsupported attribute type: %s in plugin '%s'" % (param_type, name))
 

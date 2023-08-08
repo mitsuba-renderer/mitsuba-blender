@@ -7,6 +7,11 @@ import bpy
 
 from . import mi_props_utils
 
+
+if bpy.app.version[1] < 4: 
+    sampling_pattern_sobol = "SOBOL"
+else:
+    sampling_pattern_sobol = "SOBOL_BURLEY"
 #################
 ##  Utilities  ##
 #################
@@ -190,7 +195,7 @@ def apply_mi_independent_properties(mi_context, mi_props):
     bl_independent_props.sample_count = mi_props.get('sample_count', 4)
     bl_independent_props.seed = mi_props.get('seed', 0)
     # Cycles properties
-    bl_renderer.sampling_pattern = 'SOBOL_BURLEY'
+    bl_renderer.sampling_pattern = sampling_pattern_sobol
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.preview_samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
@@ -210,7 +215,7 @@ def apply_mi_stratified_properties(mi_context, mi_props):
     bl_stratified_props.jitter = mi_props.get('jitter', True)
     # Cycles properties
     # NOTE: There isn't any equivalent sampler in Blender. We use the default SOBOL_BURLEY pattern.
-    bl_renderer.sampling_pattern = 'SOBOL_BURLEY'
+    bl_renderer.sampling_pattern = sampling_pattern_sobol
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
     return True

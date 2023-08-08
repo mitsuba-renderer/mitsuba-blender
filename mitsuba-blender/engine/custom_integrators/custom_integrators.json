@@ -1,6 +1,138 @@
 {
   "mydirect" : {
-        "label" : "My Direct Illumination Integrator",
-        "description" : "Direct illumination integrator with multi-importance sampling."
+    "label" : "My Direct Illumination Integrator",
+    "description" : "Direct illumination integrator with multi-importance sampling."
+  },
+  "pssmlt" : {
+    "label" : "pssmlt",
+    "description" : "Primary Sample Space MLT",
+    "parameters": {
+      "bidirectional" : {
+        "label" : "Bidirectional",
+        "description" : "Bidirectional tracing",
+        "type" : "boolean",
+        "default" : true
+      },
+      "luminanceSamples" : {
+        "label" : "LuminanceSamples",
+        "description" : "Luminance Samples",
+        "type" : "integer",
+        "default" : 100000
+      }
+    }
+  },
+  "photonmapper" : {
+    "label" : "PhotonMapper",
+    "description" : "Photon map integrator",
+    "parameters" : {
+      "causticPhotons" : {
+        "label" : "causticPhotons",
+        "description" : "Caustic Photons",
+        "type" : "integer",
+        "default" : 250000
+      },
+      "causticLookupRadius" : {
+        "label" : "causticLookupRadius",
+        "description" : "caustic Lookup Radius",
+        "type" : "float",
+        "default" : 0.0125
+      }
+    }
+  },
+  "vapg" : {
+    "label" : "Variance Aware Path Guiding",
+    "description" : "Variance Aware Path Guiding",
+    "parameters": {
+      "nee" : {
+        "label" : "NEE",
+        "description" : "Next Event Estimation",
+        "type" : "string",
+        "default" : "always"
+      },
+      "sampleCombination" : {
+        "label" : "sampleCombination",
+        "description" : "sample Combination. Can be set to discard/automatic/inversevar",
+        "type" : "string",
+        "default" : "discard"
+      },
+      "distribution" : {
+        "label" : "distribution",
+        "description" : "distribution. Can be set to radiance/simple/full",
+        "type" : "string",
+        "default" : "radiance"
+      },
+      "budgetType" : {
+        "label" : "budgetType",
+        "description" : "Budget Type. can be set to seconds/spp",
+        "type" : "string",
+        "default" : "seconds"
+      },
+      "budget" : {
+        "label" : "budget",
+        "description" : "Budget",
+        "type" : "float",
+        "default" : 300
+      },
+      "trainingIterations" : {
+        "label" : "trainingIterations",
+        "description" : "Training Iterations",
+        "type" : "integer",
+        "default" : -1
+      }
+    }
+  },
+  "lpm" : {
+    "label" : "Lightweight Photon Mapping",
+    "description" : "Lightweight Photon Mapping",
+    "parameters" : {
+      "maxDepth" : {
+        "label" : "MaxDepth",
+        "description" : "Maximum Depth",
+        "type" : "integer",
+        "default" : -1
+      },
+      "rrDepth" : {
+        "label" : "RR Depth",
+        "description" : "Russian Roulette depth",
+        "type" : "integer",
+        "default" : 5
+      },
+      "lpRatio" : {
+        "label" : "lpRatio",
+        "description" : "Light Path Ratio",
+        "type" : "float",
+        "default" : 1.0
+      },
+      "initialRadius" : {
+        "label" : "InitialRadius",
+        "description" : "Initial Radius for Photon Mapping. If 0.0, it is automatically chosen",
+        "type" : "float",
+        "default" : 0.0
+      },
+      "iterations" : {
+        "label" : "Iterations",
+        "description" : "Number of interations of Light tracing and photon mapping",
+        "type" : "integer",
+        "default" : 2
+      },
+      "cp_per_iter" : {
+        "label" : "cp_per_iter",
+        "description" : "Camera Path per Iteration",
+        "type" : "integer",
+        "default" : 1
+      },
+      "min_lp" : {
+        "label" : "min_lp",
+        "description" : "Minimum light path",
+        "type" : "integer",
+        "default" : 5000
+      },
+      "enableMerge" : {
+        "label" : "enableMerge",
+        "description" : "Enable Merging at VCM step",
+        "type" : "boolean",
+        "default" : true
+      }
+    }
   }
 }

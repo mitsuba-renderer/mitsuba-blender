@@ -52,53 +52,53 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
             self.size_y = int(b_scene.render.resolution_y * scale)
 
             # Temporary workaround as long as the dict creation writes stuff to dict
-            # dummy_dir = "/home/arpit/Downloads/test_render"
-            with tempfile.TemporaryDirectory() as dummy_dir:
-                filepath = os.path.join(dummy_dir, "scene.xml")
-                self.converter.set_path(filepath)
-                self.converter.scene_to_dict(depsgraph)
-                curr_thread = Thread.thread()
-                curr_thread.file_resolver().prepend(dummy_dir)
-                mts_scene = self.converter.dict_to_scene()
+            dummy_dir = "/home/arpit/Downloads/test_render"
+            # with tempfile.TemporaryDirectory() as dummy_dir:
+            filepath = os.path.join(dummy_dir, "scene.xml")
+            self.converter.set_path(filepath)
+            self.converter.scene_to_dict(depsgraph)
+            curr_thread = Thread.thread()
+            curr_thread.file_resolver().prepend(dummy_dir)
+            mts_scene = self.converter.dict_to_scene()
 
-                if version == "v3":
-                    sensor = mts_scene.sensors()[0]
-                    mts_scene.integrator().render(mts_scene, sensor)
-                    render_results = sensor.film().bitmap().split()
-                else:
-                    print(f"exe path - {mitsubaV1exe}")
+            if version == "v3":
+                sensor = mts_scene.sensors()[0]
+                mts_scene.integrator().render(mts_scene, sensor)
+                render_results = sensor.film().bitmap().split()
+            else:
+                print(f"exe path - {mitsubaV1exe}")
 
-                    # write to disk
-                    self.converter.dict_to_xml()
-                    # call downgrade
-                    folder = osp.dirname(filepath)
-                    fns = glob(osp.join(folder, "*/*.xml"), recursive=True) +\
-                                glob(osp.join(folder, "*.xml"), recursive=True)
-                    for fname in fns:
-                        print(f"Checking {fname}")
-                        downgrade.convert(fname)
-                    # ---
-                    # issue subprocess command
-                    # this needs to be a blocking thread
-                    env = os.environ.copy()
-                    mit1_dir = osp.dirname(mitsubaV1exe)
-                    env["PATH"] = mit1_dir + ":" + env["PATH"]
-                    env["LD_LIBRARY_PATH"] = mit1_dir + ":" + env["LD_LIBRARY_PATH"]
-                    
-                    # render exr
-                    try:
-                        result = subprocess.run([
-                            mitsubaV1exe, filepath.replace(".xml", "_v1.xml")
-                        ], capture_output=True, env = env)
-                        # output file would be 
-                        outfilePath = filepath.replace(".xml", "_v1.exr")
-                        bitmap = mi.Bitmap(outfilePath)
-                        render_results = bitmap.split()
-                    except Exception as e:
-                        print("v1 render process failed")
-                        # blender error reporting
-                        self.report({"WARNING"}, f"Something isn't right\n{e}")
-                        return {"CANCELLED"}
+                # write to disk
+                self.converter.dict_to_xml()
+                # call downgrade
+                folder = osp.dirname(filepath)
+                fns = glob(osp.join(folder, "*/*.xml"), recursive=True) +\
+                            glob(osp.join(folder, "*.xml"), recursive=True)
+                for fname in fns:
+                    print(f"Checking {fname}")
+                    downgrade.convert(fname)
+                # ---
+                # issue subprocess command
+                # this needs to be a blocking thread
+                env = os.environ.copy()
+                mit1_dir = osp.dirname(mitsubaV1exe)
+                env["PATH"] = mit1_dir + ":" + env["PATH"]
+                env["LD_LIBRARY_PATH"] = mit1_dir + ":" + env["LD_LIBRARY_PATH"]
+                
+                # render exr
+                try:
+                    result = subprocess.run([
+                        mitsubaV1exe, filepath.replace(".xml", "_v1.xml")
+                    ], capture_output=True, env = env)
+                    # output file would be 
+                    outfilePath = filepath.replace(".xml", "_v1.exr")
+                    bitmap = mi.Bitmap(outfilePath)
+                    render_results = bitmap.split()
+                except Exception as e:
+                    print("v1 render process failed")
+                    # blender error reporting
+                    self.report({"WARNING"}, f"Something isn't right\n{e}")
+                    return {"CANCELLED"}
 
             for result in render_results:
                 buf_name = result[0].replace("<root>", "Combined")
