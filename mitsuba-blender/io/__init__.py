@@ -105,6 +105,12 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    export_assets: BoolProperty(
+        name = "Export assets",
+        description = "If false, only write out the final Mitsuba xml scene file",
+        default = True
+    )
+
     def __init__(self):
         self.reset()
 
@@ -118,11 +124,15 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 	            to_up=self.axis_up,
 	        ).to_4x4()
 
-        self.converter.export_ctx.axis_mat = axis_mat
-        # Add IDs to all base plugins (shape, emitter, sensor...)
-        self.converter.export_ctx.export_ids = self.export_ids
 
-        self.converter.use_selection = self.use_selection
+        ctx = self.converter.export_ctx
+        ctx.axis_mat = axis_mat
+        # Add IDs to all base plugins (shape, emitter, sensor...)
+        ctx.export_ids = self.export_ids
+
+        ctx.use_selection = self.use_selection
+        ctx.ignore_background = self.ignore_background
+        ctx.export_assets = self.export_assets
 
         # Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)

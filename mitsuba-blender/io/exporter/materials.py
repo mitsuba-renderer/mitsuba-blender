@@ -1,18 +1,17 @@
 import numpy as np
 from mathutils import Matrix, Color
 from .export_context import Files
-import imageio
 
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
-def export_texture_node(export_ctx, tex_node, suffix=''):
+def export_texture_node(export_ctx, tex_node):
     params = {
         'type':'bitmap'
     }
     #get the relative path to the copied texture from the full path to the original texture
-    params['filename'] = export_ctx.export_texture(tex_node.image, suffix)
-    #YM: TODO: texture transform (mapping node)
+    params['filename'] = export_ctx.export_texture(tex_node.image)
+    #TODO: texture transform (mapping node)
     if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
@@ -21,66 +20,56 @@ def export_texture_node(export_ctx, tex_node, suffix=''):
 
     return params
 
-
-
-def export_color_ramp_node(export_ctx, tex_node, suffix=''):
-    params = {
-        'type':'bitmap'
-    }
-    #get the relative path to the copied texture from the full path to the original texture
-    params['filename'] = export_ctx.export_texture(tex_node.image, suffix)
-    #YM: TODO: texture transform (mapping node)
-    if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
-        #non color data, tell mitsuba not to apply gamma conversion to it
-        params['raw'] = True
-    elif tex_node.image.colorspace_settings.name != 'sRGB':
-        export_ctx.log("Mitsuba only supports sRGB textures for color data.", 'WARN')
-
-    return params
-
-def roughness_ramp(node, color_ramp, export_ctx):
-    # roughness ramp for linear interpolation
-    tex_node = node.inputs['Fac'].links[0].from_node
-    color_ramp_elements = list(color_ramp.elements)
-
-    # record original texture value
-    ori_pixels = tex_node.image.pixels[:] 
-    img_pixels = np.asarray(ori_pixels).reshape(-1, 4)[:, :2]
-
-    color_ramp_elements_pos = np.array([item.position for item in color_ramp_elements])
-    color_ramp_elements_colors = np.array([item.color for item in color_ramp_elements])
-
-    inter_pos = color_ramp_elements_pos[np.newaxis, :, np.newaxis].repeat(img_pixels.shape[0], axis=0)
-    weight = abs(inter_pos - img_pixels[:, :, np.newaxis])
-    inter_color = color_ramp_elements_colors[np.newaxis, :, :].repeat(img_pixels.shape[0], axis=0)
-
-    img = (inter_color * weight) / (weight.sum(axis=1, keepdims=True))
-    img = img.sum(axis=1, keepdims=True).reshape(-1)
-
-    tex_node.image.pixels[:] = tuple(img)
-    # export interpolated texture as roughness
-    params = export_color_ramp_node(export_ctx, tex_node, '_roughness')
-    # give original texture value back
-    tex_node.image.pixels[:] = ori_pixels
-
-    return params
-
-def bump_normal(node, export_ctx):
-    #YM: TODO mitsuba has invert bump mapping?
-    if_invert = node.invert
-    #YM: TODO Figure out how to use distance and strength.... what exactly is full bump mapping???
-    strength = node.inputs['Strength'].default_value
-    distance = node.inputs['Distance'].default_value
-    tex_node = node.inputs['Height'].links[0].from_node
+def export_color_ramp_node(export_ctx, color_ramp_node):
     
+    if color_ramp_node.color_ramp.color_mode != 'RGB':
+        raise NotImplementedError("Type %s is not supported in ColorRamp. Only RGB mode are supported." % color_ramp_node.color_ramp.color_mode)
+    
+    params = { 
+        'type'  : 'color_ramp',
+        'input' : convert_color_texture_node(export_ctx, color_ramp_node.inputs['Fac']),
+        'mode'  : color_ramp_node.color_ramp.interpolation.lower()
+    }
 
-    bump_value = np.array(tex_node.image.pixels[:]) * strength
-    bump_value[::-4] = 1.
-    tex_node.image.pixels[:] = tuple(bump_value)
-    params = export_texture_node(export_ctx, tex_node, '_bump')
-    bump_value = bump_value / strength
-    bump_value[::-4] = 1.
-    tex_node.image.pixels[:] = tuple(bump_value)
+    color_bands = list(color_ramp_node.color_ramp.elements)
+    params['num_bands'] = len(color_bands)
+    for index in range(len(color_bands)):
+        color_band_node = list(color_ramp_node.color_ramp.elements)[index]
+        params['pos' + str(index)] = color_band_node.position
+        params['color' + str(index)] = list(list(color_ramp_node.color_ramp.elements)[index].color)[:3]
+
+    return params
+
+def export_mix_color_node(export_ctx, mix_color_node):
+
+    mode = None
+
+    if mix_color_node.blend_type == 'MIX':
+        mode = 'blend'
+    elif mix_color_node.blend_type == 'ADD':
+        mode = 'add'
+    elif mix_color_node.blend_type == 'SUBTRACT':
+        mode = 'subtract'
+    elif mix_color_node.blend_type == 'MULTIPLY':
+        mode = 'multiply'
+    elif mix_color_node.blend_type == 'DIFFERENCE':
+        mode = 'difference'
+    elif mix_color_node.blend_type == 'EXCLUSION':
+        mode = 'exclusion'
+    elif mix_color_node.blend_type == 'DARKEN':
+        mode = 'darken'
+    elif mix_color_node.blend_type == 'LIGHTEN':
+        mode == 'lighten'
+    else:
+        raise NotImplementedError( "Mix color node type %s is not supported." % mix_color_node.blend_type)
+
+    params = {
+        'type'      : 'mix_rgb',
+        'mode'      : mode,
+        'color0'    : convert_color_texture_node(export_ctx, mix_color_node.inputs['Color1']),
+        'color1'    : convert_color_texture_node(export_ctx, mix_color_node.inputs['Color2']),
+        'factor'    : convert_float_texture_node(export_ctx, mix_color_node.inputs['Fac'])
+    }
 
     return params
 
@@ -93,52 +82,11 @@ def convert_float_texture_node(export_ctx, socket):
         if node.type == "TEX_IMAGE":
             params = export_texture_node(export_ctx, node)
         elif node.type == "VALTORGB":
-            converter = convert_color_texture_node(export_ctx, node.inputs['Fac'])
-            
-            # catch return value of bitmap and convert it to direct connected color_ramp
-            if node.inputs['Fac'].links[0].from_node.bl_label == 'Image Texture':
-                color_ramp = converter
-                color_ramp['type'] = 'color_ramp'
-                if node.color_ramp.color_mode == 'RGB':
-                    color_ramp['mode'] = node.color_ramp.interpolation.lower()
-                    color_bands = list(node.color_ramp.elements)
-                    color_ramp['num_band'] = len(color_bands)
-                    for index in range(len(color_bands)):
-                        color_band_node = list(node.color_ramp.elements)[index]
-                        color_ramp['pos' + str(index)] = color_band_node.position
-                        # TODO: figure out how to use alpha in color ramp
-                        color_ramp['color' + str(index)] = {'type': 'rgb', 'value': list(list(node.color_ramp.elements)[index].color)[:3]}
-                else:
-                    raise NotImplementedError("Type %s is not supported in ColorRamp. Only RGB mode are supported." % node.color_ramp.color_mpde)
-                params = color_ramp
-            # catch the value of color_ramp and wrap with another one
-            elif node.inputs['Fac'].links[0].from_node.bl_label == 'ColorRamp':
-                color_ramp = {}
-                color_ramp['type'] = 'color_ramp'
-                color_ramp['factor'] = converter
-                if node.color_ramp.color_mode == 'RGB':
-                    color_ramp['mode'] = node.color_ramp.interpolation.lower()
-                    color_bands = list(node.color_ramp.elements)
-                    color_ramp['num_band'] = len(color_bands)
-                    for index in range(len(color_bands)):
-                        color_band_node = list(node.color_ramp.elements)[index]
-                        color_ramp['pos' + str(index)] = color_band_node.position
-                        # TODO: figure out how to use alpha in color ramp
-                        color_ramp['color' + str(index)] = {'type': 'rgb', 'value': list(list(node.color_ramp.elements)[index].color)[:3]}
-                else:
-                    raise NotImplementedError("Type %s is not supported in ColorRamp. Only RGB mode are supported." % node.color_ramp.color_mpde)
-                params = color_ramp
-        elif node.type == 'BUMP':
-            # params = bump_normal(node, export_ctx)
-            converter = convert_color_texture_node(export_ctx, node.inputs['Height'])
-            bump_map = converter
-            if bump_map['type'] == 'bitmap':
-                bump_map['raw'] = True
-
-            strength = node.inputs['Strength'].default_value
-            distance = node.inputs['Distance'].default_value # TODO: figure out the distance used in Blender
-
-            return [bump_map, strength]
+            params = export_color_ramp_node(export_ctx, node)
+        elif node.type == 'BRIGHTCONTRAST':
+            params = convert_color_texture_node(export_ctx, node.inputs['Color'])
+        elif node.type == 'MIX_RGB':
+            params = export_mix_color_node(export_ctx, node)
         else:
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
 
@@ -161,61 +109,62 @@ def convert_color_texture_node(export_ctx, socket):
         if node.type == "TEX_IMAGE":
             params = export_texture_node(export_ctx, node)
         elif node.type == "RGB":
-            # input rgb node
-            # node.color is a function to get custom color of the node in Blender UI not base_color!!!!!!
-            # params = export_ctx.spectrum(node.color)
             base_color = list(node.outputs['Color'].default_value)
-            params = export_ctx.spectrum(Color((base_color[0], base_color[1], base_color[2])))
+            params = export_ctx.spectrum(Color(*base_color[:3]))
         elif node.type == "VERTEX_COLOR":
             params = {
                 'type': 'mesh_attribute',
                 'name': 'vertex_%s' % node.layer_name
             }
         elif node.type == "VALTORGB":
-            converter = convert_color_texture_node(export_ctx, node.inputs['Fac'])
-            
-            # catch return value of bitmap and convert it to direct connected color_ramp
-            if node.inputs['Fac'].links[0].from_node.bl_label == 'Image Texture':
-                color_ramp = converter
-                color_ramp['type'] = 'color_ramp'
-                if node.color_ramp.color_mode == 'RGB':
-                    color_ramp['mode'] = node.color_ramp.interpolation.lower()
-                    color_bands = list(node.color_ramp.elements)
-                    color_ramp['num_band'] = len(color_bands)
-                    for index in range(len(color_bands)):
-                        color_band_node = list(node.color_ramp.elements)[index]
-                        color_ramp['pos' + str(index)] = color_band_node.position
-                        # TODO: figure out how to use alpha in color ramp
-                        color_ramp['color' + str(index)] = {'type': 'rgb', 'value': list(list(node.color_ramp.elements)[index].color)[:3]}
-                else:
-                    raise NotImplementedError("Type %s is not supported in ColorRamp. Only RGB mode are supported." % node.color_ramp.color_mpde)
-                params = color_ramp
-            # catch the value of color_ramp and wrap with another one
-            elif node.inputs['Fac'].links[0].from_node.bl_label == 'ColorRamp':
-                color_ramp = {}
-                color_ramp['type'] = 'color_ramp'
-                color_ramp['factor'] = converter
-                if node.color_ramp.color_mode == 'RGB':
-                    color_ramp['mode'] = node.color_ramp.interpolation.lower()
-                    color_bands = list(node.color_ramp.elements)
-                    color_ramp['num_band'] = len(color_bands)
-                    for index in range(len(color_bands)):
-                        color_band_node = list(node.color_ramp.elements)[index]
-                        color_ramp['pos' + str(index)] = color_band_node.position
-                        # TODO: figure out how to use alpha in color ramp
-                        color_ramp['color' + str(index)] = {'type': 'rgb', 'value': list(list(node.color_ramp.elements)[index].color)[:3]}
-                else:
-                    raise NotImplementedError("Type %s is not supported in ColorRamp. Only RGB mode are supported." % node.color_ramp.color_mpde)
-                params = color_ramp
+            params = export_color_ramp_node(export_ctx, node)
         elif node.type == 'CURVE_RGB': # TODO: implement curve_rgb in mitsuba
-            converter = convert_color_texture_node(export_ctx, node.inputs['Color'])
-            params = converter
+            params = convert_color_texture_node(export_ctx, node.inputs['Color'])
+        elif node.type == 'MIX_RGB':
+            params = export_mix_color_node(export_ctx, node)
         else:
-            raise NotImplementedError("Node type %s is not supported. Only texture & RGB nodes are supported for color inputs" % node.type)
+            raise NotImplementedError("Node type %s is not supported" % node.type)
     else:
         params = export_ctx.spectrum(socket.default_value)
 
     return params
+
+# Should exclusively be input to BSDF nodes
+def convert_normal_map_node(export_ctx, socket):
+    params = None
+
+    meta = {
+        'is_bump' : False,
+        'strength': 1.0,
+        'distance': 1.0
+    }
+
+    if socket.is_linked:
+        node = socket.links[0].from_node
+
+        if node.type == 'NORMAL_MAP':
+            params = convert_color_texture_node(export_ctx, node.inputs['Color'])
+            strength = convert_float_texture_node(export_ctx, node.inputs['Strength'])
+            if type(strength) is not float or strength != 1.0:
+                export_ctx.log("Warning: A normal map with strength not equal to 1 is currently not supported in Mitsuba. Ignoring strength parameter.", 'WARN')
+                meta['strength'] = strength
+        elif node.type == 'BUMP':
+            params = convert_color_texture_node(export_ctx, node.inputs['Height'])
+            strength = convert_float_texture_node(export_ctx, node.input['Strength'])
+            if type(strength) is not float or strength != 1.0:
+                export_ctx.log("Warning: A bump map with strength not equal to 1 is currently not supported in Mitsuba. Ignoring strength parameter.", 'WARN')
+            meta['is_bump'] = True
+            meta['distance'] = convert_float_texture_node(export_ctx, node.input['Distance'])
+        else:
+            params = convert_color_texture_node(export_ctx, socket)
+
+    else:
+        if socket.name == 'Normal':
+            params = None 
+        else:
+            params = socket.default_value
+
+    return params, meta
 
 def two_sided_bsdf(bsdf):
     params = {
@@ -411,12 +360,12 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         raise NotImplementedError("Mixing a BSDF and an emitter is not supported. Consider using an Add shader instead.")
 
 def convert_principled_materials_cycles(export_ctx, current_node):
-    params = {}
+    bsdf = {}
     base_color = convert_color_texture_node(export_ctx, current_node.inputs['Base Color'])
     specular = convert_float_texture_node(export_ctx, current_node.inputs['Specular'])
     specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
     specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission'])
-    ior = current_node.inputs['IOR'].default_value
+    ior = max(current_node.inputs['IOR'].default_value , 1+1e-3)
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
     metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
     anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
@@ -425,11 +374,8 @@ def convert_principled_materials_cycles(export_ctx, current_node):
     clearcoat = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat'])
     clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat Roughness'])
 
-    # warp principled_materials with bump or normal map
-    bump_strength = convert_float_texture_node(export_ctx, current_node.inputs['Normal'])
-    #YM: TODO: figure out the difference of nomalmap and bumpmap in Blender
-    normal_map = None
-    # normal_map = convert_float_texture_node(export_ctx, current_node.inputs['Normal'])
+    # Will return None if normals input socket isn't linked
+    normals, normals_meta = convert_normal_map_node(export_ctx, current_node.inputs['Normal'])
 
     # Undo default roughness transform done by the exporter
     if type(roughness) is float:
@@ -437,113 +383,50 @@ def convert_principled_materials_cycles(export_ctx, current_node):
     if type(clearcoat_roughness) is float:
         clearcoat_roughness = np.sqrt(clearcoat_roughness)
 
-    # Currently, the solution is to wary principled_BSDF with bump_BSDF since Mitsuba didn't integrate bump mapping in principled_BSDF
-    if bump_strength == None:
-        params.update({
-            'type': 'principled',
-            'base_color': base_color,
-            'spec_tint': specular_tint,
-            'spec_trans': specular_trans,
-            'metallic': metallic,
-            'anisotropic': anisotropic,
-            'roughness': roughness,
-            'sheen': sheen,
-            'sheen_tint': sheen_tint,
-            'clearcoat': clearcoat,
-            'clearcoat_gloss': clearcoat_roughness
-        })
-    else:
-        if normal_map == None:
-            if bump_strength[0]['type'] == 'rgb':
-                params.update({
-                    'type': 'bumpmap',
-                    'scale': bump_strength[1],
-                    'principled_bsdf': {
-                        'type': 'principled',
-                        'base_color': base_color,
-                        'spec_tint': specular_tint,
-                        'spec_trans': specular_trans,
-                        'metallic': metallic,
-                        'anisotropic': anisotropic,
-                        'roughness': roughness,
-                        'sheen': sheen,
-                        'sheen_tint': sheen_tint,
-                        'clearcoat': clearcoat,
-                        'clearcoat_gloss': clearcoat_roughness
-                    },
-                })
-            else:
-                params.update({
-                    'type': 'bumpmap',
-                    'bumpmap_tex': bump_strength[0],
-                    'scale': bump_strength[1],
-                    'principled_bsdf': {
-                        'type': 'principled',
-                        'base_color': base_color,
-                        'spec_tint': specular_tint,
-                        'spec_trans': specular_trans,
-                        'metallic': metallic,
-                        'anisotropic': anisotropic,
-                        'roughness': roughness,
-                        'sheen': sheen,
-                        'sheen_tint': sheen_tint,
-                        'clearcoat': clearcoat,
-                        'clearcoat_gloss': clearcoat_roughness
-                    },
-                })
-        else:
-            params.update({
-                'type': 'normalmap',
-                'normal_bsdf': {
-                    'type': 'bumpmap',
-                    'bumpmap_tex': bump_strength[0],
-                    'scale': bump_strength[1],
-                    'principled_bsdf': {
-                        'type': 'principled',
-                        'base_color': base_color,
-                        'spec_tint': specular_tint,
-                        'spec_trans': specular_trans,
-                        'metallic': metallic,
-                        'anisotropic': anisotropic,
-                        'roughness': roughness,
-                        'sheen': sheen,
-                        'sheen_tint': sheen_tint,
-                        'clearcoat': clearcoat,
-                        'clearcoat_gloss': clearcoat_roughness
-                    },
-                }
-            })
+    bsdf.update({
+        'type': 'principled',
+        'metallic': metallic,
+        'clearcoat': clearcoat,
+        'clearcoat_gloss': clearcoat_roughness,
+        'base_color': base_color,
+        'spec_tint': specular_tint,
+        'spec_trans': specular_trans,
+        'anisotropic': anisotropic,
+        'roughness': roughness,
+        'sheen': sheen,
+        'sheen_tint': sheen_tint,
+    })
 
     # NOTE: Blender uses the 'specular' value for dielectric/metallic reflections and the
     #       'IOR' value for transmission. Mitsuba only has one value for both which can either
     #       be defined by 'specular' or 'eta' ('specular' will be converted into the corresponding
     #       'eta' value by Mitsuba).
     if type(specular_trans) is not float or specular_trans > 0:
-        if bump_strength == None:
-            # Export 'eta' if the material has a transmission component
-            params.update({
-                'eta': max(ior, 1+1e-3),
-            })
-            # Transmissive material should not be twosided
-            return params
-        else:
-            params['principled_bsdf'].update({
-                'eta': max(ior, 1+1e-3),
-            })
-            return params
+        # Export 'eta' if the material has a transmission component
+        bsdf.update({
+            'eta': max(ior, 1+1e-3),
+        })
     else:
-        if bump_strength == None:
-            # Export 'specular' if the material is only reflective
-            params.update({
-                'specular': max(specular, 1e-3)
-            })
-            return two_sided_bsdf(params)
+        if type(specular) is float:
+            bsdf.update({ 'specular' : max(specular, 1+1e-3) })
+        bsdf = two_sided_bsdf(bsdf)
+
+    if normals:
+        if normals_meta['is_bump']:
+            return {
+                'type'      : 'bumpmap',
+                'bumpmap'   : normals,
+                'scale'     : normals_meta['distance'],
+                'bsdf'      : bsdf
+            }
         else:
-            # Export 'specular' if the material is only reflective
-            params['principled_bsdf'].update({
-                'specular': max(specular, 1e-3)
-            })
-            return two_sided_bsdf(params)
+            return { 
+                'type'      : 'normalmap', 
+                'normalmap' : normals,
+                'bsdf'      : bsdf
+            }
+    
+    return bsdf
 
 
 #TODO: Add more support for other materials: refraction, transparent, translucent
@@ -643,7 +526,7 @@ def export_material(export_ctx, material):
         else: # Usual case
             export_ctx.data_add(mat_params, mat_id)
 
-def convert_world(export_ctx, world, ignore_background):
+def convert_world(export_ctx, world):
     """
     convert environment lighting. Constant emitter and envmaps are supported
 
@@ -652,7 +535,6 @@ def convert_world(export_ctx, world, ignore_background):
 
     export_ctx: the export context
     surface_node: the final node of the shader
-    ignore_background: whether we want to export blender's default background or not
     """
 
     params = {}
@@ -728,7 +610,7 @@ def convert_world(export_ctx, world, ignore_background):
                 color = socket.default_value
             if 'type' not in params: # Not an envmap
                 radiance = [x * strength for x in color[:3]]
-                if ignore_background and radiance == [0.05087608844041824]*3:
+                if export_ctx.ignore_background and radiance == [0.05087608844041824]*3:
                     export_ctx.log("Ignoring Blender's default background...", 'INFO')
                     return
                 if np.sum(radiance) == 0:
@@ -752,14 +634,13 @@ def convert_world(export_ctx, world, ignore_background):
     else:
         export_ctx.data_add(params)
 
-def export_world(export_ctx, world, ignore_background):
+def export_world(export_ctx, world):
     '''
     export_ctx: export context
     world: blender 'world' object
-    ignore_background: whether we ignore blender's default grey background or not.
     '''
 
     try:
-        convert_world(export_ctx, world, ignore_background)
+        convert_world(export_ctx, world)
     except NotImplementedError as err:
         export_ctx.log("Error while exporting world: %s. Not exporting it." % err.args[0], 'WARN')

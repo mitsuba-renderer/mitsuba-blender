@@ -79,6 +79,9 @@ class ExportContext:
             'shape': 'meshes',
             'spectrum': 'spectra'
                             }
+        self.use_selection = False
+        self.ignore_background = True
+        self.export_assets = True
 
 
     def data_add(self, mts_dict, name=''):
@@ -90,7 +93,7 @@ class ExportContext:
         '''
         if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
             return False
- 
+
         if not name:
             try:
                 name = mts_dict['id']
@@ -143,7 +146,7 @@ class ExportContext:
             msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
             self.log(msg, 'WARN')
             image.file_format = convert_format[image.file_format]
-        original_name = os.path.basename(image.filepath.replace('\\', '//'))
+        original_name = os.path.basename(image.filepath)
         if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
             base_name, _ = os.path.splitext(original_name)
             name = image.name.replace(original_name, base_name, 1) # Remove the extension
@@ -156,7 +159,8 @@ class ExportContext:
             os.makedirs(textures_folder)
         old_filepath = image.filepath
         image.filepath_raw = target_path
-        image.save()
+        if self.export_assets:
+            image.save()
         image.filepath_raw = old_filepath
         return f"{self.subfolders['texture']}/{name}"
 

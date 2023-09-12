@@ -31,13 +31,11 @@ def convert_area_light(b_light, export_ctx):
     elif b_light.data.shape == 'DISK':
         params['type'] = 'disk'
         scale_mat = Matrix.Scale(b_light.data.size, 4) @ scale_mat
-        if not all(x == b_light.scale.x for x in b_light.scale):
-            raise NotImplementedError("Trying to export a distorted disk light. Only disks with uniform scaling are accepted.")
-        x = b_light.data.size * b_light.scale.x
-        area = np.pi * x**2 / 4.0 # size is the diameter
-        #area = np.pi * b_light.data.size**2 / 4.0 #size is the diameter, not the radius
-
-    else: # disks can't be non uniformly scaled in Mitsuba to create ellipses
+        # size is the diameter
+        diam_x = b_light.data.size * b_light.scale.x
+        diam_y = b_light.data.size * b_light.scale.y
+        area = (np.pi * 0.25 * diam_x * diam_y)    
+    else:
         raise NotImplementedError("Light shape: %s is not supported." % b_light.data.shape)
 
     #object transform
@@ -58,17 +56,19 @@ def convert_area_light(b_light, export_ctx):
     return params
 
 def convert_point_light(b_light, export_ctx):
-    params = {
-        'type': 'point'
+    #normalize by the solid angle of a sphere
+    energy = b_light.data.energy / (4*np.pi)
+    intensity = export_ctx.spectrum(energy * b_light.data.color)
+
+    #get the world position. b_light.location is only local
+    transform = export_ctx.transform_matrix(b_light.matrix_world)
+    position = list(transform.translation())
+
+    return {
+        'type'      : 'point',
+        'position'  : position,
+        'intensity' : intensity
     }
-    if b_light.data.shadow_soft_size:
-        export_ctx.log("Light '%s' has a non-zero soft shadow radius. It will be ignored." % b_light.name_full, 'WARN')
-    #apply coordinate change to location
-    params['position'] = list(export_ctx.axis_mat @ b_light.location)
-    energy = b_light.data.energy / (4*np.pi) #normalize by the solid angle of a sphere
-    intensity = energy * b_light.data.color
-    params['intensity'] = export_ctx.spectrum(intensity)
-    return params
 
 def convert_sun_light(b_light, export_ctx):
     params = {

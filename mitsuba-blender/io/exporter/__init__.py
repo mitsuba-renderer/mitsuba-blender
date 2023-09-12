@@ -28,8 +28,7 @@ class SceneConverter:
     '''
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
-        self.use_selection = False # Only export selection
-        self.ignore_background = True
+
         self.render = render
 
     def set_path(self, name, split_files=False):
@@ -64,7 +63,7 @@ class SceneConverter:
                 'max_depth': b_scene.cycles.max_bounces
             }
         self.export_ctx.data_add(integrator)
-        materials.export_world(self.export_ctx, b_scene.world, self.ignore_background)
+        materials.export_world(self.export_ctx, b_scene.world)
 
         # Establish list of particle objects
         particles = []
@@ -81,7 +80,7 @@ class SceneConverter:
             window_manager.progress_update(progress_counter)
             progress_counter += 1
 
-            if self.use_selection:
+            if self.export_ctx.use_selection:
                 #skip if it's not selected or if it's an instance and the parent object is not selected
                 if not object_instance.is_instance and not object_instance.object.original.select_get():
                     continue

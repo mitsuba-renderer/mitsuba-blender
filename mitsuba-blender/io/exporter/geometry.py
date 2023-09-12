@@ -139,10 +139,7 @@ def export_object(deg_instance, export_ctx, is_particle):
                                         mat_nr)
                 if mts_mesh is not None and mts_mesh.face_count() > 0:
                     converted_parts.append((mat_nr, mts_mesh))
-                    print("start exporting {} material".format(b_mesh.name))
                     export_material(export_ctx, b_mesh.materials[mat_nr])
-                    print("finish exporting {} material".format(b_mesh.name))
-
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
@@ -169,7 +166,8 @@ def export_object(deg_instance, export_ctx, is_particle):
             if not os.path.isdir(mesh_folder):
                 os.makedirs(mesh_folder)
             filepath = os.path.join(mesh_folder,  f"{name}.ply")
-            mts_mesh.write_ply(filepath)
+            if export_ctx.export_assets:
+                mts_mesh.write_ply(filepath)
 
             # Build dictionary entry
             params = {
