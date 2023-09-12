@@ -365,7 +365,7 @@ def convert_principled_materials_cycles(export_ctx, current_node):
     specular = convert_float_texture_node(export_ctx, current_node.inputs['Specular'])
     specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
     specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission'])
-    ior = max(current_node.inputs['IOR'].default_value , 1+1e-3)
+    ior = current_node.inputs['IOR'].default_value
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
     metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
     anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
