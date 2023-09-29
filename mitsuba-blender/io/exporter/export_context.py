@@ -98,7 +98,7 @@ class ExportContext:
                 del mts_dict['id']
 
             except KeyError:
-                name = '__elm__%i' % self.counter
+                name = 'elm__%i' % self.counter
 
         self.scene_data.update([(name, mts_dict)])
         self.counter += 1

@@ -235,7 +235,7 @@ def create_plugin_props(name, arg_dict, depth=1, prefix=""):
 
     def to_dict(self):
         '''
-        Function that converts the plugin into a dict that can be loaded or savec by mitsuba's API
+        Function that converts the plugin into a dict that can be loaded or saved by mitsuba's API
         '''
         plugin_params = {'type' : name}
         if 'parameters' in self.args:
@@ -249,7 +249,8 @@ def create_plugin_props(name, arg_dict, depth=1, prefix=""):
                     list_type = param['values_type']
                     if list_type == 'integrator':
                         for integrator in self.integrators.collection:
-                            plugin_params[integrator.name] = getattr(integrator.available_integrators, integrator.active_integrator).to_dict()
+                            # Make sure we don't have any leading underscores for names - Mitsuba will otherwise complain!
+                            plugin_params[integrator.name.lstrip('_')] = getattr(integrator.available_integrators, integrator.active_integrator).to_dict()
                     elif list_type == 'string':
                         selected_items = []
                         for choice in param['choices']:

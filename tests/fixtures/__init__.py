@@ -66,8 +66,10 @@ class MitsubaSceneRenderer:
                 b_root = b_root.convert(Bitmap.PixelFormat.XYZ, Struct.Type.Float32, False)
             return np.array(b_root, copy=True), None
         else:
-            img = np.array(split[1][1], copy=False)
-            img_m2 = np.array(split[2][1], copy=False)
+            # Check which split contains moments - it may not be the first one after root
+            m2_index = 1 if split[1][0].startswith('m2_') else 2
+            img = np.array(split[m2_index][1], copy=False)
+            img_m2 = np.array(split[m2_index][1], copy=False)
             return img, img_m2 - img * img
 
     def render_scene(self, scene_file, **kwargs):
