@@ -25,7 +25,7 @@ from . import (
 
 from .utils import pip_ensure, pip_package_install, pip_package_version
 
-DEPS_MITSUBA_VERSION = '3.0.1'
+DEPS_MITSUBA_VERSION = '3.4.0'
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
@@ -62,6 +62,7 @@ def register_addon(context):
     prefs = get_addon_preferences(context)
     prefs.status_message = ''
 
+    could_init_mitsuba = False
     if prefs.using_mitsuba_custom_path:
         prefs.update_additional_custom_paths(context)
         could_init_mitsuba = init_mitsuba()
