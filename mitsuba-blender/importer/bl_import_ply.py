@@ -300,7 +300,9 @@ def load_ply_mesh(filepath, ply_name):
     def add_face(vertices, indices, uvindices, colindices):
         mesh_faces.append(indices)
         if uvindices:
-            mesh_uvs.extend([(vertices[index][uvindices[0]], vertices[index][uvindices[1]]) for index in indices])
+            # Mitsuba seems to flip the UVS on the y-axis when exporting. We account for this here by flipping them
+            # back to the original coordinates.
+            mesh_uvs.extend([(vertices[index][uvindices[0]], 1-vertices[index][uvindices[1]]) for index in indices])
         if colindices:
             if len(colindices) == 3:
                 mesh_colors.extend([
