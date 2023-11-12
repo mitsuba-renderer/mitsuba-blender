@@ -1,0 +1,16 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="roughconductor" id="bsdf">
+    <string name="material" value="Ag"/>
+    <rgb name="specular_reflectance" value="0.9, 0.9, 0.9"/>
+    <string name="distribution" value="ggx"/>
+    <float name="alpha_u" value="0.4"/>
+    <float name="alpha_v" value="0.2"/>
+    <boolean name="sample_visible" value="false"/>
+</bsdf>
+
+</scene>

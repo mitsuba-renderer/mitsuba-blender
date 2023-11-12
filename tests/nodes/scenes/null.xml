@@ -1,0 +1,10 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="null" id="bsdf">
+</bsdf>
+
+</scene>

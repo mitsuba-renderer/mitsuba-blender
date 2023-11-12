@@ -1,0 +1,22 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="principled" id="bsdf">
+    <rgb name="base_color" value="0.1, 0.27, 0.36"/>
+    <float name="roughness" value="0.7"/>
+    <float name="anisotropic" value="0.6"/>
+    <float name="metallic" value="0.4"/>
+    <float name="spec_trans" value="0.0"/>
+    <float name="eta" value="1.45"/>
+    <float name="spec_tint" value="0.3"/>
+    <float name="sheen" value="0.2"/>
+    <float name="sheen_tint" value="0.1"/>
+    <float name="flatness" value="0.9"/>
+    <float name="clearcoat" value="0.8"/>
+    <float name="clearcoat_gloss" value="0.7"/>
+</bsdf>
+
+</scene>

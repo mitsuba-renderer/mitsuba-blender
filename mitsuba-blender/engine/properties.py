@@ -397,6 +397,12 @@ class MITSUBA_CAMERA_PT_sampler(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'render'
+    COMPAT_ENGINES = {'MITSUBA'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.engine in cls.COMPAT_ENGINES
+
     def draw(self, context):
         layout = self.layout
         if hasattr(context.scene.camera, 'data'):
@@ -410,6 +416,12 @@ class MITSUBA_CAMERA_PT_rfilter(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = 'render'
+    COMPAT_ENGINES = {'MITSUBA'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.engine in cls.COMPAT_ENGINES
+
     def draw(self, context):
         layout = self.layout
         if hasattr(context.scene.camera, 'data'):
@@ -417,7 +429,7 @@ class MITSUBA_CAMERA_PT_rfilter(bpy.types.Panel):
             layout.prop(cam_settings, "active_rfilter", text="Filter")
             getattr(cam_settings.rfilters, cam_settings.active_rfilter).draw(layout)
 
-def draw_device(self, context):
+def mitsuba_render_draw(self, context):
     scene = context.scene
     layout = self.layout
     layout.use_property_split = True
@@ -429,18 +441,20 @@ def draw_device(self, context):
         col = layout.column()
         col.prop(mts_settings, "variant")
 
-def register():
-    bpy.types.RENDER_PT_context.append(draw_device)
-    bpy.utils.register_class(MitsubaRenderSettings)
-    bpy.utils.register_class(MitsubaCameraSettings)
-    bpy.utils.register_class(MITSUBA_RENDER_PT_integrator)
-    bpy.utils.register_class(MITSUBA_CAMERA_PT_sampler)
-    bpy.utils.register_class(MITSUBA_CAMERA_PT_rfilter)
+classes = [
+    MitsubaRenderSettings,
+    MitsubaCameraSettings,
+    MITSUBA_RENDER_PT_integrator,
+    MITSUBA_CAMERA_PT_sampler,
+    MITSUBA_CAMERA_PT_rfilter,
+]
 
+def register():
+    bpy.types.RENDER_PT_context.append(mitsuba_render_draw)
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    
 def unregister():
-    bpy.types.RENDER_PT_context.remove(draw_device)
-    bpy.utils.unregister_class(MitsubaRenderSettings)
-    bpy.utils.unregister_class(MitsubaCameraSettings)
-    bpy.utils.unregister_class(MITSUBA_RENDER_PT_integrator)
-    bpy.utils.unregister_class(MITSUBA_CAMERA_PT_sampler)
-    bpy.utils.unregister_class(MITSUBA_CAMERA_PT_rfilter)
+    for cls in classes:
+        bpy.utils.unregister_class(cls)
+    bpy.types.RENDER_PT_context.remove(mitsuba_render_draw)

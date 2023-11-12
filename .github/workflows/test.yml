@@ -15,7 +15,7 @@ on:
 
 # Workflow steps
 jobs:
-  build:
+  test:
     name: "${{ matrix.environment.os }} | Blender ${{ matrix.blender.version }}"
     runs-on: ${{ matrix.environment.os }}
     strategy:
@@ -25,18 +25,15 @@ jobs:
         environment:
         - {
           os: "ubuntu-latest",
-          mitsuba-version: "3.0.1"
+          mitsuba-version: "3.4.0"
         }
         - {
           os: "windows-latest",
-          mitsuba-version: "3.0.1"
+          mitsuba-version: "3.4.0"
         }
         blender:
         - {
-          version: "2.93"
-        }
-        - {
-          version: "3.3"
+          version: "3.6.5"
         }
         
     steps:
@@ -81,4 +78,11 @@ jobs:
       run: |
         BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
         echo "Blender Executable is $BLENDER_EXECUTABLE"
-        ./$BLENDER_EXECUTABLE -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba-blender
+        ./$BLENDER_EXECUTABLE -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba-blender --local-tmp
+
+    - name: Recover crash logs
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: "crash-logs-${{ matrix.environment.os }}-blender-${{ matrix.blender.version }}"
+        path: tmp/*crash*.txt

@@ -1,0 +1,15 @@
+<scene version="2.1.0">
+
+<shape type="sphere">
+    <ref id="bsdf" name="bsdf"/>
+</shape>
+
+<bsdf type="plastic" id="bsdf">
+    <rgb name="diffuse_reflectance" value="0.1, 0.27, 0.36"/>
+    <float name="int_ior" value="1.9"/>
+    <string name="ext_ior" value="bk7"/>
+    <boolean name="nonlinear" value="true"/>
+    <rgb name="specular_reflectance" value="0.9, 0.9, 0.9"/>
+</bsdf>
+
+</scene>
