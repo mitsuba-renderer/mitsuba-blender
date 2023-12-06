@@ -24,7 +24,11 @@ jobs:
       matrix:
         environment:
         - {
-          os: "ubuntu-latest",
+          os: "ubuntu-20.04",
+          mitsuba-version: "3.0.1"
+        }
+        - {
+          os: "ubuntu-22.04",
           mitsuba-version: "3.0.1"
         }
         - {
@@ -38,7 +42,7 @@ jobs:
         - {
           version: "3.3"
         }
-        
+
     steps:
     - name: Git checkout
       uses: actions/checkout@v2
