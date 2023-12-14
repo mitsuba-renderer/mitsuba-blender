@@ -12,7 +12,7 @@ on:
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
-  
+
   package:
     name: "Package Release"
     needs: [tests]
@@ -51,7 +51,7 @@ jobs:
     - name: Create GitHub nightly release
       uses: ncipollo/release-action@v1
       with:
-        name: "Mitsuba-Blender Latest Build"
+        name: "Nightly Release"
         prerelease: true
         allowUpdates: true
         replacesArtifacts: true
