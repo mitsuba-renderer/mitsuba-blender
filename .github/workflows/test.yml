@@ -25,20 +25,20 @@ jobs:
         environment:
         - {
           os: "ubuntu-latest",
-          mitsuba-version: "3.0.1"
+          mitsuba-version: "3.4.0"
         }
         - {
           os: "windows-latest",
-          mitsuba-version: "3.0.1"
+          mitsuba-version: "3.4.0"
         }
         blender:
         - {
-          version: "2.93"
-        }
-        - {
           version: "3.3"
         }
-        
+        - {
+          version: "3.6"
+        }
+
     steps:
     - name: Git checkout
       uses: actions/checkout@v2

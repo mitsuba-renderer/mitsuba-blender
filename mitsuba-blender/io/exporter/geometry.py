@@ -21,8 +21,11 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
                   for logging/debug purposes.
     mat_nr:       The material ID to export.
     '''
-    from mitsuba import load_dict
-    props = {'type': 'blender'}
+    from mitsuba import load_dict, Point3i
+    props = {
+        'type': 'blender',
+        'version': ".".join(map(str,bpy.app.version))
+    }
     b_mesh.calc_normals()
     # Compute the triangle tesselation
     b_mesh.calc_loop_triangles()
@@ -38,23 +41,56 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
         export_ctx.log(f"Mesh: '{name}' has multiple UV layers. Mitsuba only supports one. Exporting the one set active for render.", 'WARN')
     for uv_layer in b_mesh.uv_layers:
         if uv_layer.active_render: # If there is only 1 UV layer, it is always active
-            props['uvs'] = uv_layer.data[0].as_pointer()
+            if uv_layer.name in b_mesh.attributes:
+                props['uvs'] = b_mesh.attributes[uv_layer.name].data[0].as_pointer()
+            else:
+                props['uvs'] = uv_layer.data[0].as_pointer()
             break
 
     for color_layer in b_mesh.vertex_colors:
-        props['vertex_%s' % color_layer.name] = color_layer.data[0].as_pointer()
+        if color_layer.name in b_mesh.attributes:
+            props[f'vertex_{color_layer.name}'] = b_mesh.attributes[color_layer.name].data[0].as_pointer()
+        else:
+            props[f'vertex_{color_layer.name}'] = color_layer.data[0].as_pointer()
 
     props['loop_tris'] = b_mesh.loop_triangles[0].as_pointer()
-    props['loops'] = b_mesh.loops[0].as_pointer()
-    props['polys'] = b_mesh.polygons[0].as_pointer()
-    props['verts'] = b_mesh.vertices[0].as_pointer()
+
+    if '.corner_vert' in b_mesh.attributes:
+        # Blender 3.6+ layout
+        props['loops'] = b_mesh.attributes['.corner_vert'].data[0].as_pointer()
+    else:
+        props['loops'] = b_mesh.loops[0].as_pointer()
+
+    if 'sharp_face' in b_mesh.attributes:
+        props['sharp_face'] = b_mesh.attributes['sharp_face'].data[0].as_pointer()
+
+    if bpy.app.version >= (3, 6, 0):
+        props['polys'] = b_mesh.loop_triangle_polygons[0].as_pointer()
+    else:
+        props['polys'] = b_mesh.polygons[0].as_pointer()
+
+    if 'position' in b_mesh.attributes:
+        # Blender 3.5+ layout
+        props['verts'] = b_mesh.attributes['position'].data[0].as_pointer()
+    else:
+        props['verts'] = b_mesh.vertices[0].as_pointer()
+
     if bpy.app.version > (3, 0, 0):
         props['normals'] = b_mesh.vertex_normals[0].as_pointer()
+
     props['vert_count'] = len(b_mesh.vertices)
     # Apply coordinate change
     if matrix_world:
         props['to_world'] = export_ctx.transform_matrix(matrix_world)
+
+    # material index to export, as only a single material per mesh is suported in mitsuba
     props['mat_nr'] = mat_nr
+    if 'material_index' in b_mesh.attributes:
+        # Blender 3.4+ layout
+        props['mat_indices'] = b_mesh.attributes['material_index'].data[0].as_pointer()
+    else:
+        props['mat_indices'] = 0
+
     # Return the mitsuba mesh
     return load_dict(props)
 
