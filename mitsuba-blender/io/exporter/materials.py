@@ -32,7 +32,8 @@ def convert_float_texture_node(export_ctx, socket):
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
 
     else:
-        if socket.name == 'Roughness':#roughness values in blender are remapped with a square root
+        #roughness values in blender are remapped with a square root
+        if 'Roughness' in socket.name:
             params = pow(socket.default_value, 2)
         else:
             params = socket.default_value
@@ -271,12 +272,6 @@ def convert_principled_materials_cycles(export_ctx, current_node):
     sheen_tint = convert_float_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
     clearcoat = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat'])
     clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs['Clearcoat Roughness'])
-
-    # Undo default roughness transform done by the exporter
-    if type(roughness) is float:
-        roughness = np.sqrt(roughness)
-    if type(clearcoat_roughness) is float:
-        clearcoat_roughness = np.sqrt(clearcoat_roughness)
 
     params.update({
         'type': 'principled',
