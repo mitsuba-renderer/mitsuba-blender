@@ -27,5 +27,5 @@ You can refer to the [Installation & Update Guide](https://github.com/mitsuba-re
 ### Supported versions
 
 Blender version should be at least `2.93`. The addon has been extensively tested
-on LTS versions of blender (`2.93`, `3.3`). We recommend using those whenever
+on LTS versions of blender (`3.3`, `3.6`). We recommend using those whenever
 possible.
