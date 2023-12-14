@@ -190,7 +190,7 @@ def apply_mi_independent_properties(mi_context, mi_props):
     bl_independent_props.sample_count = mi_props.get('sample_count', 4)
     bl_independent_props.seed = mi_props.get('seed', 0)
     # Cycles properties
-    bl_renderer.sampling_pattern = 'SOBOL'
+    bl_renderer.sampling_pattern = 'SOBOL' if bpy.app.version < (3, 5, 0) else 'SOBOL_BURLEY'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.preview_samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
@@ -210,7 +210,7 @@ def apply_mi_stratified_properties(mi_context, mi_props):
     bl_stratified_props.jitter = mi_props.get('jitter', True)
     # Cycles properties
     # NOTE: There isn't any equivalent sampler in Blender. We use the default Sobol pattern.
-    bl_renderer.sampling_pattern = 'SOBOL'
+    bl_renderer.sampling_pattern = 'SOBOL' if bpy.app.version < (3, 5, 0) else 'SOBOL_BURLEY'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
     return True
@@ -228,7 +228,12 @@ def apply_mi_multijitter_properties(mi_context, mi_props):
     bl_multijitter_props.seed = mi_props.get('seed', 0)
     bl_multijitter_props.jitter = mi_props.get('jitter', True)
     # Cycles properties
-    bl_renderer.sampling_pattern = 'CORRELATED_MUTI_JITTER' if bpy.app.version < (3, 0, 0) else 'PROGRESSIVE_MULTI_JITTER'
+    if bpy.app.version < (3, 0, 0):
+        bl_renderer.sampling_pattern = 'CORRELATED_MUTI_JITTER'
+    elif bpy.app.version < (3, 5, 0):
+        bl_renderer.sampling_pattern = 'PROGRESSIVE_MULTI_JITTER'
+    else:
+        bl_renderer.sampling_pattern = 'TABULATED_SOBOL'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
     return True

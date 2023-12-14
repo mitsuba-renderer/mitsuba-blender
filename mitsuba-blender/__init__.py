@@ -22,7 +22,7 @@ import subprocess
 
 from . import io, engine
 
-DEPS_MITSUBA_VERSION = '3.0.1'
+DEPS_MITSUBA_VERSION = '3.4.1'
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
@@ -108,7 +108,7 @@ def ensure_pip():
 def check_pip_dependencies(context):
     prefs = get_addon_preferences(context)
     result = subprocess.run([sys.executable, '-m', 'pip', 'list'], capture_output=True)
-    
+
     prefs.has_pip_dependencies = False
     prefs.has_valid_dependencies_version = False
 
@@ -139,7 +139,7 @@ def update_additional_custom_paths(self, context):
         self.additional_path = build_path
         if self.additional_path not in os.environ['PATH']:
             os.environ['PATH'] += os.pathsep + self.additional_path
-        
+
         # Add path to python libs to sys.path
         self.additional_python_path = os.path.join(build_path, 'python')
         if self.additional_python_path not in sys.path:
@@ -161,7 +161,7 @@ class MITSUBA_OT_install_pip_dependencies(Operator):
         result = subprocess.run([sys.executable, '-m', 'pip', 'install', f'mitsuba=={DEPS_MITSUBA_VERSION}', '--force-reinstall'], capture_output=False)
         if result.returncode != 0:
             self.report({'ERROR'}, f'Failed to install Mitsuba with return code {result.returncode}.')
-            return {'CANCELLED'} 
+            return {'CANCELLED'}
 
         check_pip_dependencies(context)
 
@@ -280,7 +280,7 @@ class MitsubaPreferences(AddonPreferences):
         box.prop(self, 'using_mitsuba_custom_path', text=f'Use custom Mitsuba path (Supported version is v{DEPS_MITSUBA_VERSION})')
         if self.using_mitsuba_custom_path:
             box.prop(self, 'mitsuba_custom_path')
-        
+
 classes = (
     MITSUBA_OT_install_pip_dependencies,
     MitsubaPreferences,
