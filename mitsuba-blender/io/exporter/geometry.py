@@ -1,9 +1,8 @@
-import os
-import bpy
-
 from .materials import export_material
 from .export_context import Files
-
+from mathutils import Matrix
+import os
+import bpy
 
 def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     '''
@@ -123,44 +122,27 @@ def export_object(deg_instance, export_ctx, is_particle):
         else:
             transform = b_object.matrix_world
 
-
         if mat_count == 0: # No assigned material
-            converted_parts.append((
-                name_clean,
-                -1,
-                convert_mesh(export_ctx, b_mesh, transform, name_clean, 0)
-            ))
-        else:
-            refs_per_mat = {}
-            for mat_nr in range(mat_count):
-                mat = b_mesh.materials[mat_nr]
-                if not mat:
-                    continue
-
-                # Ensures that the exported mesh parts have unique names,
-                # even if multiple material slots refer to the same material.
-                n_mat_refs = refs_per_mat.get(mat.name, 0)
-                name = f'{name_clean}-{mat.name}'
-
-                if n_mat_refs >= 1:
-                    name += f'-{n_mat_refs:03d}'
-
+            converted_parts.append((-1, convert_mesh(export_ctx,
+                                                    b_mesh,
+                                                    transform,
+                                                    name_clean,
+                                                    0)))
+        for mat_nr in range(mat_count):
+            if b_mesh.materials[mat_nr]:
                 mts_mesh = convert_mesh(export_ctx,
                                         b_mesh,
                                         transform,
-                                        name,
+                                        f"{name_clean}-{b_mesh.materials[mat_nr].name}",
                                         mat_nr)
                 if mts_mesh is not None and mts_mesh.face_count() > 0:
-                    converted_parts.append((name, mat_nr, mts_mesh))
-                    refs_per_mat[mat.name] = n_mat_refs + 1
-
-                    if n_mat_refs == 0:
-                        # Only export this material once
-                        export_material(export_ctx, mat)
+                    converted_parts.append((mat_nr, mts_mesh))
+                    export_material(export_ctx, b_mesh.materials[mat_nr], b_object.name)
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
 
+        part_count = len(converted_parts)
         # Use a ShapeGroup for instances and split meshes
         use_shapegroup = is_instance or is_instance_emitter or is_particle
         # TODO: Check if shapegroups for split meshes is worth it
@@ -169,8 +151,12 @@ def export_object(deg_instance, export_ctx, is_particle):
                 'type': 'shapegroup'
             }
 
-        for (name, mat_nr, mts_mesh) in converted_parts:
-            name = name_clean if len(converted_parts) == 1 else name
+        for (mat_nr, mts_mesh) in converted_parts:
+            # Determine the file name
+            if part_count == 1:
+                name = f"{name_clean}"
+            else:
+                name = f"{name_clean}-{b_mesh.materials[mat_nr].name}"
             mesh_id = f"mesh-{name}"
 
             # Save as binary ply

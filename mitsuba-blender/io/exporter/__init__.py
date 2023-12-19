@@ -77,6 +77,7 @@ class SceneConverter:
         for object_instance in depsgraph.object_instances:
             window_manager.progress_update(progress_counter)
             progress_counter += 1
+            print(f"Progress: {progress_counter/len(depsgraph.object_instances)}")
 
             if self.use_selection:
                 #skip if it's not selected or if it's an instance and the parent object is not selected

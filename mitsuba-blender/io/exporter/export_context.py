@@ -79,6 +79,7 @@ class ExportContext:
             'shape': 'meshes',
             'spectrum': 'spectra'
                             }
+        self.texture_id = 0
 
 
     def data_add(self, mts_dict, name=''):
