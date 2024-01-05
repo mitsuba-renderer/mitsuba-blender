@@ -1,9 +1,7 @@
 import os
 import bpy
-
 from .materials import export_material
 from .export_context import Files
-
 
 def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     '''
@@ -104,10 +102,9 @@ def export_object(deg_instance, export_ctx, is_particle):
     # Remove spurious characters such as slashes
     name_clean = bpy.path.clean_name(b_object.name_full)
     object_id = f"mesh-{name_clean}"
-
+    export_ctx.log(f"Exporting object {name_clean}")
     is_instance_emitter = b_object.parent is not None and b_object.parent.is_instancer
     is_instance = deg_instance.is_instance
-
     # Only write to file objects that have never been exported before
     if export_ctx.data_get(object_id) is None:
         if b_object.type == 'MESH':
@@ -122,7 +119,6 @@ def export_object(deg_instance, export_ctx, is_particle):
             transform = None
         else:
             transform = b_object.matrix_world
-
 
         if mat_count == 0: # No assigned material
             converted_parts.append((
@@ -156,7 +152,7 @@ def export_object(deg_instance, export_ctx, is_particle):
 
                     if n_mat_refs == 0:
                         # Only export this material once
-                        export_material(export_ctx, mat)
+                        export_material(export_ctx, b_mesh.materials[mat_nr], b_object.name)
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
@@ -201,7 +197,12 @@ def export_object(deg_instance, export_ctx, is_particle):
                     export_ctx.data_add(default_bsdf)
                 params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
-                mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
+                # For each object to have a unique material to prevent inaccurate textures
+                # We must ID all the objects in a unique way.
+                if export_ctx.bake_materials and export_ctx.bake_mat_ids:
+                    mat_id = f"{name_clean}-{b_object.data.materials[mat_nr].name}"
+                else:
+                    mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
                 if export_ctx.exported_mats.has_mat(mat_id): # Add one emitter *and* one bsdf
                     mixed_mat = export_ctx.exported_mats.mats[mat_id]
                     params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}

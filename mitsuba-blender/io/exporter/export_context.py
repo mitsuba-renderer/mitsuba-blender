@@ -68,6 +68,11 @@ class ExportContext:
         self.counter = 0 # Counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
         self.export_ids = False # Export Object IDs in the XML file
+        self.bake_materials = False
+        self.bake_res_x = 1024
+        self.bake_res_y = 1024
+        self.bake_mat_ids = False
+        self.bake_again = True
         self.exported_ids = set()
         # All the args defined below are set in the Converter
         self.directory = ''
@@ -158,6 +163,13 @@ class ExportContext:
         image.save()
         image.filepath_raw = old_filepath
         return f"{self.subfolders['texture']}/{name}"
+
+    def blackbody(self, value):
+        param = {
+            "type" : "blackbody",
+            "temperature" : value
+        }
+        return param
 
     def spectrum(self, value, mode='rgb'):
         '''
