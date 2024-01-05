@@ -77,8 +77,7 @@ class SceneConverter:
         for object_instance in depsgraph.object_instances:
             window_manager.progress_update(progress_counter)
             progress_counter += 1
-            print(f"Progress: {progress_counter/len(depsgraph.object_instances)}")
-
+            
             if self.use_selection:
                 #skip if it's not selected or if it's an instance and the parent object is not selected
                 if not object_instance.is_instance and not object_instance.object.original.select_get():
@@ -94,7 +93,7 @@ class SceneConverter:
                 and evaluated_obj.parent and evaluated_obj.parent.original.hide_render):
                 self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
-            if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
+            if object_type in {'MESH', 'FONT', 'SURFACE', 'META'} and evaluated_obj.name in bpy.context.view_layer.objects:
                 geometry.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera

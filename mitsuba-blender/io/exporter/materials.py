@@ -4,30 +4,12 @@ from mathutils import Matrix
 from .export_context import Files
 from .nodes.material_evaluator import traverse
 import time
+import os.path
 
 RoughnessMode = {'GGX': 'ggx', 'BECKMANN': 'beckmann', 'ASHIKHMIN_SHIRLEY':'beckmann', 'MULTI_GGX':'ggx'}
 #TODO: update when other distributions are supported
 
 def export_texture_node(export_ctx, tex_node):
-    # params = {
-    #     'type':'bitmap'
-    # }
-    # output_name = f'texture_{export_ctx.texture_id}.exr'
-    # output_image = bpy.data.images.new(output_name, width=image.shape[0], height=image.shape[1])
-    # output_image.file_format = 'OPEN_EXR'
-    # output_image.filepath = output_name
-    # output_image.pixels = image.ravel()
-    # export_ctx.texture_id += 1
-    # #get the relative path to the copied texture from the full path to the original texture
-    # params['filename'] = export_ctx.export_texture(output_image)
-    # #TODO: texture transform (mapping node)
-    # if output_image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
-    #     #non color data, tell mitsuba not to apply gamma conversion to it
-    #     params['raw'] = True
-    # elif output_image.colorspace_settings.name != 'sRGB':
-    #     export_ctx.log("Mitsuba only supports sRGB textures for color data.", 'WARN')
-
-    # return params
     params = {
         'type':'bitmap'
     }
@@ -42,12 +24,81 @@ def export_texture_node(export_ctx, tex_node):
 
     return params
 
+def bake_color_by_obj_name(export_context, name, material_name, bsdf_name, socket_name, bake_option='Color'):
+    print(f"Baking texture for obj: {name} material: {material_name} socket: {socket_name}")
+    start = time.time()
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.context.scene.render.engine = 'CYCLES'
+    bpy.context.scene.cycles.device = 'GPU'
+    # Samples for texture baking. Could maybe reduced to 1
+    bpy.context.scene.cycles.samples = 64
+
+    obj = bpy.data.objects[name]
+    obj.select_set(True)
+    #Make UVS for all objects
+    # Disabled as it breaks some scenes
+    # bpy.ops.object.editmode_toggle()
+    # bpy.ops.mesh.select_all(action='SELECT')
+    # bpy.ops.uv.smart_project()
+    # bpy.ops.object.editmode_toggle()
+    
+    bpy.context.view_layer.objects.active = obj
+
+    image_name = f"{obj.name}_{bsdf_name}_{material_name}_{socket_name}"
+    textures_folder = os.path.join(export_context.directory, export_context.subfolders['texture'])
+    baked = False
+
+    if os.path.isfile(f"{textures_folder}/{image_name}.png") and not export_context.bake_again:
+        img = bpy.data.images.load(f"{textures_folder}/{image_name}.png")
+        img.name = image_name
+        baked=True
+    elif os.path.isfile(f"{textures_folder}/{image_name}.exr") and not export_context.bake_again:
+        img = bpy.data.images.load(f"{textures_folder}/{image_name}.exr")
+        img.name = image_name
+        baked = True
+    else:
+        img = bpy.data.images.new(image_name,export_context.bake_res_x,export_context.bake_res_y)
+        img.file_format = "OPEN_EXR"
+
+    mat = obj.data.materials[material_name]
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    texture_node = nodes.new('ShaderNodeTexImage')
+    texture_node.name = 'Bake_node'
+    texture_node.select = True
+    nodes.active = texture_node
+    texture_node.image = img
+
+    if baked:
+        print("Already baked")
+        return texture_node
+
+    if bake_option=='Color':
+        bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, save_mode='EXTERNAL')
+    elif bake_option=='Normal':
+        bpy.ops.object.bake(type='NORMAL')
+    elif bake_option == 'Float':
+        # Exports PNG all the time because of the Non-Color setting
+        img.colorspace_settings.name = 'Non-Color'
+        img.file_format = "OPEN_EXR"
+        bpy.ops.object.bake(type='EMIT', save_mode='EXTERNAL')
+    end = time.time()
+    export_context.log(f"Done baking, took: {end-start} seconds")
+    return texture_node
+
+# Returns the surface node for a given blender material.
+def get_surface_node(b_mat):
+    output_node_id = 'Material Output'
+    output_node = b_mat.node_tree.nodes[output_node_id]
+    surface_node = output_node.inputs["Surface"]
+    return surface_node
+
 def convert_float_texture_node(export_ctx, bsdf, mat, socket_input_name, obj_name):
     params = None
     socket = bsdf.inputs[socket_input_name]
 
     if socket.is_linked:
-        if True:
+        if export_ctx.bake_materials:
             # 1. copy original nodetree
             node_tree = mat.node_tree
             # Links to add after baking
@@ -57,35 +108,11 @@ def convert_float_texture_node(export_ctx, bsdf, mat, socket_input_name, obj_nam
             # 3. Get surface socket.
             surface_node = get_surface_node(mat)
             old_links.append((surface_node.links[0].from_socket, surface_node.links[0].to_socket))
-            # for link in node_tree.links:
-            #     #Connected to output
-            #     # bsdf -> surface
-            #     if link.to_socket.identifier == 'Surface' and link.to_node.bl_idname == 'ShaderNodeOutputMaterial':               
-            #         bsdf_name = link.from_node.bl_idname
-            #         #save location in case material has some links to unused bsdfs
-            #         location = link.from_node.location
-
-            #         old_links.append((link.from_socket, link.to_socket))
-
-            #         surface = link.to_socket
-            #         # new_links.append(new_link)
-            #         # node_tree.links.remove(link)
-            #         break
 
             # 4. connect the input of bsdf to surface
             node_tree.links.new(socket.links[0].from_socket, surface_node.links[0].to_socket)
-            # for link in node_tree.links:
-            #     # match the name of socket with previously found location and node name
-            #     # node graph -> bsdf
-            #     if link.to_node.location == location and link.to_node.bl_idname == bsdf_name and link.to_socket.identifier == socket_input_name:
-            #         # This link is not removed as it splits
-            #         # old_links.append((link.from_socket, link.to_socket))
-                    
-            #         node_tree.links.new(link.from_socket, surface)
-            #         # new_links.append(new_link)
-            #         # node_tree.links.remove(link)
-            #         break
-            tex_nodes = bake_color_by_obj_name(obj_name, mat.name, socket_input_name, bake_color=False)
+
+            tex_nodes = bake_color_by_obj_name(export_ctx, obj_name, mat.name, bsdf.name ,socket_input_name, bake_option='Float')
             params = export_texture_node(export_ctx, tex_nodes)
 
             # 5. restore old links this also removes newly added links
@@ -111,105 +138,35 @@ def convert_float_texture_node(export_ctx, bsdf, mat, socket_input_name, obj_nam
 
     return params
 
-def bake_color_by_obj_name(name, material_name, socket_name,bake_color=True):
-    print(f"Baking texture for obj: {name} material: {material_name} socket: {socket_name}")
-    start = time.time()
-    bpy.ops.object.select_all(action='DESELECT')
-    bpy.context.scene.render.engine = 'CYCLES'
-    bpy.context.scene.cycles.device = 'GPU'
-    # change back after? this should be samples for texture
-    bpy.context.scene.cycles.samples = 128
-
-    obj = bpy.data.objects[name]
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-
-    image_name = f"{obj.name}_{material_name}_{socket_name}_BakedTexture"
-    img = bpy.data.images.new(image_name,1024,1024)
-    img.file_format = "OPEN_EXR"
-
-    mat = obj.data.materials[material_name]
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    texture_node = nodes.new('ShaderNodeTexImage')
-    texture_node.name = 'Bake_node'
-    texture_node.select = True
-    nodes.active = texture_node
-    texture_node.image = img
-
-    if bake_color:
-        bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, save_mode='EXTERNAL')
-    else :
-        img.colorspace_settings.name = 'Non-Color'
-        img.file_format = "OPEN_EXR"
-        bpy.ops.object.bake(type='EMIT', save_mode='EXTERNAL')
-    end = time.time()
-    print(f"Done baking, took: {end-start} seconds")
-    # filename = f'/home/leauy/{image_name}_baked.exr'
-    # img.save_render(filepath=filename)
-    # After baking remove the node
-    return texture_node
-
-def get_surface_node(b_mat):
-    output_node_id = 'Material Output'
-    output_node = b_mat.node_tree.nodes[output_node_id]
-    surface_node = output_node.inputs["Surface"]
-    return surface_node
-def get_socket(b_mat, socket_input_name):
-    surface_link = get_surface_node(b_mat).links[0].from_node
-    return surface_link.inputs[socket_input_name]
-
 def convert_color_texture_node(export_ctx, bsdf, mat, socket_input_name, obj_name):
     params = None
     socket = bsdf.inputs[socket_input_name]
 
     if socket.is_linked:
-        if True:
+        if export_ctx.bake_materials:
+            if socket_input_name=='Normal':
+                export_ctx.log("Baking Normals")
+                tex_nodes = bake_color_by_obj_name(export_ctx, obj_name, mat.name, bsdf.name, socket_input_name, bake_option='Normal')
+                params = export_texture_node(export_ctx, tex_nodes)
+                bpy.data.images.remove(tex_nodes.image)
+                return params
             # 1. copy original nodetree
             node_tree = mat.node_tree
             # 2. create a new diffuse material
             diffuse_node = node_tree.nodes.new('ShaderNodeBsdfDiffuse')
             # Links to add after baking
             old_links = []
-            # Links to remove
-            new_links = []
 
             # 3. connect the diffuse material with output node instead of bsdf
             surface_node = get_surface_node(mat)
             old_links.append((surface_node.links[0].from_socket, surface_node.links[0].to_socket))
             node_tree.links.new(diffuse_node.outputs[0], surface_node.links[0].to_socket)
             
-            # for link in node_tree.links:
-            #     #Connected to output
-            #     # bsdf -> surface
-            #     if link.to_socket.identifier == 'Surface' and link.to_node.bl_idname == 'ShaderNodeOutputMaterial':               
-            #         bsdf_name = link.from_node.bl_idname
-            #         #save location in case material has some links to unused bsdfs
-            #         location = link.from_node.location
-
-            #         old_links.append((link.from_socket, link.to_socket))
-
-            #         node_tree.links.new(diffuse_node.outputs[0], link.to_socket)
-            #         # new_links.append(new_link)
-            #         # node_tree.links.remove(link)
-            #         break
-
             # 4. connect the input of bsdf to diffuse bsdf
             node_tree.links.new(socket.links[0].from_socket, diffuse_node.inputs['Color'])
-            # for link in node_tree.links:
-            #     # match the name of socket with previously found location and node name
-            #     # node graph -> bsdf
-            #     if link.to_node.location == location and link.to_node.bl_idname == bsdf_name and link.to_socket.identifier == socket_input_name:
-            #         # This link is not removed as it splits
-            #         # old_links.append((link.from_socket, link.to_socket))
-                    
-            #         node_tree.links.new(link.from_socket,diffuse_node.inputs['Color'])
-            #         # new_links.append(new_link)
-            #         # node_tree.links.remove(link)
-            #         break
-            tex_nodes = bake_color_by_obj_name(obj_name, mat.name, socket_input_name)
-            params = export_texture_node(export_ctx, tex_nodes)
 
+            tex_nodes = bake_color_by_obj_name(export_ctx, obj_name, mat.name, bsdf.name, socket_input_name)
+            params = export_texture_node(export_ctx, tex_nodes)
             # 5. restore old links this also removes new links
             for link in old_links:
                 node_tree.links.new(link[0], link[1])
@@ -238,31 +195,6 @@ def convert_color_texture_node(export_ctx, bsdf, mat, socket_input_name, obj_nam
         params = export_ctx.spectrum(socket.default_value)
 
     return params
-
-    # params = None
-    
-    # if socket.is_linked:
-    #     node = socket.links[0].from_node
-    #     node_result = traverse(socket)
-        
-    #     if len(node_result.shape) == 3:
-    #         params = export_texture_node(export_ctx, node_result)
-
-    #     elif len(node_result.shape) == 1:
-    #         #input rgb node
-    #         params = export_ctx.spectrum(node_result)
-    #     elif node.type == "VERTEX_COLOR":
-    #         params = {
-    #             'type': 'mesh_attribute',
-    #             'name': 'vertex_%s' % node.layer_name
-    #         }
-    #     else:
-    #         raise NotImplementedError("Node type %s is not supported. Only texture & RGB nodes are supported for color inputs" % node.type)
-
-    # else:
-    #     params = export_ctx.spectrum(socket.default_value)
-
-    # return params
 
 def two_sided_bsdf(bsdf):
     params = {
@@ -360,15 +292,22 @@ def convert_glass_materials_cycles(export_ctx, bsdf, b_mat, obj_name):
 
 def convert_emitter_materials_cycles(export_ctx, bsdf, b_mat, obj_name):
 
+    # Blackbody export. Currently disabled.
+    # if bsdf.inputs['Color'].is_linked and bsdf.inputs['Color'].links[0].from_node.bl_idname == 'ShaderNodeBlackbody':
+    #     params = {
+    #             'type': 'area',
+    #             'radiance': export_ctx.blackbody(bsdf.inputs['Color'].links[0].from_node.inputs['Temperature'].default_value),
+    #         }
+    #     export_ctx.log("Exporting blackbody emitter")
+    #     return params
+
     if  bsdf.inputs["Strength"].is_linked:
         raise NotImplementedError("Only default emitter strength value is supported.")#TODO: value input
-
     else:
         radiance = bsdf.inputs["Strength"].default_value
 
     if bsdf.inputs['Color'].is_linked:
         raise NotImplementedError("Only default emitter color is supported.")#TODO: rgb input
-
     else:
         radiance = [x * radiance for x in bsdf.inputs["Color"].default_value[:]]
         if np.sum(radiance) == 0:
@@ -461,10 +400,10 @@ def convert_principled_materials_cycles(export_ctx, bsdf, b_mat, obj_name):
     params = {}
     base_color = convert_color_texture_node(export_ctx, bsdf, b_mat, 'Base Color', obj_name)
     
-    specular = get_socket(b_mat, 'Specular').default_value
+    specular = bsdf.inputs['Specular'].default_value
     specular_tint = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Specular Tint', obj_name)
     specular_trans = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Transmission', obj_name)
-    ior = get_socket(b_mat, 'IOR').default_value
+    ior = bsdf.inputs['IOR'].default_value
     roughness = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Roughness', obj_name)
     metallic = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Metallic', obj_name)
     anisotropic = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Anisotropic', obj_name)
@@ -473,19 +412,20 @@ def convert_principled_materials_cycles(export_ctx, bsdf, b_mat, obj_name):
     clearcoat = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Clearcoat', obj_name)
     clearcoat_roughness = convert_float_texture_node(export_ctx, bsdf, b_mat, 'Clearcoat Roughness', obj_name)
 
-    params.update({
-        'type': 'principled',
-        'base_color': base_color,
-        'spec_tint': specular_tint,
-        'spec_trans': specular_trans,
-        'metallic': metallic,
-        'anisotropic': anisotropic,
-        'roughness': roughness,
-        'sheen': sheen,
-        'sheen_tint': sheen_tint,
-        'clearcoat': clearcoat,
-        'clearcoat_gloss': clearcoat_roughness
-    })
+    bsdf_params = {
+            'type': 'principled',
+            'base_color': base_color,
+            'spec_tint': specular_tint,
+            'spec_trans': specular_trans,
+            'metallic': metallic,
+            'anisotropic': anisotropic,
+            'roughness': roughness,
+            'sheen': sheen,
+            'sheen_tint': sheen_tint,
+            'clearcoat': clearcoat,
+            'clearcoat_gloss': clearcoat_roughness
+        }
+    
 
     # NOTE: Blender uses the 'specular' value for dielectric/metallic reflections and the
     #       'IOR' value for transmission. Mitsuba only has one value for both which can either
@@ -493,17 +433,28 @@ def convert_principled_materials_cycles(export_ctx, bsdf, b_mat, obj_name):
     #       'eta' value by Mitsuba).
     if type(specular_trans) is not float or specular_trans > 0:
         # Export 'eta' if the material has a transmission component
-        params.update({
+        bsdf_params.update({
             'eta': max(ior, 1+1e-3),
         })
         # Transmissive material should not be twosided
-        return params
     else:
         # Export 'specular' if the material is only reflective
-        params.update({
+        bsdf_params.update({
             'specular': max(specular, 1e-3)
         })
-        return two_sided_bsdf(params)
+        bsdf_params = two_sided_bsdf(bsdf_params)
+    
+    if bsdf.inputs['Normal'].is_linked:
+        normals = convert_color_texture_node(export_ctx, bsdf, b_mat, 'Normal', obj_name)
+        params.update({
+            'type': 'normalmap',
+            'normalmap': normals,
+            'bsdf' : bsdf_params
+        })
+    else:
+        params.update(bsdf_params)
+    
+    return params
 
 
 #TODO: Add more support for other materials: refraction, transparent, translucent
@@ -517,12 +468,11 @@ cycles_converters = {
     'ADD_SHADER': convert_add_materials_cycles,
 }
 
-def cycles_material_to_dict(export_ctx, b_mat, obj_name):
+def cycles_material_to_dict(export_ctx, surface_node, b_mat, obj_name):
     ''' Converting one material from Blender to Mitsuba dict'''
-    surface_node = get_surface_node(b_mat).links[0].from_node
+    
     if surface_node.type in cycles_converters:
         # Pass bsdf to export. No need to find bsdf later
-        print("Exporting Material")
         params = cycles_converters[surface_node.type](export_ctx, surface_node, b_mat, obj_name)
     else:
         raise NotImplementedError("Node type: %s is not supported in Mitsuba." % surface_node.type)
@@ -547,7 +497,9 @@ def b_material_to_dict(export_ctx, b_mat, obj_name):
                 # Save output node for baking
                 # output_node = b_mat.node_tree.nodes[output_node_id]
                 # surface_node = output_node.inputs["Surface"].links[0].from_node
-                mat_params = cycles_material_to_dict(export_ctx, b_mat, obj_name)
+                
+                surface_node = get_surface_node(b_mat).links[0].from_node
+                mat_params = cycles_material_to_dict(export_ctx, surface_node, b_mat, obj_name)
             else:
                 export_ctx.log(f'Export of material {b_mat.name} failed: Cannot find material output node. Exporting a dummy material instead.', 'WARN')
                 mat_params = get_dummy_material(export_ctx)
@@ -562,15 +514,23 @@ def b_material_to_dict(export_ctx, b_mat, obj_name):
 
 def export_material(export_ctx, material, obj_name):
     mat_params = {}
-
+    obj = bpy.data.objects[obj_name]
     if material is None:
         return mat_params
-
-    mat_id = "mat-%s" % material.name
-
+    
+    # Since we bake all materials export them as unique
+    if export_ctx.bake_materials and export_ctx.bake_mat_ids:
+        clean_name=bpy.path.clean_name(obj.name_full)
+        mat_id = f"{clean_name}-{material.name}"
+    else:
+        mat_id = "mat-%s" % material.name
+        
     # Fetch editable material here
-    obj = bpy.data.objects[obj_name]
-    mat = obj.data.materials[material.name]
+    # Lib materials make it tricky, ignore them if they are invisible in object data
+    if material.name in obj.data.materials:
+        mat = obj.data.materials[material.name]
+    else:
+        return mat_params
 
     mat_params = b_material_to_dict(export_ctx, mat, obj_name)
 

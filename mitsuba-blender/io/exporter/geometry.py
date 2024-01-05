@@ -103,10 +103,9 @@ def export_object(deg_instance, export_ctx, is_particle):
     # Remove spurious characters such as slashes
     name_clean = bpy.path.clean_name(b_object.name_full)
     object_id = f"mesh-{name_clean}"
-
+    print(f"Exporting object {name_clean}")
     is_instance_emitter = b_object.parent is not None and b_object.parent.is_instancer
     is_instance = deg_instance.is_instance
-
     # Only write to file objects that have never been exported before
     if export_ctx.data_get(object_id) is None:
         if b_object.type == 'MESH':
@@ -123,26 +122,42 @@ def export_object(deg_instance, export_ctx, is_particle):
             transform = b_object.matrix_world
 
         if mat_count == 0: # No assigned material
-            converted_parts.append((-1, convert_mesh(export_ctx,
-                                                    b_mesh,
-                                                    transform,
-                                                    name_clean,
-                                                    0)))
-        for mat_nr in range(mat_count):
-            if b_mesh.materials[mat_nr]:
+            converted_parts.append((
+                name_clean,
+                -1,
+                convert_mesh(export_ctx, b_mesh, transform, name_clean, 0)
+            ))
+        else:
+            refs_per_mat = {}
+            for mat_nr in range(mat_count):
+                mat = b_mesh.materials[mat_nr]
+                if not mat:
+                    continue
+
+                # Ensures that the exported mesh parts have unique names,
+                # even if multiple material slots refer to the same material.
+                n_mat_refs = refs_per_mat.get(mat.name, 0)
+                name = f'{name_clean}-{mat.name}'
+
+                if n_mat_refs >= 1:
+                    name += f'-{n_mat_refs:03d}'
+
                 mts_mesh = convert_mesh(export_ctx,
                                         b_mesh,
                                         transform,
-                                        f"{name_clean}-{b_mesh.materials[mat_nr].name}",
+                                        name,
                                         mat_nr)
                 if mts_mesh is not None and mts_mesh.face_count() > 0:
-                    converted_parts.append((mat_nr, mts_mesh))
-                    export_material(export_ctx, b_mesh.materials[mat_nr], b_object.name)
+                    converted_parts.append((name, mat_nr, mts_mesh))
+                    refs_per_mat[mat.name] = n_mat_refs + 1
+
+                    if n_mat_refs == 0:
+                        # Only export this material once
+                        export_material(export_ctx, b_mesh.materials[mat_nr], b_object.name)
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
 
-        part_count = len(converted_parts)
         # Use a ShapeGroup for instances and split meshes
         use_shapegroup = is_instance or is_instance_emitter or is_particle
         # TODO: Check if shapegroups for split meshes is worth it
@@ -151,12 +166,8 @@ def export_object(deg_instance, export_ctx, is_particle):
                 'type': 'shapegroup'
             }
 
-        for (mat_nr, mts_mesh) in converted_parts:
-            # Determine the file name
-            if part_count == 1:
-                name = f"{name_clean}"
-            else:
-                name = f"{name_clean}-{b_mesh.materials[mat_nr].name}"
+        for (name, mat_nr, mts_mesh) in converted_parts:
+            name = name_clean if len(converted_parts) == 1 else name
             mesh_id = f"mesh-{name}"
 
             # Save as binary ply
@@ -187,7 +198,12 @@ def export_object(deg_instance, export_ctx, is_particle):
                     export_ctx.data_add(default_bsdf)
                 params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
             else:
-                mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
+                # For each object to have a unique material to prevent inaccurate textures
+                # We must ID all the objects in a unique way.
+                if export_ctx.bake_materials and export_ctx.bake_mat_ids:
+                    mat_id = f"{name_clean}-{b_object.data.materials[mat_nr].name}"
+                else:
+                    mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
                 if export_ctx.exported_mats.has_mat(mat_id): # Add one emitter *and* one bsdf
                     mixed_mat = export_ctx.exported_mats.mats[mat_id]
                     params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}

@@ -8,9 +8,11 @@ if "bpy" in locals():
         importlib.reload(exporter)
 
 import bpy
+import time
 from bpy.props import (
         StringProperty,
         BoolProperty,
+        IntProperty,
     )
 from bpy_extras.io_utils import (
         ImportHelper,
@@ -104,6 +106,38 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    bake_materials: BoolProperty(
+        name = "Bake Materials",
+        description = "Bakes Materials into textures. Takes longer to export scenes. Make sure GPU is enabled in settings",
+        default = False
+    )
+    bake_mat_ids: BoolProperty(
+        name = "Unique Material IDs",
+        description = """If 'Bake Materials' is active bakes Materials with unique IDs. 
+            Each object will have a unique material in final XML and will have correct blender representation.
+            Otherwise some materials are reused and textures may be inaccurate""",
+        default = False
+    )
+
+    bake_again: BoolProperty(
+            name = "Bake textures again",
+            description = """If 'Bake Materials' is active, this will bake the already existing textures if enabled. 
+            This option allows to incrementally bake scene materials.""",
+            default = True
+    )
+
+    bake_res_x: IntProperty(
+        name = "Bake Resolution X",
+        description = "Resultion size of X coordinate in pixels. If \"Bake Materials\" is enabled will bake with this resolution",
+        default = 1024
+    )
+
+    bake_res_y: IntProperty(
+        name = "Bake Resolution Y",
+        description = "Resultion size of Y coordinate in pixels. If \"Bake Materials\" is enabled will bake with this resolution",
+        default = 1024
+    )
+
     def __init__(self):
         self.reset()
 
@@ -111,6 +145,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.converter = exporter.SceneConverter()
 
     def execute(self, context):
+        start = time.time()
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
 	            to_forward=self.axis_forward,
@@ -122,6 +157,12 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.converter.export_ctx.export_ids = self.export_ids
 
         self.converter.use_selection = self.use_selection
+        # Bake material feature options
+        self.converter.export_ctx.bake_materials = self.bake_materials
+        self.converter.export_ctx.bake_res_x = self.bake_res_x
+        self.converter.export_ctx.bake_res_y = self.bake_res_y
+        self.converter.export_ctx.bake_mat_ids = self.bake_mat_ids
+        self.converter.export_ctx.bake_again = self.bake_again
 
         # Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)
@@ -143,7 +184,8 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
         #reset the exporter
         self.reset()
-
+        end = time.time()
+        print(f"Export took {end-start}")
         return {'FINISHED'}
 
 
