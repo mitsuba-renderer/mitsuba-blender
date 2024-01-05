@@ -2,7 +2,6 @@ import numpy as np
 import bpy
 from mathutils import Matrix
 from .export_context import Files
-from .nodes.material_evaluator import traverse
 import time
 import os.path
 
@@ -495,8 +494,6 @@ def b_material_to_dict(export_ctx, b_mat, obj_name):
             output_node_id = 'Material Output'
             if output_node_id in b_mat.node_tree.nodes:
                 # Save output node for baking
-                # output_node = b_mat.node_tree.nodes[output_node_id]
-                # surface_node = output_node.inputs["Surface"].links[0].from_node
                 
                 surface_node = get_surface_node(b_mat).links[0].from_node
                 mat_params = cycles_material_to_dict(export_ctx, surface_node, b_mat, obj_name)

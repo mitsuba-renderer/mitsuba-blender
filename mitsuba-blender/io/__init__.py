@@ -185,7 +185,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         #reset the exporter
         self.reset()
         end = time.time()
-        print(f"Export took {end-start}")
+        self.converter.export_ctx.log(f"Export took {end-start}")
         return {'FINISHED'}
 
 

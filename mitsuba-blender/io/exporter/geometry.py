@@ -1,8 +1,7 @@
-from .materials import export_material
-from .export_context import Files
-from mathutils import Matrix
 import os
 import bpy
+from .materials import export_material
+from .export_context import Files
 
 def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     '''
@@ -103,7 +102,7 @@ def export_object(deg_instance, export_ctx, is_particle):
     # Remove spurious characters such as slashes
     name_clean = bpy.path.clean_name(b_object.name_full)
     object_id = f"mesh-{name_clean}"
-    print(f"Exporting object {name_clean}")
+    export_ctx.log(f"Exporting object {name_clean}")
     is_instance_emitter = b_object.parent is not None and b_object.parent.is_instancer
     is_instance = deg_instance.is_instance
     # Only write to file objects that have never been exported before

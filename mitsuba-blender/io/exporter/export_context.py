@@ -84,7 +84,6 @@ class ExportContext:
             'shape': 'meshes',
             'spectrum': 'spectra'
                             }
-        self.texture_id = 0
 
 
     def data_add(self, mts_dict, name=''):
@@ -197,7 +196,7 @@ class ExportContext:
             if any(type(value[i]) != type(value[i+1]) for i in range(len(value)-1)):
                 raise ValueError("Mixed types in spectrum entry %s" % value)
             totitems = len(value)
-            if  (value[0], (float, int)):
+            if isinstance(value[0], (float, int)):
                 if totitems == 3 or totitems == 4:
                     spec = {
                         'type': 'rgb',
