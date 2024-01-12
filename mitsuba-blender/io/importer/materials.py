@@ -247,6 +247,13 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
             write_mi_rgb_value(mi_context, list(mi_mat.get(mi_prop_name, default)), bl_mat_wrap, out_socket_id)
+        if mi_prop_type == Properties.Type.Float:
+            if mi_prop_name in mi_mat:
+                col_val = mi_mat.get(mi_prop_name)
+                col = [col_val, col_val, col_val]
+            else:
+                col = default
+            write_mi_rgb_value(mi_context, list(col), bl_mat_wrap, out_socket_id)
         elif mi_prop_type == Properties.Type.NamedReference:
             mi_texture_ref_id = mi_mat.get(mi_prop_name)
             mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
@@ -331,19 +338,42 @@ def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
 ######################
 
 def write_mi_principled_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    if bpy.app.version >= (4, 0, 0):
+        specular_key = 'Specular IOR Level'
+        transmission_key = 'Transmission Weight'
+        sheen_key = 'Sheen Weight'
+        clearcoat_key = 'Coat Weight'
+        clearcoat_roughness_key = 'Coat Roughness'
+    else:
+        specular_key = 'Specular'
+        transmission_key = 'Transmission'
+        sheen_key = 'Sheen'
+        clearcoat_key = 'Clearcoat'
+        clearcoat_roughness_key = 'Clearcoat Roughness'
+
+
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'base_color', bl_principled_wrap, 'Base Color', [0.8, 0.8, 0.8])
-    write_mi_float_property(mi_context, mi_mat, 'specular', bl_principled_wrap, 'Specular', 0.5)
-    write_mi_float_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', 0.0)
-    write_mi_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, 'Transmission', 0.0)
+    write_mi_float_property(mi_context, mi_mat, 'specular', bl_principled_wrap, specular_key, 0.5)
+    if bpy.app.version >= (4, 0, 0):
+        write_mi_rgb_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', [0.0, 0.0, 0.0])
+    else:
+        write_mi_float_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', 0.0)
+
+    write_mi_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, transmission_key, 0.0)
     write_mi_float_property(mi_context, mi_mat, 'metallic', bl_principled_wrap, 'Metallic', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'anisotropic', bl_principled_wrap, 'Anisotropic', 0.0)
     write_mi_roughness_property(mi_context, mi_mat, 'roughness', bl_principled_wrap, 'Roughness', 0.4)
-    write_mi_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, 'Sheen', 0.0)
-    write_mi_float_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', 0.5)
-    write_mi_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, 'Clearcoat', 0.0)
-    write_mi_roughness_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, 'Clearcoat Roughness', 0.03)
+    write_mi_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, sheen_key, 0.0)
+
+    if bpy.app.version >= (4, 0, 0):
+        write_mi_rgb_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', [0.5, 0.5, 0.5])
+    else:
+        write_mi_float_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', 0.5)
+
+    write_mi_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, clearcoat_key, 0.0)
+    write_mi_roughness_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, clearcoat_roughness_key, 0.03)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_principled_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
