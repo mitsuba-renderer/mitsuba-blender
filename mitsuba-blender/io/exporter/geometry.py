@@ -26,7 +26,9 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
         'type': 'blender',
         'version': ".".join(map(str,bpy.app.version))
     }
-    b_mesh.calc_normals()
+
+    if bpy.app.version < (4, 0, 0):
+        b_mesh.calc_normals()
     # Compute the triangle tesselation
     b_mesh.calc_loop_triangles()
 
