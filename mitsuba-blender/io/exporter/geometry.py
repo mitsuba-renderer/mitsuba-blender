@@ -127,11 +127,9 @@ def export_object(deg_instance, export_ctx, is_particle):
 
 
         if mat_count == 0: # No assigned material
-            converted_parts.append((
-                name_clean,
-                -1,
-                convert_mesh(export_ctx, b_mesh, transform, name_clean, 0)
-            ))
+            mts_mesh = convert_mesh(export_ctx, b_mesh, transform, name_clean, 0)
+            if mts_mesh is not None and mts_mesh.face_count() > 0:
+                converted_parts.append((name_clean, -1, mts_mesh))
         else:
             refs_per_mat = {}
             for mat_nr in range(mat_count):
