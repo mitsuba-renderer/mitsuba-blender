@@ -10,7 +10,7 @@ if "bpy" in locals():
         importlib.reload(mi_props_utils)
     if "textures" in locals():
         importlib.reload(textures)
-    
+
 import bpy
 
 from . import bl_shader_utils
@@ -325,7 +325,7 @@ def write_mi_bump_and_normal_maps(mi_context, bl_mat_wrap, out_socket_id, mi_bum
 def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
     bl_add = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeAddShader', 'Shader')
     bl_add_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_add)
-    
+
     bl_emissive = bl_add_wrap.ensure_node_type(['Shader'], 'ShaderNodeEmission', 'Emission')
     radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get('radiance'), [1.0, 1.0, 1.0])
     bl_emissive.inputs['Color'].default_value = bl_shader_utils.rgb_to_rgba(radiance)
@@ -407,8 +407,10 @@ def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bu
 def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
-    # FIXME: Is this the correct distribution ?
-    bl_glass.distribution = 'SHARP'
+    if bpy.app.version < (4, 0, 0):
+        bl_glass.distribution = 'SHARP'
+    else:
+        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
     # Write normal and bump maps
@@ -429,7 +431,10 @@ def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id
 def write_mi_thindielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
-    bl_glass.distribution = 'SHARP'
+    if bpy.app.version < (4, 0, 0):
+        bl_glass.distribution = 'SHARP'
+    else:
+        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
     bl_glass.inputs['IOR'].default_value = 1.0
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
     # Write normal and bump maps
@@ -453,7 +458,10 @@ def write_mi_blend_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=
 def write_mi_conductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
-    bl_glossy.distribution = 'SHARP'
+    if bpy.app.version < (4, 0, 0):
+        bl_glossy.distribution = 'SHARP'
+    else:
+        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.0)
     reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
     write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     # Write normal and bump maps
@@ -487,7 +495,7 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
     write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
 
-# FIXME: The plastic and roughplastic don't have simple equivalent in Blender. We rely on a 
+# FIXME: The plastic and roughplastic don't have simple equivalent in Blender. We rely on a
 #        crude approximation using a Disney principled shader.
 def write_mi_plastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
@@ -524,7 +532,7 @@ def write_mi_bumpmap_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bum
         return False
     child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
     assert len(child_mats) == 1
-    
+
     write_mi_material_to_node_graph(mi_context, child_mats[0], bl_mat_wrap, out_socket_id, mi_bump=mi_mat, mi_normal=mi_normal)
     return True
 
@@ -608,11 +616,11 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
         mi_context.log(f'Mitsuba BSDF type "{mat_type}" not supported. Skipping.', 'WARN')
         write_bl_error_material(bl_mat_wrap, out_socket_id)
         return
-    
+
     if is_within_twosided and mat_type == 'twosided':
         mi_context.log('Cannot have nested twosided materials.', 'ERROR')
         return
-    
+
     if not is_within_twosided and mat_type != 'twosided' and mat_type not in _always_twosided_bsdfs:
         # Write one-sided material
         write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat=mi_mat, mi_back_mat=None, mi_bump=mi_bump, mi_normal=mi_normal)
@@ -622,7 +630,7 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
 
 def mi_material_to_bl_material(mi_context, mi_mat, mi_emitter=None):
     ''' Create a Blender node tree representing a given Mitsuba material
-    
+
     Params
     ------
     mi_context : Mitsuba import context
@@ -639,7 +647,7 @@ def mi_material_to_bl_material(mi_context, mi_mat, mi_emitter=None):
     bl_mat = bpy.data.materials.new(name=mi_mat.id())
     bl_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat, init_empty=True)
     out_socket_id = 'Surface'
-    
+
     # If the material is emissive, write the emission shader
     if mi_emitter is not None:
         old_bl_mat_wrap = bl_mat_wrap
@@ -654,5 +662,5 @@ def mi_material_to_bl_material(mi_context, mi_mat, mi_emitter=None):
 
     # Format the shader node graph
     bl_mat_wrap.format_node_tree()
-    
+
     return bl_mat
