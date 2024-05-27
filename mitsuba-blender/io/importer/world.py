@@ -6,7 +6,7 @@ if "bpy" in locals():
         importlib.reload(mi_spectra_utils)
     if "bl_image_utils" in locals():
         importlib.reload(bl_image_utils)
-    
+
 import bpy
 
 from mathutils import Color
@@ -25,7 +25,7 @@ def write_mi_srgb_emitter_spectrum(mi_context, mi_obj, bl_world_wrap, radiance_s
     bl_world_wrap.out_node.inputs[strength_socket_id].default_value = strength
 
 _emitter_spectrum_object_writers = {
-    'SRGBEmitterSpectrum': write_mi_srgb_emitter_spectrum
+    'SRGBReflectanceSpectrum': write_mi_srgb_emitter_spectrum
 }
 
 def write_mi_emitter_spectrum_object(mi_context, mi_obj, bl_world_wrap, radiance_socket_id, strength_socket_id, default=None):
@@ -113,7 +113,7 @@ def write_mi_emitter_to_node_graph(mi_context, mi_emitter, bl_world_wrap, out_so
 
 def mi_emitter_to_bl_world(mi_context, mi_emitter):
     ''' Create a Blender node tree representing a given Mitsuba emitter
-    
+
     Params
     ------
     mi_context : Mitsuba import context
