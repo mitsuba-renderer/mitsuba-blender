@@ -1,4 +1,6 @@
 import time
+import os
+import xml.etree.ElementTree as ET
 
 if "bpy" in locals():
     import importlib
@@ -50,8 +52,34 @@ def _convert_named_references(mi_context, mi_props, parent_node, type_filter=[])
             if child_node is not None:
                 parent_node.add_child(child_node)
 
+def resolve_paths(filename, defaults={}):
+    if filename.startswith('$'):
+        filename = defaults[filename[1:]]
+    import mitsuba
+    fs = mitsuba.Thread.thread().file_resolver()
+    filename = str(fs.resolve(filename))
+    if os.path.dirname(filename) not in fs:
+        fs.prepend(os.path.dirname(filename))
+
+    tree = ET.parse(str(fs.resolve(filename)))
+    for child in tree.getroot():
+        if child.tag == 'default':
+            defaults[child.attrib['name']] = child.attrib['value']
+        elif child.tag == 'path':
+            new_path = child.attrib['value']
+            if not os.path.isabs(new_path):
+                new_path = os.path.abspath(os.path.join(os.path.dirname(filename), new_path))
+                if not os.path.exists(new_path):
+                    new_path = fs.resolve(child.attrib['value'])
+            if not os.path.exists(new_path):
+                raise ValueError(f'Path "{new_path}" does not exist.')
+            fs.prepend(new_path)
+        elif child.tag == 'include':
+            resolve_paths(str(fs.resolve(child.attrib['filename'])), defaults)
+
+
 ########################
-##  Scene convertion  ##
+##  Scene conversion  ##
 ########################
 
 def mi_scene_to_bl_node(mi_context, mi_props):
@@ -116,7 +144,7 @@ def mi_bsdf_to_bl_node(mi_context, mi_props, mi_emitter=None):
     node = common.create_blender_node(common.BlenderNodeType.MATERIAL, id=mi_props.id())
     # Parse referenced textures to ensure they are loaded before we parse the material
     _convert_named_references(mi_context, mi_props, node, type_filter=['Texture'])
-    
+
     if mi_emitter is None:
         # If the BSDF is not emissive, we can look for it in the cache.
         bl_material = mi_context.get_bl_material(mi_props.id())
@@ -148,7 +176,7 @@ def mi_emitter_to_bl_node(mi_context, mi_props):
         _convert_named_references(mi_context, mi_props, node)
 
         bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
-        
+
         node.obj_type = common.BlenderObjectNodeType.LIGHT
         node.bl_data = bl_light
         node.world_matrix = world_matrix
@@ -156,7 +184,7 @@ def mi_emitter_to_bl_node(mi_context, mi_props):
 
 def mi_shape_to_bl_node(mi_context, mi_props):
     node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
-    
+
     mi_mats = mi_props_utils.named_references_with_class(mi_context, mi_props, 'BSDF')
     assert len(mi_mats) == 1
     mi_emitters = mi_props_utils.named_references_with_class(mi_context, mi_props, 'Emitter')
@@ -167,7 +195,7 @@ def mi_shape_to_bl_node(mi_context, mi_props):
 
     # Convert the shape
     bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
-    
+
     node.obj_type = common.BlenderObjectNodeType.SHAPE
     node.bl_data = bl_shape
     node.world_matrix = world_matrix
@@ -188,7 +216,7 @@ def mi_texture_to_bl_node(mi_context, mi_props):
         if bl_image is None:
             return None
         mi_context.register_bl_image(mi_props.id(), bl_image)
-    
+
     node.bl_image = bl_image
     return node
 
@@ -228,7 +256,7 @@ def instantiate_bl_scene_node(mi_context, bl_node):
 def instantiate_bl_shape_object_node(mi_context, bl_node):
     bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
     bl_obj.matrix_world = bl_node.world_matrix
-    
+
     shape_has_material = False
     for child_node in bl_node.children:
         # NOTE: Mitsuba shapes support only one BSDF
@@ -365,7 +393,7 @@ def instantiate_bl_data_node(mi_context, bl_node):
 
 def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
-    
+
     Params
     ------
     bl_context: Blender context
@@ -376,8 +404,9 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     '''
     start_time = time.time()
     # Load the Mitsuba XML and extract the objects' properties
-    from mitsuba import xml_to_props
+    from mitsuba import xml_to_props, Thread
     raw_props = xml_to_props(filepath)
+    resolve_paths(filepath)
     mi_scene_props = common.MitsubaSceneProperties(raw_props)
     mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_scene_props, global_mat)
 
@@ -386,7 +415,7 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     if bl_scene_data_node is None:
         mi_context.log('Failed to load Mitsuba scene', 'ERROR')
         return
-    
+
     # Initialize the Mitsuba renderer inside of Blender
     renderer.init_mitsuba_renderer(mi_context)
 
@@ -397,7 +426,7 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     # Instantiate a default Blender world if none was created
     if mi_context.bl_scene.world is None:
         mi_context.bl_scene.world = world.create_default_bl_world()
-    
+
     # Check that every property was accessed at least once as a sanity check
     for cls, prop in mi_scene_props:
         _check_unqueried_props(mi_context, cls, prop)

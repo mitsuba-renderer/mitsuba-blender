@@ -111,7 +111,7 @@ def apply_mi_integrator_properties(mi_context, mi_props, bl_integrator_props=Non
     if mi_integrator_type not in _mi_integrator_properties_converters:
         mi_context.log(f'Mitsuba Integrator "{mi_integrator_type}" is not supported.', 'ERROR')
         return False
-    
+
     return _mi_integrator_properties_converters[mi_integrator_type](mi_context, mi_props, bl_integrator_props)
 
 ##########################
@@ -171,7 +171,7 @@ def apply_mi_rfilter_properties(mi_context, mi_props):
     if mi_rfilter_type not in _mi_rfilter_properties_converters:
         mi_context.log(f'Mitsuba Reconstruction Filter "{mi_rfilter_type}" is not supported.', 'ERROR')
         return False
-    
+
     return _mi_rfilter_properties_converters[mi_rfilter_type](mi_context, mi_props)
 
 ##########################
@@ -249,7 +249,7 @@ def apply_mi_sampler_properties(mi_context, mi_props):
     if mi_sampler_type not in _mi_sampler_properties_converters:
         mi_context.log(f'Mitsuba Sampler "{mi_sampler_type}" is not supported.', 'ERROR')
         return False
-    
+
     return _mi_sampler_properties_converters[mi_sampler_type](mi_context, mi_props)
 
 #######################
@@ -287,7 +287,7 @@ def apply_mi_film_properties(mi_context, mi_props):
     if mi_film_type not in _mi_film_properties_converters:
         mi_context.log(f'Mitsuba Film "{mi_film_type}" is not supported.', 'ERROR')
         return False
-    
+
     return _mi_film_properties_converters[mi_film_type](mi_context, mi_props)
 
 ###########################

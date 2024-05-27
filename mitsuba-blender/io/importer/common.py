@@ -202,6 +202,8 @@ class MitsubaSceneProperties:
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
     def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_scene_props, axis_matrix):
+        from mitsuba import Thread
+
         self.bl_context = bl_context
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
@@ -212,6 +214,7 @@ class MitsubaSceneImportContext:
         self.axis_matrix_inv = axis_matrix.inverted()
         self.bl_material_cache = {}
         self.bl_image_cache = {}
+        self.fs = Thread.thread().file_resolver()
 
     def log(self, message, level='INFO'):
         '''
@@ -242,7 +245,7 @@ class MitsubaSceneImportContext:
         return self.axis_matrix_inv @ matrix
 
     def resolve_scene_relative_path(self, path):
-        abs_path = os.path.join(self.directory, path)
+        abs_path = str(self.fs.resolve(path))
         if not os.path.exists(abs_path):
             self.log(f'Cannot resolve scene relative path "{path}".', 'ERROR')
             return None
