@@ -275,9 +275,6 @@ def instantiate_bl_shape_object_node(mi_context, bl_node):
     return True
 
 def instantiate_bl_camera_object_node(mi_context, bl_node):
-    # FIXME: Move this for delayed instantiation as the whole scene needs to
-    #        be created in order to support multiple camera settings.
-    # FIXME: Handle child nodes
     bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
     bl_obj.matrix_world = bl_node.world_matrix
 
@@ -343,7 +340,10 @@ _bl_properties_node_instantiators = {
 }
 
 def instantiate_bl_properties_node(mi_context, bl_node):
+
     node_prop_type = bl_node.prop_type
+    if node_prop_type != common.BlenderPropertiesNodeType.INTEGRATOR and type(bl_node.parent) == common.BlenderSceneNode:
+        return True
     if node_prop_type not in _bl_properties_node_instantiators:
         mi_context.log(f'Unknown Blender property node type "{node_prop_type}".', 'ERROR')
         return False
