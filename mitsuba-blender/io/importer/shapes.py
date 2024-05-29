@@ -65,6 +65,34 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
 
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
+def mi_serialized_to_bl_shape(mi_context, mi_shape):
+    from mitsuba import load_dict
+    import tempfile
+    import os
+    assert mi_shape.has_property('filename')
+
+    filename = mi_shape['filename']
+    abs_path = mi_context.resolve_scene_relative_path(filename)
+
+    # Save as a temporary .PLY file
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_mesh = load_dict({'type': 'serialized', 'filename': abs_path, 'shape_index': mi_shape['shape_index']})
+        tmp_filename = os.path.join(tmp_dir, 'shape.ply')
+        tmp_mesh.write_ply(tmp_filename)
+        # Load .PLY mesh from temporary file
+        bl_mesh = bl_import_ply.load_ply_mesh(tmp_filename, mi_shape.id())
+
+    if not bl_mesh:
+        mi_context.log(f'Cannot load serialized mesh file "{filename}".', 'ERROR')
+        return None
+
+    # Set face normals if requested
+    _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
+
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
+
 def mi_obj_to_bl_shape(mi_context, mi_shape):
     start_time = time.time()
 
@@ -170,6 +198,7 @@ def mi_cube_to_bl_shape(mi_context, mi_shape):
 
 _shape_converters = {
     'ply': mi_ply_to_bl_shape,
+    'serialized': mi_serialized_to_bl_shape,
     'obj': mi_obj_to_bl_shape,
     'sphere': mi_sphere_to_bl_shape,
     'disk': mi_disk_to_bl_shape,
