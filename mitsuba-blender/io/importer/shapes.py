@@ -35,7 +35,8 @@ def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
     if flat_shading:
         bl_mesh.polygons.foreach_set('use_smooth', [False] * len(bl_mesh.polygons))
     else:
-        bl_mesh.calc_normals()
+        if bpy.app.version < (4, 0, 0):
+            bl_mesh.calc_normals()
         bl_mesh.polygons.foreach_set('use_smooth', [True] * len(bl_mesh.polygons))
     if flip_normals:
         bl_mesh.flip_normals()
@@ -56,7 +57,35 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
     if not bl_mesh:
         mi_context.log(f'Cannot load PLY mesh file "{filename}".', 'ERROR')
         return None
-    
+
+    # Set face normals if requested
+    _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
+
+    world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+
+    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
+
+def mi_serialized_to_bl_shape(mi_context, mi_shape):
+    from mitsuba import load_dict
+    import tempfile
+    import os
+    assert mi_shape.has_property('filename')
+
+    filename = mi_shape['filename']
+    abs_path = mi_context.resolve_scene_relative_path(filename)
+
+    # Save as a temporary .PLY file
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_mesh = load_dict({'type': 'serialized', 'filename': abs_path, 'shape_index': mi_shape['shape_index']})
+        tmp_filename = os.path.join(tmp_dir, 'shape.ply')
+        tmp_mesh.write_ply(tmp_filename)
+        # Load .PLY mesh from temporary file
+        bl_mesh = bl_import_ply.load_ply_mesh(tmp_filename, mi_shape.id())
+
+    if not bl_mesh:
+        mi_context.log(f'Cannot load serialized mesh file "{filename}".', 'ERROR')
+        return None
+
     # Set face normals if requested
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
 
@@ -141,7 +170,7 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
     bl_bmesh.free()
 
     _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
-    
+
     # FIXME: The world matrix seems off
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
 
@@ -169,6 +198,7 @@ def mi_cube_to_bl_shape(mi_context, mi_shape):
 
 _shape_converters = {
     'ply': mi_ply_to_bl_shape,
+    'serialized': mi_serialized_to_bl_shape,
     'obj': mi_obj_to_bl_shape,
     'sphere': mi_sphere_to_bl_shape,
     'disk': mi_disk_to_bl_shape,
@@ -181,7 +211,7 @@ def mi_shape_to_bl_shape(mi_context, mi_shape):
     if shape_type not in _shape_converters:
         mi_context.log(f'Mitsuba Shape type "{shape_type}" not supported.', 'ERROR')
         return None
-    
+
     # Create the Blender object
     bl_mesh, world_matrix = _shape_converters[shape_type](mi_context, mi_shape)
 
