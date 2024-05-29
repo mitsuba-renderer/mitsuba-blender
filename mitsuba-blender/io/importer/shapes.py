@@ -35,7 +35,8 @@ def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
     if flat_shading:
         bl_mesh.polygons.foreach_set('use_smooth', [False] * len(bl_mesh.polygons))
     else:
-        bl_mesh.calc_normals()
+        if bpy.app.version < (4, 0, 0):
+            bl_mesh.calc_normals()
         bl_mesh.polygons.foreach_set('use_smooth', [True] * len(bl_mesh.polygons))
     if flip_normals:
         bl_mesh.flip_normals()
@@ -56,7 +57,7 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
     if not bl_mesh:
         mi_context.log(f'Cannot load PLY mesh file "{filename}".', 'ERROR')
         return None
-    
+
     # Set face normals if requested
     _set_bl_mesh_shading(bl_mesh, mi_shape.get('face_normals', False))
 
@@ -141,7 +142,7 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
     bl_bmesh.free()
 
     _set_bl_mesh_shading(bl_mesh, flip_normals=mi_shape.get('flip_normals', False))
-    
+
     # FIXME: The world matrix seems off
     world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None))
 
@@ -181,7 +182,7 @@ def mi_shape_to_bl_shape(mi_context, mi_shape):
     if shape_type not in _shape_converters:
         mi_context.log(f'Mitsuba Shape type "{shape_type}" not supported.', 'ERROR')
         return None
-    
+
     # Create the Blender object
     bl_mesh, world_matrix = _shape_converters[shape_type](mi_context, mi_shape)
 
