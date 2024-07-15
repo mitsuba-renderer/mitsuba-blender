@@ -43,8 +43,8 @@ def convert_area_light(b_light, export_ctx):
     emitter = {
         'type': 'area'
     }
-    # Conversion factor used in Cycles, to convert to irradiance (don't ask me why)
-    conv_fac = 1.0 / (area * 4.0)
+    # Conversion factor to convert power to radiance.
+    conv_fac = 1.0 / (area * np.pi)
     emitter['radiance'] = export_ctx.spectrum(conv_fac * b_light.data.energy * b_light.data.color)
     params['emitter'] = emitter
 
