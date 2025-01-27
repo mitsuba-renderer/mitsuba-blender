@@ -1,0 +1,101 @@
+{
+    "direct" : {
+        "label" : "direct",
+        "description" : "Direct illumination integrator with multi-importance sampling.",
+        "parameters" : {
+            "hide_emitters" : {
+                "label" : "Hide Emitters",
+                "description" : "Hide directly visible emitters.",
+                "type" : "boolean",
+                "default" : false
+            }
+        }
+    },
+    "path" : {
+        "label" : "path",
+        "description" : "Standard Mitsuba path tracer.",
+        "parameters" : {
+            "max_depth" : {
+                "label" : "Max. Depth",
+                "description" : "Longest path depth.",
+                "type"  : "integer",
+                "default" : -1,
+                "min" : -1
+            },
+            "rr_depth" : {
+                "label" : "Russian Roulette Depth",
+                "description" : "Minimum path depth at which russian roulette is used.",
+                "type"  : "integer",
+                "default" : 5,
+                "min" : 0
+            },
+            "hide_emitters" : {
+                "label" : "Hide Emitters",
+                "description" : "Hide directly visible emitters.",
+                "type" : "boolean",
+                "default" : false
+            }
+        }
+    },
+    "aov" : {
+        "label" : "AOVs",
+        "description" : "This integrator returns one or more AOVs (Arbitraty Output Variables) describing the visible surfaces.",
+        "parameters" : {
+            "aovs" : {
+                "label" : "Variables",
+                "description" : "Variables to render.",
+                "type" : "list",
+                "values_type" : "string",
+                "choices" : {
+                    "depth" : "Depth",
+                    "position" : "Position",
+                    "uv" : "UV Coordinates",
+                    "geo_normal" : "Geometric Normals",
+                    "sh_normal" : "Shading Normals",
+                    "dp_du" : "Position Partial Derivative w.r.t. U",
+                    "dp_dv" : "Position Partial Derivative w.r.t. V",
+                    "duv_dx" : "UV Partial Derivative w.r.t. X",
+                    "duv_dy" : "UV Partial Derivative w.r.t. Y"
+
+                },
+                "default" : []
+            },
+            "integrators" : {
+                "label" : "Integrators",
+                "description" : "Integrators to sample along the AOVs.",
+                "type" : "list",
+                "values_type" : "integrator",
+                "default" : []
+            }
+        }
+    },
+    "moment" : {
+        "label" : "moment",
+        "description" : "Returns one AOVs recording the second moment of the samples of the nested integrator.",
+        "parameters" : {
+            "integrators" : {
+                "label" : "Integrators",
+                "description" : "Integrators to sample.",
+                "type" : "list",
+                "values_type" : "integrator",
+                "default" : []
+            }
+        }
+    },
+    "stokes" : {
+        "label" : "stokes",
+        "description" : "Returns a multi-channel image describing the complete measured polarization state at the sensor.",
+        "parameters" : {
+            "integrator" : {
+                "label" : "Integrator",
+                "description" : "Integrator to sample.",
+                "type" : "integrator"
+            }
+        }
+    },
+    "depth" : {
+        "label": "Depth Integrator",
+        "description": "Returns the per-pixel distances to the intersected objects.",
+        "parameters": {}
+    }
+}
