@@ -23,7 +23,8 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
     # Use Eevee nodes in look dev ("MATERIAL") shading mode in the viewport.
     bl_use_eevee_viewport = False
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.viewport = MitsubaViewportEngine(self)
 
     def render(self, depsgraph):
