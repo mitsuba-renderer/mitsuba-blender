@@ -11,7 +11,6 @@ from mathutils import Matrix
 
 from . import materials
 from . import geometry
-from . import curves
 from . import lights
 from . import camera
 from . import world
@@ -127,8 +126,6 @@ class SceneConverter:
                 continue # Ignore it since we don't want it rendered (TODO: hide_viewport)
             if obj.type in { 'MESH', 'FONT', 'SURFACE', 'META', 'POINTCLOUD' }:
                 geometry.export_object(self.ctx, instance, instance.object.name in particles)
-            elif obj.type == 'CURVES':
-                curves.export_hair_curves(self.ctx, instance)
             elif obj.type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
                 if (self.render and instance.object.name_full == self.ctx.b_scene.camera.name_full) or not self.render:
@@ -139,9 +136,6 @@ class SceneConverter:
                 continue
             else:
                 logging.warn("Object: %s of type '%s' is not supported!" % (obj.name_full, obj.type))
-
-        # import rich
-        # rich.print(dict(self.ctx.scene_dict))
 
         return self.ctx.scene_dict
 
@@ -159,7 +153,6 @@ class ExportContext:
         'texture':  'textures',
         'emitter':  'textures',
         'shape':    'meshes',
-        'curve':    'curves',
         'spectrum': 'spectra'
     }
 
@@ -190,7 +183,6 @@ class ExportContext:
         self.use_selection = False
         self.export_ids = False # Export Object IDs in the XML file
         self.export_assets = not self.render
-        self.export_curves = True
         self.export_default_background = True
 
     def sanatize_id(self, id):

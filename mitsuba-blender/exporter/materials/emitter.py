@@ -12,6 +12,7 @@ def convert_emitter_materials_cycles(ctx, current_node, extra):
         raise NotImplementedError("Only default emitter color is supported.") #TODO: rgb input
 
     else:
+        import numpy as np
         radiance = [x * radiance for x in current_node.inputs["Color"].default_value[:]]
         if np.sum(radiance) == 0:
             logging.warn("Emitter has zero emission, this will case mitsuba to fail! Ignoring it.")

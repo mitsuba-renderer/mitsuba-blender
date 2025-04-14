@@ -41,12 +41,6 @@ class ExportMitsubaBase(bpy.types.Operator, ExportHelper):
         default = True
     )
 
-    export_curves: BoolProperty(
-        name = "Export curves",
-        description = "If false, won't export the particle system curves",
-        default = False
-    )
-
     def __init__(self):
         self.reset()
 
@@ -72,7 +66,6 @@ class ExportMitsubaBase(bpy.types.Operator, ExportHelper):
         ctx.use_selection = self.use_selection
         ctx.export_default_background = not self.ignore_default_background
         ctx.export_assets = self.export_assets
-        ctx.export_curves = self.export_curves
 
         self.converter.set_path(self.filepath)
 

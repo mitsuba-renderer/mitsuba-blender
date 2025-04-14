@@ -482,11 +482,11 @@ def write_mi_plastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bum
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_principled_wrap, 'IOR', 1.49)
-    bl_principled.inputs['Specular'].default_value = 0.2
-    bl_principled.inputs['Specular Tint'].default_value = 1.0
+    bl_principled.inputs['Specular IOR Level'].default_value = 0.2
+    bl_principled.inputs['Specular Tint'].default_value = [1.0, 1.0, 1.0, 1.0]
     bl_principled.inputs['Roughness'].default_value = 0.0
-    bl_principled.inputs['Clearcoat'].default_value = 0.8
-    bl_principled.inputs['Clearcoat Roughness'].default_value = 0.0
+    bl_principled.inputs['Coat Weight'].default_value = 0.8
+    bl_principled.inputs['Coat Roughness'].default_value = 0.0
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_principled_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -497,11 +497,11 @@ def write_mi_roughplastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, m
     write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_principled_wrap, 'IOR', 1.49)
     write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Roughness', 0.1)
-    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Clearcoat Roughness', 0.1)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_principled_wrap, 'Coat Roughness', 0.1)
     bl_principled.distribution = mi_microfacet_to_bl_microfacet(mi_context, 'ggx')
-    bl_principled.inputs['Specular'].default_value = 0.2
-    bl_principled.inputs['Specular Tint'].default_value = 1.0
-    bl_principled.inputs['Clearcoat'].default_value = 0.8
+    bl_principled.inputs['Specular IOR Level'].default_value = 0.2
+    bl_principled.inputs['Specular Tint'].default_value = [1.0, 1.0, 1.0, 1.0]
+    bl_principled.inputs['Coat Weight'].default_value = 0.8
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_principled_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True

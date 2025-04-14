@@ -26,6 +26,8 @@ def convert_float_texture_node(ctx, socket):
     from .rgb_to_bw import export_rgb_to_bw_node
     from .combine_color import export_combine_color_node
     from .noise_texture import export_noise_texture_node
+    from .invert import export_invert_node
+    from .brightness_contrast import export_brightness_contrast_node
 
     params = None
 
@@ -49,7 +51,7 @@ def convert_float_texture_node(ctx, socket):
         elif node.type == "HUE_SAT":
             params = export_hue_saturation_value_node(ctx, node)
         elif node.type == 'BRIGHTCONTRAST':
-            params = convert_color_texture_node(ctx, node.inputs['Color'])
+            params = export_brightness_contrast_node(ctx, node)
         elif node.type == 'MIX':
             params = export_mix_node(ctx, node)
         elif node.type == 'MIX_RGB':
@@ -58,20 +60,19 @@ def convert_float_texture_node(ctx, socket):
             params = export_math_node(ctx, node)
         elif node.type == 'SEPARATE_COLOR':
             params = export_separate_rgb_node(ctx, node, socket)
+        elif node.type == 'INVERT':
+            params = export_invert_node(ctx, node)
         elif node.type == 'GROUP_INPUT':
             for group in ctx.node_groups:
                 for node2 in group.node_tree.nodes:
                     if node2 == node:
                         socket_name = socket.links[0].from_socket.name
                         socket_group = group.inputs[socket_name]
-                        return convert_float_texture_node(ctx, socket_group)
+                        params = convert_float_texture_node(ctx, socket_group)
+                        break
         else:
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
     else:
-        if socket.name == 'Roughness': #roughness values in blender are remapped with a square root
-            params = pow(socket.default_value, 2)
-            if socket.default_value < 0.0:
-                params: 0.001
         if socket.name == 'Normal':
             params = None
         else:
@@ -95,6 +96,8 @@ def convert_color_texture_node(ctx, socket):
     from .rgb_to_bw import export_rgb_to_bw_node
     from .combine_color import export_combine_color_node
     from .noise_texture import export_noise_texture_node
+    from .invert import export_invert_node
+    from .brightness_contrast import export_brightness_contrast_node
 
     params = None
 
@@ -120,6 +123,8 @@ def convert_color_texture_node(ctx, socket):
             params = export_combine_color_node(ctx, node)
         elif node.type == "HUE_SAT":
             params = export_hue_saturation_value_node(ctx, node)
+        elif node.type == 'BRIGHTCONTRAST':
+            params = export_brightness_contrast_node(ctx, node)
         elif node.type == "TEX_NOISE":
             params = export_noise_texture_node(ctx, node)
         elif node.type == "VALTORGB":
@@ -135,6 +140,8 @@ def convert_color_texture_node(ctx, socket):
             params = export_math_node(ctx, node)
         elif node.type == 'SEPARATE_COLOR':
             params = export_separate_rgb_node(ctx, node, socket)
+        elif node.type == 'INVERT':
+            params = export_invert_node(ctx, node)
         elif node.type == 'GROUP_INPUT':
             for group in ctx.node_groups: # TODO find a more efficient way
                 for node2 in group.node_tree.nodes:
@@ -150,47 +157,48 @@ def convert_color_texture_node(ctx, socket):
     return params
 
 # Should exclusively be input to BSDF nodes
-def convert_normal_map_node(ctx, socket):
-    params = None
-
-    meta = {
-        'is_bump' : False,
-        'strength': 1.0,
-        'distance': 1.0
-    }
+def convert_normal_map_node(ctx, socket, inner_bsdf_params):
+    params = inner_bsdf_params
 
     if socket.is_linked:
         node = next_node_upstream(ctx, socket)
 
         if node.type == 'NORMAL_MAP':
             with ctx.scope_raw_texture_input():
-                params = convert_color_texture_node(ctx, node.inputs['Color'])
+                normals = convert_color_texture_node(ctx, node.inputs['Color'])
             strength = convert_float_texture_node(ctx, node.inputs['Strength'])
-            if not isinstance(strength, float):
-                logging.warn("Warning: A normal map with spatially varying strength is not supported in Mitsuba. Ignoring strength parameter.")
-            else:
-                if strength != 1.0:
-                    if 'gain' in params:
-                        params['gain'] = strength
-                    else:
-                        logging.warn(f"normalmap: gain cannot be applied on texture type: {params['type']}")
+            if not isinstance(strength, float) or strength != 1.0:
+                logging.warn("Warning: A normal map with non-default strength 1.0 is not supported in Mitsuba. Ignoring strength parameter.")
+
+            params = {
+                'type'      : 'normalmap',
+                'normalmap' : normals,
+                'params'    : inner_bsdf_params,
+            }
         elif node.type == 'BUMP':
             with ctx.scope_raw_texture_input():
-                params = convert_color_texture_node(ctx, node.inputs['Height'])
+                bump = convert_color_texture_node(ctx, node.inputs['Height'])
             strength = convert_float_texture_node(ctx, node.inputs['Strength'])
+            distance = convert_float_texture_node(ctx, node.inputs['Distance'])
             if not isinstance(strength, float):
+                strength = 1.0
                 logging.warn("Warning: A bump map with spatially varying strength is not supported in Mitsuba. Ignoring strength parameter.")
-            else:
-                if strength != 1.0:
-                    if 'gain' in params:
-                        params['gain'] = strength
-                    else:
-                        logging.warn(f"normalmap: gain cannot be applied on texture type: {params['type']}")
-            meta['is_bump'] = True
-            meta['distance'] = convert_float_texture_node(ctx, node.inputs['Distance'])
-        else:
-            params = convert_color_texture_node(ctx, socket)
-    else:
-        params = None
 
-    return params, meta
+            if not isinstance(distance, float):
+                distance = 1.0
+                logging.warn("Warning: A bump map with spatially varying distance is not supported in Mitsuba. Ignoring strength parameter.")
+
+            if node.invert:
+                distance = -distance
+
+            params = {
+                'type'      : 'bumpmap',
+                'bumpmap'   : bump,
+                'scale'     : distance,
+                'strength'  : strength,
+                'params'    : inner_bsdf_params
+            }
+        else:
+            raise NotImplementedError("Normal map type %s is not supported" % node.type)
+
+    return params

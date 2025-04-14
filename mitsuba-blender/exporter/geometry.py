@@ -5,7 +5,6 @@ import numpy as np
 
 from .. import logging
 
-from .curves import export_particle_systems
 from .materials import convert_displacement_map
 
 def convert_mesh(ctx, b_mesh, matrix_world, name, mat_nr):
@@ -129,9 +128,6 @@ def export_object(ctx, instance, is_particle):
             b_mesh = b_object.data
         else: # Metaballs, text, surfaces
             b_mesh = b_object.to_mesh()
-
-        # Export particle systems (hair) attached to the instance
-        particle_mats = export_particle_systems(ctx, instance)
 
         # Convert the mesh into one mitsuba mesh per different material
         mat_count = len(b_mesh.materials)

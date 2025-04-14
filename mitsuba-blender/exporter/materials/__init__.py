@@ -12,12 +12,15 @@ from .glass import convert_glass_materials_cycles
 from .emitter import convert_emitter_materials_cycles
 from .mix import convert_mix_materials_cycles
 from .transparent import convert_transparent_materials_cycles
+from .translucent import convert_translucent_materials_cycles
 
-# TODO: Add more support for other materials: refraction, translucent
+
+# TODO: Add more support for other materials: refraction
 CONVERTERS = {
     'BSDF_PRINCIPLED':      convert_principled_materials_cycles,
     'BSDF_HAIR_PRINCIPLED': convert_principled_hair_materials_cycles,
     'BSDF_TRANSPARENT':     convert_transparent_materials_cycles,
+    'BSDF_TRANSLUCENT':     convert_translucent_materials_cycles,
     "BSDF_DIFFUSE":         convert_diffuse_materials_cycles,
     'BSDF_GLOSSY':          convert_glossy_materials_cycles,
     'BSDF_GLASS':           convert_glass_materials_cycles,

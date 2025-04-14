@@ -24,18 +24,19 @@ def convert_mix_materials_cycles(ctx, current_node, extra): #TODO: test and fix 
         return params
 
     elif mat1.type != 'EMISSION' and mat2.type != 'EMISSION':
-        fac_node = next_node_upstream(ctx, current_node.inputs['Fac'])
+        if current_node.inputs['Fac'].is_linked:
+            fac_node = next_node_upstream(ctx, current_node.inputs['Fac'])
 
-        # One-sided material created when importing Mitsuba scene
-        if fac_node.type == 'NEW_GEOMETRY':
-            if current_node.inputs['Fac'].links[0].from_socket.name == 'Backfacing':
-                return {
-                    'type': 'twosided',
-                    'bsdf1': cycles_material_to_dict(ctx, mat1, extra),
-                    'bsdf2': cycles_material_to_dict(ctx, mat2, extra),
-                    'allow_transmission': True,
-                }
-            return cycles_material_to_dict(ctx, mat1, extra)
+            # One-sided material created when importing Mitsuba scene
+            if fac_node.type == 'NEW_GEOMETRY':
+                if current_node.inputs['Fac'].links[0].from_socket.name == 'Backfacing':
+                    return {
+                        'type': 'twosided',
+                        'bsdf1': cycles_material_to_dict(ctx, mat1, extra),
+                        'bsdf2': cycles_material_to_dict(ctx, mat2, extra),
+                        'allow_transmission': True,
+                    }
+                return cycles_material_to_dict(ctx, mat1, extra)
 
         return {
             'type': 'blendbsdf',

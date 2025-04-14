@@ -29,3 +29,15 @@ if mi.variant() is not None and not mi.variant().startswith('scalar'):
 
     from . import udim
     importlib.reload(udim)
+
+    from . import invert_color
+    importlib.reload(invert_color)
+
+    from . import brightness_contrast
+    importlib.reload(brightness_contrast)
+
+    from . import mix_rgb
+    importlib.reload(mix_rgb)
+
+    from . import color_ramp
+    importlib.reload(color_ramp)
