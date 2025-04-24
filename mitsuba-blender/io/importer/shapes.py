@@ -105,8 +105,7 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
         radius = mi_shape.get('radius', 1.0)
 
     # Create a UV sphere mesh
-    # NOTE: The 'diameter' parameter seems to be missnamed as it results in sphere twice as big as expected
-    bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16, diameter=radius, calc_uvs=True)
+    bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16, radius=radius, calc_uvs=True)
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
