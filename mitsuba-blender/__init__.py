@@ -33,7 +33,7 @@ def register(context=bpy.context):
     initialized = False
 
     # Lookup add-on preferences
-    prefs = context.preferences.addons['mitsuba_blender'].preferences
+    prefs = context.preferences.addons[__package__].preferences
 
     # Make sure a path is specified for Mitsuba
     if prefs.mitsuba_path == '':

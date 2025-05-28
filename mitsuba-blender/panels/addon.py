@@ -35,7 +35,7 @@ def mitsuba_path_update_callback(prefs, context):
             bpy.ops.wm.save_userpref()
 
 class MitsubaPreferences(bpy.types.AddonPreferences):
-    bl_idname = 'mitsuba_blender'
+    bl_idname = __package__.split('.')[0]
 
     initialized : bpy.props.BoolProperty(
         name = 'Is Mitsuba addon initialized',
@@ -43,7 +43,7 @@ class MitsubaPreferences(bpy.types.AddonPreferences):
 
     mitsuba_status_message : bpy.props.StringProperty(
         name = 'Mitsuba dependencies status message',
-        default = 'Enter te path to your local Mitsuba folder (root folder)',
+        default = 'Enter the path to your local Mitsuba folder (root folder)',
     )
 
     mitsuba_path : bpy.props.StringProperty(
