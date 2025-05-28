@@ -2,6 +2,7 @@ import bpy
 
 from .importer import ImportMitsubaXML
 from .exporter import ExportMitsubaXML
+from .pip_installer import MITSUBA_OT_install_pip_dependencies
 
 def menu_import_xml_func(self, context):
     self.layout.operator(ImportMitsubaXML.bl_idname, text="Mitsuba (.xml)")

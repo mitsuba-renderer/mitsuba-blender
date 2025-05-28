@@ -10,8 +10,9 @@ bl_info = {
 
 # Required Mitsuba version
 MI_VERSION = [3, 6, 0]
+MI_VERSION_STR = '.'.join([str(i) for i in MI_VERSION])
 
-import os, importlib
+import sys, os, importlib
 import bpy
 
 from . import engine
@@ -26,6 +27,7 @@ from . import logging
 initialized = False
 
 # Register the add-on preferences panel first, to have access to it
+bpy.utils.register_class(operators.pip_installer.MITSUBA_OT_install_pip_dependencies)
 bpy.utils.register_class(panels.addon.MitsubaPreferences)
 
 def register(context=bpy.context):
@@ -33,36 +35,43 @@ def register(context=bpy.context):
     initialized = False
 
     # Lookup add-on preferences
-    prefs = context.preferences.addons[__package__].preferences
+    prefs = utils.get_addon_preferences(context)
+    prefs.require_restart = False
 
-    # Make sure a path is specified for Mitsuba
-    if prefs.mitsuba_path == '':
-        prefs.mitsuba_status_message = 'Failed to initialize Mitsuba: invalid Mitsuba path!'
-        prefs.initialized = False
-        return False
+    if prefs.use_custom_mitsuba:
+        # Update the Python path to include Mitsuba
+        utils.update_python_paths(prefs.mitsuba_path)
 
-    # Update the Python path to include Mitsuba and Mitsuba
-    utils.update_python_paths(prefs.mitsuba_path)
+        # Determine if the specified path points to a valid mitsuba build folder
+        spec = importlib.util.find_spec('mitsuba')
+        if spec is None:
+            prefs.mitsuba_status_message = 'Failed to initialize Mitsuba: invalid Mitsuba path!'
+            prefs.initialized = False
+            return False
+        elif not spec.origin.startswith(os.path.realpath(prefs.mitsuba_path)):
+            prefs.mitsuba_status_message = 'Found a different build of Mitsuba than the one specified. Check that the path you specified is correct'
+            prefs.initialized = False
+            return False
+    else:
+        if not utils.ensure_pip():
+            if sys.executable.startswith('/snap/'):
+                prefs.mitsuba_status_message = 'You seem to be using a snap-installed blender, which is not recommended as it may prevent pip from installing mitsuba.'
+            else:
+                prefs.mitsuba_status_message = 'Failed to initialize pip. Make sure blender is installed and run with the right permissions.'
+            prefs.initialized = False
+            return False
+        # Make sure Mitsuba was installed via pip
+        prefs.has_pip_mitsuba = utils.get_pip_mi_version() is not None
 
     # Test Mitsuba module
     try:
         os.environ['DRJIT_NO_RTLD_DEEPBIND'] = 'True'
         import mitsuba as mi
         mi.set_variant(*[v for v in mi.variants() if not v.startswith('scalar')])
-
         # Check Mitsuba version
-        v = [int(v) for v in mi.__version__.split('.')]
-        valid_version = False
-        if v[0] > MI_VERSION[0]:
-            valid_version = True
-        elif v[0] == MI_VERSION[0]:
-            if v[1] > MI_VERSION[1]:
-                valid_version = True
-            elif v[1] == MI_VERSION[1]:
-                if v[2] >= MI_VERSION[2]:
-                    valid_version = True
-        if not valid_version:
-            prefs.mitsuba_status_message = f'Need to upgrade your Mitsuba installation! (found {mitsuba_version}, need >= {MI_VERSION})'
+        prefs.valid_version = utils.check_mitsuba_version(mi.__version__)
+        if not prefs.valid_version:
+            prefs.mitsuba_status_message = f"You need to upgrade your Mitsuba installation (found {mi.__version__}, need >= {MI_VERSION_STR})."
             prefs.initialized = False
         else:
             # Set the global threading environment
@@ -70,10 +79,16 @@ def register(context=bpy.context):
             prefs.initialized = True
     except ModuleNotFoundError as e:
         prefs.mitsuba_status_message = str(e)
+        if sys.executable.startswith('/snap/'):
+            prefs.mitsuba_status_message = "Could not find Mitsuba. For snap versions of blender, make sure you run it with the --python-use-system-env flag."
+        prefs.initialized = False
+    except ImportError as e:
+        if prefs.use_custom_mitsuba:
+            prefs.mitsuba_status_message = f"Found Mitsuba but could not import it. Make sure that you compiled Mitsuba with a compatible Python version ({sys.version_info.major}.{sys.version_info.minor})."
+        print(e)
         prefs.initialized = False
 
     if not prefs.initialized:
-        prefs.mitsuba_status_message = f'Failed to register the mitsuba_blender addon: {prefs.mitsuba_status_message}'
         print(prefs.mitsuba_status_message)
         return
 
