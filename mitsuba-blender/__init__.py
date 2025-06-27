@@ -67,7 +67,7 @@ def register(context=bpy.context):
     try:
         os.environ['DRJIT_NO_RTLD_DEEPBIND'] = 'True'
         import mitsuba as mi
-        mi.set_variant(*[v for v in mi.variants() if not v.startswith('scalar')])
+        mi.set_variant('scalar_rgb')
         # Check Mitsuba version
         prefs.valid_version = utils.check_mitsuba_version(mi.__version__)
         if not prefs.valid_version:
