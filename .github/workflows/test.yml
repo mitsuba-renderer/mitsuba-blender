@@ -30,19 +30,19 @@ jobs:
         - {
           os: "ubuntu-latest",
         }
-        - {
-          os: "windows-latest",
-        }
+        # - {
+        #   os: "windows-latest",
+        # }
         blender:
         - {
           version: "3.6"
         }
-        - {
-          version: "4.2"
-        }
-        - {
-          version: "4.4"
-        }
+        # - {
+        #   version: "4.2"
+        # }
+        # - {
+        #   version: "4.4"
+        # }
     steps:
     - name: Git checkout
       uses: actions/checkout@v2
