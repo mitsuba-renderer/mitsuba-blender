@@ -35,7 +35,8 @@ def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
     if flat_shading:
         bl_mesh.polygons.foreach_set('use_smooth', [False] * len(bl_mesh.polygons))
     else:
-        bl_mesh.calc_normals()
+        if bpy.app.version < (4, 0, 0):
+            bl_mesh.calc_normals()
         bl_mesh.polygons.foreach_set('use_smooth', [True] * len(bl_mesh.polygons))
     if flip_normals:
         bl_mesh.flip_normals()

@@ -33,15 +33,14 @@ jobs:
         }
         blender:
         - {
-          version: "3.3"
-        }
-        - {
           version: "3.6"
         }
         - {
-          version: "4.0"
+          version: "4.2"
         }
-
+        - {
+          version: "4.4"
+        }
     steps:
     - name: Git checkout
       uses: actions/checkout@v2

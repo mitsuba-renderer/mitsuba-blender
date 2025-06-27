@@ -8,16 +8,9 @@ class SetupPlugin:
     def __init__(self):
         mi_addon_root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
         self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba-blender')
-        bl_script_dirs = bpy.utils.script_paths(use_user=True)
-        self.bl_script_dir = None
-        for dir in bl_script_dirs:
-            if dir.endswith('scripts'):
-                self.bl_script_dir = dir
-        if self.bl_script_dir is None:
-            raise RuntimeError('Cannot resolve Blender script directory')
-        self.bl_addon_dir = os.path.join(self.bl_script_dir, 'addons')
+        self.bl_addon_dir  = bpy.utils.user_resource('SCRIPTS', path='addons', create=True)
+        bpy.utils.refresh_script_paths()
         self.bl_mi_addon_dir = os.path.join(self.bl_addon_dir, 'mitsuba-blender')
-        sys.path.append(self.mi_addon_dir)
 
     def pytest_configure(self, config):
         if os.path.exists(self.bl_mi_addon_dir):
