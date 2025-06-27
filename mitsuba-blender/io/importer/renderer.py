@@ -190,6 +190,12 @@ def apply_mi_independent_properties(mi_context, mi_props):
     bl_independent_props.sample_count = mi_props.get('sample_count', 4)
     bl_independent_props.seed = mi_props.get('seed', 0)
     # Cycles properties
+    if bpy.app.version < (3, 5, 0):
+        bl_renderer.sampling_pattern = 'SOBOL'
+    elif bpy.app.version < (4, 0, 0):
+        bl_renderer.sampling_pattern = 'SOBOL_BURLEY'
+    else:
+        bl_renderer.sampling_pattern = 'AUTOMATIC'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.preview_samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
@@ -208,6 +214,12 @@ def apply_mi_stratified_properties(mi_context, mi_props):
     bl_stratified_props.seed = mi_props.get('seed', 0)
     bl_stratified_props.jitter = mi_props.get('jitter', True)
     # Cycles properties
+    if bpy.app.version < (3, 5, 0):
+        bl_renderer.sampling_pattern = 'SOBOL'
+    elif bpy.app.version < (4, 0, 0):
+        bl_renderer.sampling_pattern = 'SOBOL_BURLEY'
+    else:
+        bl_renderer.sampling_pattern = 'AUTOMATIC'
     bl_renderer.samples = mi_props.get('sample_count', 4)
     bl_renderer.seed = mi_props.get('seed', 0)
     return True
