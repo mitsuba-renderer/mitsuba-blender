@@ -16,8 +16,7 @@ class MitsubaRenderSettings(PropertyGroup):
 
     enum_variants = []
     for var in mi.variants():
-        if not var.startswith('scalar'):
-            enum_variants.append((var, var, ""))
+        enum_variants.append((var, var, ""))
 
     default_variant = mi.variant()
 
