@@ -67,7 +67,15 @@ def register(context=bpy.context):
     try:
         os.environ['DRJIT_NO_RTLD_DEEPBIND'] = 'True'
         import mitsuba as mi
-        mi.set_variant('scalar_rgb')
+        # Try to set one of the most common variants first
+        for v in ['cuda_ad_rgb', 'llvm_ad_rgb', *mi.variants()]:
+            try:
+                mi.set_variant(v)
+                break
+            except ImportError:
+                # Keep trying if the backend isn't supported
+                continue
+
         # Check Mitsuba version
         prefs.valid_version = utils.check_mitsuba_version(mi.__version__)
         if not prefs.valid_version:
