@@ -24,7 +24,7 @@ class SetupPlugin:
             os.symlink(self.mi_addon_dir, self.bl_mi_addon_dir, target_is_directory=True)
         
         if bpy.ops.preferences.addon_enable(module='mitsuba-blender') != {'FINISHED'}:
-            raise RuntimeError('Cannot enable mitsuba2-blender addon')
+            raise RuntimeError('Cannot enable mitsuba-blender addon')
 
         if not bpy.context.preferences.addons['mitsuba-blender'].preferences.is_mitsuba_initialized:
             raise RuntimeError('Failed to initialize Mitsuba library')
