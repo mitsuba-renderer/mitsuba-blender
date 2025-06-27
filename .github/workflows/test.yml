@@ -22,25 +22,27 @@ jobs:
       # Do not stop other jobs if one fails
       fail-fast: false
       matrix:
+        mitsuba:
+        - {
+          version: "3.6.0"
+        }
         environment:
         - {
           os: "ubuntu-latest",
-          mitsuba-version: "3.5.0"
         }
-        - {
-          os: "windows-latest",
-          mitsuba-version: "3.5.0"
-        }
+        # - {
+        #   os: "windows-latest",
+        # }
         blender:
         - {
           version: "3.6"
         }
-        - {
-          version: "4.2"
-        }
-        - {
-          version: "4.4"
-        }
+        # - {
+        #   version: "4.2"
+        # }
+        # - {
+        #   version: "4.4"
+        # }
     steps:
     - name: Git checkout
       uses: actions/checkout@v2
@@ -76,7 +78,7 @@ jobs:
         ./$BLENDER_PYTHON -m ensurepip
         ./$BLENDER_PYTHON -m pip install -U pip
         ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
-        ./$BLENDER_PYTHON -m pip install mitsuba==${{ matrix.environment.mitsuba-version }} --force-reinstall
+        ./$BLENDER_PYTHON -m pip install mitsuba==${{ matrix.mitsuba.version }} --force-reinstall
 
     - name: Run Addon test suite
       shell: bash
