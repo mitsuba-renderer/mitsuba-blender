@@ -48,7 +48,7 @@ def _get_matrix_from_direction(direction, up):
 
 def _get_radiance_value(mi_context, mi_emitter, mi_prop_name, default):
     from mitsuba import Properties
-    if mi_emitter.has_property(mi_prop_name):
+    if mi_prop_name in mi_emitter:
         mi_prop_type = mi_emitter.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
             return mi_spectra_utils.get_color_strength_from_radiance(mi_emitter.get(mi_prop_name))
@@ -73,7 +73,7 @@ def mi_point_to_bl_light(mi_context, mi_emitter):
     bl_light.energy = strength * math.pi * 4
     bl_light.shadow_soft_size = 0
     
-    if mi_emitter.has_property('to_world'):
+    if 'to_world' in mi_emitter:
         world_matrix = mi_context.mi_space_to_bl_space(bl_transform_utils.mi_transform_to_bl_transform(mi_emitter.get('to_world', None)))
     else:
         world_matrix = Matrix.Translation(mi_context.mi_space_to_bl_space(Vector(mi_emitter.get('position', [0.0, 0.0, 0.0]))))
@@ -88,9 +88,9 @@ def mi_directional_to_bl_light(mi_context, mi_emitter):
     bl_light.energy = strength
     
     rot_mat = Matrix.Rotation(-math.pi, 4, 'X')
-    if mi_emitter.has_property('to_world'):
+    if 'to_world' in mi_emitter:
         world_matrix = bl_transform_utils.mi_transform_to_bl_transform(mi_emitter.get('to_world', None))
-    elif mi_emitter.has_property('direction'):
+    elif 'direction' in mi_emitter:
         world_matrix = _get_matrix_from_direction(Vector(mi_emitter.get('direction', [0.0, 0.0, 1.0])), Vector([0.0, 1.0, 0.0]))
     else:
         world_matrix = Matrix()
