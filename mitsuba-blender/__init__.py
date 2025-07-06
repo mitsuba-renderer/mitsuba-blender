@@ -22,7 +22,7 @@ import subprocess
 
 from . import io, engine
 
-DEPS_MITSUBA_VERSION = '3.5.0'
+DEPS_MITSUBA_VERSION = '3.6.4'
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
@@ -38,9 +38,6 @@ def init_mitsuba(context):
             import importlib
             importlib.reload(mitsuba)
         mitsuba.set_variant('scalar_rgb')
-        # Set the global threading environment
-        from mitsuba import ThreadEnvironment
-        bpy.types.Scene.thread_env = ThreadEnvironment()
         return True
     except ModuleNotFoundError:
         return False
@@ -61,7 +58,7 @@ def try_register_mitsuba(context):
             else:
                 prefs.mitsuba_dependencies_status_message = f'Found custom Mitsuba v{prefs.mitsuba_custom_version}. Supported version is v{DEPS_MITSUBA_VERSION}.'
         else:
-            prefs.mitsuba_dependencies_status_message = 'Failed to load custom Mitsuba. Please verify the path to the build directory.'
+            prefs.mitsuba_dependencies_status_message = f'Failed to load custom Mitsuba. Please verify the path to the build directory. Used: {prefs.mitsuba_custom_path}'
     elif prefs.has_pip_dependencies:
         if prefs.has_valid_dependencies_version:
             could_init_mitsuba = init_mitsuba(context)
