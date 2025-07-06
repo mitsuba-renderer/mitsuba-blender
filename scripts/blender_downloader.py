@@ -133,7 +133,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Blender archive downloader.')
     parser.add_argument('version', help='Blender version')
-    parser.add_argument('-o', '--out', default='', help='output file name')
+    parser.add_argument('-o', '--out', default='blender', help='output file name')
     parser.add_argument('--print-version', action='store_const', const=True, default=False, help='print the Blender version instead of downloading the archive')
     
     args = parser.parse_args()
