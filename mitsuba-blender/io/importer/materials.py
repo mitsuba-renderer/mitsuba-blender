@@ -169,7 +169,7 @@ def write_mi_float_value(mi_context, float_value, bl_mat_wrap, out_socket_id, tr
 
 def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Float:
             mi_prop_value = mi_mat.get(mi_prop_name, default)
@@ -243,7 +243,7 @@ def write_mi_rgb_value(mi_context, rgb_value, bl_mat_wrap, out_socket_id):
 
 def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
             write_mi_rgb_value(mi_context, list(mi_mat.get(mi_prop_name, default)), bl_mat_wrap, out_socket_id)
@@ -275,7 +275,7 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
 
 def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Float:
             bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_mat.get(mi_prop_name, default)
