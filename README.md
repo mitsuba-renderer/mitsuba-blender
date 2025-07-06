@@ -36,3 +36,36 @@ You can refer to the [Installation & Update Guide](https://github.com/mitsuba-re
 Blender version should be at least `2.93`. The addon has been extensively tested
 on LTS versions of blender (`3.3`, `3.6`). We recommend using those whenever
 possible.
+
+## Running the unit tests
+
+The unit tests require a local Blender installation.
+
+The repository includes a script to locally download Blender for the unit tests:
+```bash
+python3 scripts/blender_downloader.py 4.4 -o blender
+```
+Alternatively, the following steps can also be carries out using an already installed version of Blender. Next, we define environment variables for both the main executable and the Blender's Python interpreter. If Blender was downloaded locally, simply use:
+```bash
+BLENDER_PYTHON=blender/4.4/python/bin/python3.11
+BLENDER=blender/blender
+```
+
+Locally install the required Python modules into Blender's Python environment:
+```bash
+$BLENDER_PYTHON -m ensurepip
+$BLENDER_PYTHON -m pip install -U pip
+$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
+$BLENDER_PYTHON -m pip install mitsuba
+```
+
+To run the tests using Blender's Python, use:
+
+```bash
+$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba-blender
+```
+
+If you prefer using a custom Mitsuba version, specify a path to the Mitsuba build directory:
+```bash
+$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py --mitsuba /some/path/mitsuba3/build -- -v --cov=mitsuba-blender
+``` 
