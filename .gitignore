@@ -4,3 +4,6 @@ __pycache__*
 tests/**/out
 .pytest_cache
 .coverage
+blender/
+blender-*.tar.xz
+.coverage.*
