@@ -29,7 +29,7 @@ _emitter_spectrum_object_writers = {
 }
 
 def write_mi_emitter_spectrum_object(mi_context, mi_obj, bl_world_wrap, radiance_socket_id, strength_socket_id, default=None):
-    mi_obj_class_name = mi_obj.class_().name()
+    mi_obj_class_name = mi_obj.class_name()
     if mi_obj_class_name not in _emitter_spectrum_object_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return

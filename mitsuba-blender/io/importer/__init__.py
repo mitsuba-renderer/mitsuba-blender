@@ -42,7 +42,7 @@ def _check_unqueried_props(mi_context, mi_cls, mi_props):
         mi_context.log(f'Mitsuba {mi_cls} property "{prop_name}" was not handled.', 'WARN')
 
 def _convert_named_references(mi_context, mi_props, parent_node, type_filter=[]):
-    for _, ref_id in mi_props.named_references():
+    for _, ref_id in mi_props.references():
         mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
         assert mi_child_cls is not None and mi_child_props is not None
         if len(type_filter) == 0 or mi_child_cls in type_filter:

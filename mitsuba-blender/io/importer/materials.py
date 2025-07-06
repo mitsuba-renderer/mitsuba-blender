@@ -156,7 +156,7 @@ _float_spectrum_writers = {
 }
 
 def write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
-    mi_obj_class_name = mi_obj.class_().name()
+    mi_obj_class_name = mi_obj.class_name()
     if mi_obj_class_name not in _float_spectrum_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return
@@ -174,7 +174,7 @@ def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_s
         if mi_prop_type == Properties.Type.Float:
             mi_prop_value = mi_mat.get(mi_prop_name, default)
             write_mi_float_value(mi_context, mi_prop_value, bl_mat_wrap, out_socket_id, transformation)
-        elif mi_prop_type == Properties.Type.NamedReference:
+        elif mi_prop_type == Properties.Type.Reference:
             mi_texture_ref_id = mi_mat.get(mi_prop_name)
             mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
             assert mi_texture is not None
@@ -232,7 +232,7 @@ _rgb_spectrum_writers = {
 }
 
 def write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
-    mi_obj_class_name = mi_obj.class_().name()
+    mi_obj_class_name = mi_obj.class_name()
     if mi_obj_class_name not in _rgb_spectrum_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return
@@ -254,7 +254,7 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
             else:
                 col = default
             write_mi_rgb_value(mi_context, list(col), bl_mat_wrap, out_socket_id)
-        elif mi_prop_type == Properties.Type.NamedReference:
+        elif mi_prop_type == Properties.Type.Reference:
             mi_texture_ref_id = mi_mat.get(mi_prop_name)
             mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
             assert mi_texture is not None

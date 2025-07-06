@@ -21,7 +21,7 @@ def linear_rgb_to_luminance(color):
 ###########################
 
 def convert_mi_srgb_reflectance_spectrum(mi_obj, default):
-    assert mi_obj.class_().name() == 'SRGBReflectanceSpectrum'
+    assert mi_obj.class_name() == 'SRGBReflectanceSpectrum'
     obj_props = _get_mi_obj_properties(mi_obj)
     return list(obj_props.get('value', default))
 
@@ -30,7 +30,7 @@ def convert_mi_srgb_reflectance_spectrum(mi_obj, default):
 #######################
 
 def convert_mi_srgb_emitter_spectrum(mi_obj, default):
-    assert mi_obj.class_().name() == 'SRGBReflectanceSpectrum'
+    assert mi_obj.class_name() == 'SRGBReflectanceSpectrum'
     obj_props = _get_mi_obj_properties(mi_obj)
     radiance = list(obj_props.get('value', default))
     return get_color_strength_from_radiance(radiance)
