@@ -273,7 +273,9 @@ def apply_mi_hdrfilm_properties(mi_context, mi_props):
     mi_context.bl_scene.render.image_settings.file_format = mi_fileformat_to_bl_fileformat(mi_context, mi_props.get('file_format', 'openexr'))
     mi_context.bl_scene.render.image_settings.color_mode = mi_pixelformat_to_bl_pixelformat(mi_context, mi_props.get('pixel_format', 'rgba'))
     mi_context.bl_scene.render.image_settings.color_depth = mi_componentformat_to_bl_componentformat(mi_context, mi_props.get('component_format', 'float16'))
-    if mi_props.has_property('crop_offset_x') or mi_props.has_property('crop_offset_y') or mi_props.has_property('crop_width') or mi_props.has_property('crop_height'):
+
+    crop_keys = ['crop_offset_x', 'crop_offset_y', 'crop_width', 'crop_height']
+    if any(key in mi_props for key in crop_keys):
         mi_context.bl_scene.render.use_border = True
         # FIXME: Do we want to crop the resulting image ?
         mi_context.bl_scene.render.use_crop_to_border = True
