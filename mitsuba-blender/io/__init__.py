@@ -122,8 +122,6 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
 
-        self.converter.use_selection = self.use_selection
-
         # Set path to scene .xml file
         self.converter.set_path(self.filepath, split_files=self.split_files)
 
@@ -134,7 +132,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         total_progress = len(deps_graph.object_instances)
         window_manager.progress_begin(0, total_progress)
 
-        self.converter.scene_to_dict(deps_graph, window_manager)
+        self.converter.scene_to_dict(deps_graph, window_manager, use_selection=self.use_selection, ignore_background=self.ignore_background)
         #write data to scene .xml file
         self.converter.dict_to_xml()
 

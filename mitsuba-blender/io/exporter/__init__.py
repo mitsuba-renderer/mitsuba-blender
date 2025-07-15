@@ -28,8 +28,6 @@ class SceneConverter:
     '''
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
-        self.use_selection = False # Only export selection
-        self.ignore_background = True
         self.render = render
 
     def set_path(self, name, split_files=False):
@@ -43,7 +41,22 @@ class SceneConverter:
         # Give the path to the export context, for saving meshes and files
         self.export_ctx.directory, _ = os.path.split(name)
 
-    def scene_to_dict(self, depsgraph, window_manager):
+    def scene_to_dict(self, depsgraph, window_manager, use_selection=False, ignore_background=True):
+        """
+        Convert a Blender scene to a Mitsuba-compatible dict.
+
+        Parameters
+        ----------
+
+        depsgraph : bpy.types.Depsgraph
+            The evaluated dependency graph of the scene to export.
+        window_manager : bpy.types.WindowManager
+            The window manager to update the progress bar.
+        use_selection : bool, optional
+            Only export selected objects. Defaults to False.
+        ignore_background : bool, optional
+            Ignore the default background in Blender's world settings. Defaults to True.
+        """
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -61,7 +74,7 @@ class SceneConverter:
             }
         self.export_ctx.data_add(integrator)
 
-        materials.export_world(self.export_ctx, b_scene.world, self.ignore_background)
+        materials.export_world(self.export_ctx, b_scene.world, ignore_background)
 
         # Establish list of particle objects
         particles = []
@@ -78,7 +91,7 @@ class SceneConverter:
             window_manager.progress_update(progress_counter)
             progress_counter += 1
 
-            if self.use_selection:
+            if use_selection:
                 #skip if it's not selected or if it's an instance and the parent object is not selected
                 if not object_instance.is_instance and not object_instance.object.original.select_get():
                     continue
