@@ -78,8 +78,24 @@ class ExportContext:
             'emitter': 'textures',
             'shape': 'meshes',
             'spectrum': 'spectra'
-                            }
+        }
 
+    def sanitize(self, name):
+        '''
+        Sanitize a name to be used in the scene dict.
+        The parser class of Mitsuba does not accept dots in the names.
+        '''
+        return name.replace('.', '_')
+
+    def create_ref(self, name):
+        '''
+        Create a reference dict pointing to the given name,
+        after sanitizing it.
+        '''
+        return {
+            'type': 'ref',
+            'id': self.sanitize(name)
+        }
 
     def data_add(self, mts_dict, name=''):
         '''
@@ -100,13 +116,14 @@ class ExportContext:
             except KeyError:
                 name = 'elm__%i' % self.counter
 
-        self.scene_data.update([(name, mts_dict)])
+        # Sanitize name
+        self.scene_data.update([(self.sanitize(name), mts_dict)])
         self.counter += 1
 
         return True
 
     def data_get(self, name):
-        return self.scene_data.get(name)
+        return self.scene_data.get(self.sanitize(name))
 
     def log(self, message, level='INFO'):
         '''

@@ -39,6 +39,18 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         default = True,
     )
 
+    merge_shapes: BoolProperty(
+        name = 'Merge Shapes',
+        description = 'Merge all meshes with the same material into a single mesh.',
+        default = False,
+    )
+
+    merge_plugins: BoolProperty(
+        name = 'Merge Plugins',
+        description = 'Merge equivalent plugins (e.g. materials). This does not apply to shapes.',
+        default = True,
+    )
+
     def execute(self, context):
         # Set blender to object mode
         if bpy.ops.object.mode_set.poll():
@@ -58,7 +70,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat)
+            importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins)
         except (RuntimeError, NotImplementedError) as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")
@@ -85,12 +97,6 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 	        description="Export selected objects only",
 	        default = False,
 	    )
-
-    split_files: BoolProperty(
-            name = "Split File",
-            description = "Split scene XML file in smaller fragments",
-            default = False
-    )
 
     export_ids: BoolProperty(
             name = "Export IDs",
@@ -122,9 +128,6 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
 
-        # Set path to scene .xml file
-        self.converter.set_path(self.filepath, split_files=self.split_files)
-
         window_manager = context.window_manager
 
         deps_graph = context.evaluated_depsgraph_get()
@@ -133,14 +136,13 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         window_manager.progress_begin(0, total_progress)
 
         self.converter.scene_to_dict(deps_graph, window_manager, use_selection=self.use_selection, ignore_background=self.ignore_background)
-        #write data to scene .xml file
-        self.converter.dict_to_xml()
+        self.converter.dict_to_xml(self.filepath)
 
         window_manager.progress_end()
 
         self.report({'INFO'}, "Scene exported successfully!")
 
-        #reset the exporter
+        # Reset the exporter
         self.reset()
 
         return {'FINISHED'}

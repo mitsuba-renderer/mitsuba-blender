@@ -10,7 +10,7 @@ def export_texture_node(export_ctx, tex_node):
     params = {
         'type':'bitmap'
     }
-    #get the relative path to the copied texture from the full path to the original texture
+    # get the relative path to the copied texture from the full path to the original texture
     params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
     if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
@@ -233,26 +233,36 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
             'radiance': export_ctx.spectrum(weighted_radiance),
         }
         return params
-
     elif mat_I.type != 'EMISSION' and mat_II.type != 'EMISSION':
 
-        weight = current_node.inputs['Fac'].default_value#TODO: texture weight
+        weight = convert_color_texture_node(export_ctx, current_node.inputs['Fac'])
 
-        params = {
-            'type': 'blendbsdf',
-            'weight': weight
-        }
-        # add first material
-        mat_A = cycles_material_to_dict(export_ctx, mat_I)
-        params.update([
-            ('bsdf1', mat_A)
-        ])
+        if mat_I.type == 'BSDF_TRANSPARENT' or mat_II.type == 'BSDF_TRANSPARENT':
+            #FIXME: What if the transparent opacity is not 1?
+            params = {
+                'type': 'mask',
+                'opacity': weight
+            }
+            other_mat = mat_II if mat_I.type == 'BSDF_TRANSPARENT' else mat_I
+            mat_params = cycles_material_to_dict(export_ctx, other_mat)
+            params.update([('bsdf', mat_params)])
 
-        # add second materials
-        mat_B = cycles_material_to_dict(export_ctx, mat_II)
-        params.update([
-            ('bsdf2', mat_B)
-        ])
+        else:
+            params = {
+                'type': 'blendbsdf',
+                'weight': weight
+            }
+            # add first material
+            mat_A = cycles_material_to_dict(export_ctx, mat_I)
+            params.update([
+                ('bsdf1', mat_A)
+            ])
+
+            # add second material
+            mat_B = cycles_material_to_dict(export_ctx, mat_II)
+            params.update([
+                ('bsdf2', mat_B)
+            ])
 
         return params
     else:#one bsdf, one emitter
@@ -325,6 +335,27 @@ def convert_principled_materials_cycles(export_ctx, current_node):
         })
         return two_sided_bsdf(params)
 
+def convert_transparent_materials_cycles(export_ctx, current_node):
+    if current_node.inputs['Color'].is_linked:
+        #TODO: in order to support opacity textures, we need the ability to invert
+        # a texture. This will be doable once we convert textures in-memory instead
+        # of on-disk (cf PR #121).
+        export_ctx.log("Transparent BSDF: opacity textures are currently not supported. Consider using a Mix Shader instead.", 'WARN')
+    opacity_bl = list(current_node.inputs['Color'].default_value)
+    # Invert the opacity value to match Mitsuba's convention
+    opacity_mi = [*[1.0 - x for x in opacity_bl[:3]], opacity_bl[3]]
+    params = {
+        'type': 'mask',
+        'opacity': export_ctx.spectrum(opacity_mi),
+        'bsdf': {
+            'type': 'diffuse',
+            'reflectance': export_ctx.spectrum(0.0)
+        }
+    }
+
+    return params
+
+
 
 #TODO: Add more support for other materials: refraction, transparent, translucent
 cycles_converters = {
@@ -332,6 +363,7 @@ cycles_converters = {
     "BSDF_DIFFUSE": convert_diffuse_materials_cycles,
     'BSDF_GLOSSY': convert_glossy_materials_cycles,
     'BSDF_GLASS': convert_glass_materials_cycles,
+    'BSDF_TRANSPARENT': convert_transparent_materials_cycles,
     'EMISSION': convert_emitter_materials_cycles,
     'MIX_SHADER': convert_mix_materials_cycles,
     'ADD_SHADER': convert_add_materials_cycles,

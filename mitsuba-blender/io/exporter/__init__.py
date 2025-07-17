@@ -30,17 +30,6 @@ class SceneConverter:
         self.export_ctx = export_context.ExportContext()
         self.render = render
 
-    def set_path(self, name, split_files=False):
-        from mitsuba.python.xml import WriteXML
-        # Ideally, this should only be created if we want to write a scene.
-        # For now we need it to save meshes and packed textures.
-        # TODO: get rid of all writing to disk when creating the dict
-        if not self.render:
-            self.xml_writer = WriteXML(name, self.export_ctx.subfolders,
-                                       split_files=split_files)
-        # Give the path to the export context, for saving meshes and files
-        self.export_ctx.directory, _ = os.path.split(name)
-
     def scene_to_dict(self, depsgraph, window_manager, use_selection=False, ignore_background=True):
         """
         Convert a Blender scene to a Mitsuba-compatible dict.
@@ -117,8 +106,16 @@ class SceneConverter:
             else:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 
-    def dict_to_xml(self):
-        self.xml_writer.process(self.export_ctx.scene_data)
+    def dict_to_xml(self, filename):
+        import mitsuba as mi
+        config = mi.parser.ParserConfig(mi.variant())
+        state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
+        # Reorder the plugins so they are written in a legible order
+        mi.parser.transform_reorder(config, state)
+        # Place files in convenient subfolders (e.g. textures, meshes, etc.)
+        output_dir = os.path.dirname(filename)
+        mi.parser.transform_relocate(config, state, output_dir)
+        mi.parser.write_file(state, filename, True)
 
     def dict_to_scene(self):
         from mitsuba import load_dict

@@ -51,9 +51,7 @@ def _get_radiance_value(mi_context, mi_emitter, mi_prop_name, default):
     if mi_prop_name in mi_emitter:
         mi_prop_type = mi_emitter.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
-            return mi_spectra_utils.get_color_strength_from_radiance(mi_emitter.get(mi_prop_name))
-        if mi_prop_type == Properties.Type.Object:
-            return mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get(mi_prop_name), default)
+            return mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get_emissive_texture(mi_prop_name), default)
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
     elif default is not None:
