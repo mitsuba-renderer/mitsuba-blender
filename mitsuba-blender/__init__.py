@@ -122,10 +122,11 @@ def clean_additional_custom_paths(self, context):
     # Remove old values from system PATH and sys.path
     if self.additional_python_path in sys.path:
         sys.path.remove(self.additional_python_path)
-    if self.additional_path and self.additional_path in os.environ['PATH']:
+    if self.additional_path:
         items = os.environ['PATH'].split(os.pathsep)
-        items.remove(self.additional_path)
-        os.environ['PATH'] = os.pathsep.join(items)
+        if self.additional_path in items:
+            items.remove(self.additional_path)
+            os.environ['PATH'] = os.pathsep.join(items)
 
 def update_additional_custom_paths(self, context):
     build_path = bpy.path.abspath(self.mitsuba_custom_path)
