@@ -65,16 +65,6 @@ def convert_mi_integrator(mi_context, node_id):
     # FIXME: Support nested integrators (AOVs)
     renderer.apply_mi_integrator_properties(mi_context, mi_props)
 
-def convert_mi_texture(mi_context, node_id):
-    mi_props = mi_context.mi_state.nodes[node_id].props
-    # We only parse bitmap textures
-    if mi_props.plugin_name() != 'bitmap':
-        return None
-
-    # Load the image
-    bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
-    return bl_image
-
 def convert_mi_emitter(mi_context, node_id):
     mi_props = mi_context.mi_state.nodes[node_id].props
 
@@ -95,13 +85,12 @@ def convert_mi_emitter(mi_context, node_id):
     return bl_data
 
 def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
-    from mitsuba import ObjectType
+    if node_id in mi_context.bl_material_cache:
+        # Already converted this node
+        return mi_context.bl_material_cache[node_id]
+
     mi_props = mi_context.mi_state.nodes[node_id].props
     bsdf_name = mi_props.id() if mi_props.id() else f'Material_{node_id}'
-    # Parse referenced textures and BSDFs to ensure they are loaded before we parse the material
-    textures = get_references_by_type(mi_context, mi_props, [ObjectType.Texture, ObjectType.BSDF])
-    for tex_id in textures:
-        convert_mi_node(mi_context, tex_id)
     
     if emitter_id is None:
         em_props = None
@@ -110,8 +99,11 @@ def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
 
     bl_material = materials.mi_material_to_bl_material(mi_context, mi_props, mi_emitter=em_props)
     if bl_material is None:
-        raise ValueError(f'Failed to convert Mitsuba BSDF "{bsdf_name}".')
+        mi_context.log(f'Failed to convert material "{bsdf_name}".', 'ERROR')
+        return None
 
+    # Store the material in the cache
+    mi_context.bl_material_cache[node_id] = bl_material
     return bl_material
 
 def convert_mi_sensor(mi_context, node_id):
@@ -155,14 +147,14 @@ def convert_mi_shape(mi_context, node_id):
     if len(mi_mats) == 0:
         mi_context.log(f'Shape "{shape_name}" does not have a material. Using default diffuse.', 'WARN')
     elif len(mi_mats) > 1:
-        raise ValueError(f'Tried to import a shape with multiple BSDFs. Mitsuba supports only one BSDF per shape.')
+        mi_context.log(f'Shape "{shape_name}" has multiple materials. Only one is supported.', 'ERROR')
     else:
         # Make sure the material is converted
         if mi_emitters:
             em_id = mi_emitters[0]
         else:
             em_id = None
-        bl_mat = convert_mi_node(mi_context, mi_mats[0], extra_id=em_id)
+        bl_mat = convert_mi_bsdf(mi_context, mi_mats[0], emitter_id=em_id)
         bl_shape.materials.append(bl_mat)
         bl_obj.active_material_index = 0
 
@@ -171,9 +163,6 @@ def convert_mi_shape(mi_context, node_id):
 
 def convert_mi_node(mi_context, node_id, extra_id=None):
     from mitsuba import ObjectType
-
-    if node_id in mi_context.bl_data_cache and extra_id is None:
-        return mi_context.bl_data_cache[node_id]
 
     #TODO: generate convenient default object names
     mi_node = mi_context.mi_state.nodes[node_id]
@@ -184,21 +173,11 @@ def convert_mi_node(mi_context, node_id, extra_id=None):
         ObjectType.Sampler: convert_mi_sampler,
         ObjectType.Film: convert_mi_film,
         ObjectType.Emitter: convert_mi_emitter,
-        ObjectType.Texture: convert_mi_texture,
         ObjectType.ReconstructionFilter: convert_mi_rfilter,
     }
     # TODO: maybe delay sensor instantiation ?
-    if mi_node.type == ObjectType.BSDF:
-        # Need to pass the emitter ID if present
-        bl_data = convert_mi_bsdf(mi_context, node_id, emitter_id=extra_id)
-    elif mi_node.type in converters:
-        bl_data = converters[mi_node.type](mi_context, node_id)
-    else:
-        raise ValueError(f'Unknown Mitsuba node type "{mi_node.type}".')
-
-    if extra_id is None and mi_node.type in [ObjectType.BSDF, ObjectType.Texture]:
-        mi_context.bl_data_cache[node_id] = bl_data
-    return bl_data
+    if mi_node.type in converters:
+        converters[mi_node.type](mi_context, node_id)
 
 def convert_mi_scene(mi_context):
     from mitsuba import Properties

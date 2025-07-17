@@ -11,7 +11,8 @@ class MitsubaSceneImportContext:
         self.mi_state = mi_state
         self.axis_matrix = axis_matrix
         self.axis_matrix_inv = axis_matrix.inverted()
-        self.bl_data_cache = {} # Mapping of Mitsuba node IDs to Blender data types
+        self.bl_material_cache = {} # Mapping of Mitsuba node IDs to Blender materials
+        self.bl_texture_cache = {} # Mapping of Mitsuba node IDs to Blender textures
         self.processed_nodes = set()
 
     def log(self, message, level='INFO'):
