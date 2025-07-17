@@ -41,6 +41,20 @@ def _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, default):
         return default
     return list(color / pdf)
 
+def get_bl_texture(mi_context, mi_tex_id):
+    if mi_tex_id in mi_context.bl_texture_cache:
+        return mi_context.bl_texture_cache[mi_tex_id]
+    mi_props = mi_context.mi_state.nodes[mi_tex_id].props
+    # We only parse bitmap textures
+    if mi_props.plugin_name() != 'bitmap':
+        mi_context.log(f'Mitsuba texture "{mi_props.id()}" of type "{mi_props.plugin_name()}" is not supported. Only "bitmap" textures are supported.', 'ERROR')
+        return None
+
+    # Load the image
+    bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
+    mi_context.bl_texture_cache[mi_tex_id] = bl_image
+    return bl_image
+
 ################################
 ##  Misc property converters  ##
 ################################
@@ -115,7 +129,7 @@ def mi_microfacet_to_bl_microfacet(mi_context, mi_microfacet_distribution):
 
 def write_mi_float_bitmap(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
     mi_texture = mi_context.mi_state.nodes[mi_tex_id].props
-    bl_image = mi_context.bl_data_cache[mi_tex_id]
+    bl_image = get_bl_texture(mi_context, mi_tex_id)
 
     # FIXME: Support texture coordinate mapping
     # FIXME: For float textures, it is not always clear if we should use the 'Alpha' output instead of the luminance value.
@@ -183,7 +197,8 @@ def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_s
 ############################
 
 def write_mi_rgb_bitmap(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
-    bl_image = mi_context.bl_data_cache[mi_tex_id]
+    bl_image = get_bl_texture(mi_context, mi_tex_id)
+    #TODO: handle None case
     mi_texture = mi_context.mi_state.nodes[mi_tex_id].props
 
     # FIXME: Support texture coordinate mapping
@@ -458,6 +473,7 @@ def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
     bl_glossy.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
+    #FIXME: this is completely broken for textured reflectance
     reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
     write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.1)
@@ -622,6 +638,7 @@ _always_twosided_bsdfs = [
 ]
 
 def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False, mi_bump=None, mi_normal=None):
+    #FIXME: is_within_twosided is broken now
     ''' Write a Mitsuba material in a node graph starting at a specific
     node in the shader graph. This function is always guaranteed to succeed.
     If a material cannot be converted, it will result in a distinctive error material.
