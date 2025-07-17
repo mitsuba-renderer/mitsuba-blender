@@ -31,339 +31,186 @@ from . import sensors
 from . import world
 from . import textures
 from . import renderer
-from . import mi_props_utils
+from .mi_props_utils import get_references_by_type
 
-########################
-##     Utilities      ##
-########################
+#####################
+## Node conversion ##
+#####################
 
-def _check_unqueried_props(mi_context, mi_cls, mi_props):
-    for prop_name in mi_props.unqueried():
-        mi_context.log(f'Mitsuba {mi_cls} property "{prop_name}" was not handled.', 'WARN')
+def convert_mi_film(mi_context, node_id):
+    from mitsuba import ObjectType
 
-def _convert_named_references(mi_context, mi_props, parent_node, type_filter=[]):
-    for _, ref_id in mi_props.references():
-        mi_child_cls, mi_child_props = mi_context.mi_scene_props.get_with_id(ref_id)
-        assert mi_child_cls is not None and mi_child_props is not None
-        if len(type_filter) == 0 or mi_child_cls in type_filter:
-            child_node = mi_props_to_bl_data_node(mi_context, mi_child_cls, mi_child_props)
-            if child_node is not None:
-                parent_node.add_child(child_node)
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    if not renderer.apply_mi_film_properties(mi_context, mi_props):
+        return None
 
-########################
-##  Scene convertion  ##
-########################
+    film_id = get_references_by_type(mi_context, mi_props, [ObjectType.ReconstructionFilter])
+    if len(film_id) > 1:
+        raise ValueError(f'Tried to import a film with multiple reconstruction filters. Mitsuba supports only one reconstruction filter per film.')
+    elif len(film_id) == 1:
+        convert_mi_node(mi_context, film_id[0])
+    return True # ????
 
-def mi_scene_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.SCENE, id=mi_props.id())
-    # Convert all objects referenced by the scene
-    # NOTE: Objects that are not referenced somewhere in the Mitsuba XML scene will
-    #       not be loaded at all.
-    _convert_named_references(mi_context, mi_props, node)
+def convert_mi_rfilter(mi_context, node_id):
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    #TODO: return what ?
+    renderer.apply_mi_rfilter_properties(mi_context, mi_props)
 
-    return node
+def convert_mi_sampler(mi_context, node_id):
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    renderer.apply_mi_sampler_properties(mi_context, mi_props)
 
-def mi_integrator_to_bl_node(mi_context, mi_props):
+def convert_mi_integrator(mi_context, node_id):
+    mi_props = mi_context.mi_state.nodes[node_id].props
     # FIXME: Support nested integrators (AOVs)
-    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
+    renderer.apply_mi_integrator_properties(mi_context, mi_props)
 
-    node.prop_type = common.BlenderPropertiesNodeType.INTEGRATOR
-    node.mi_props = mi_props
-    return node
-
-def mi_sensor_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
-    # Convert the camera
-    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
-
-    node.obj_type = common.BlenderObjectNodeType.CAMERA
-    node.bl_data = bl_camera
-    node.world_matrix = world_matrix
-    return node
-
-def mi_sampler_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
-
-    node.prop_type = common.BlenderPropertiesNodeType.SAMPLER
-    node.mi_props = mi_props
-    return node
-
-def mi_rfilter_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
-
-    node.prop_type = common.BlenderPropertiesNodeType.RFILTER
-    node.mi_props = mi_props
-    return node
-
-def mi_film_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.PROPERTIES, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
-
-    node.prop_type = common.BlenderPropertiesNodeType.FILM
-    node.mi_props = mi_props
-    return node
-
-def mi_bsdf_to_bl_node(mi_context, mi_props, mi_emitter=None):
-    node = common.create_blender_node(common.BlenderNodeType.MATERIAL, id=mi_props.id())
-    # Parse referenced textures to ensure they are loaded before we parse the material
-    _convert_named_references(mi_context, mi_props, node, type_filter=['Texture'])
-    
-    if mi_emitter is None:
-        # If the BSDF is not emissive, we can look for it in the cache.
-        bl_material = mi_context.get_bl_material(mi_props.id())
-        if bl_material is None:
-            bl_material = materials.mi_material_to_bl_material(mi_context, mi_props)
-            if bl_material is None:
-                return None
-            mi_context.register_bl_material(mi_props.id(), bl_material)
-    else:
-        # If the BSDF is emissive, we don't use the cache value and create a new one everytime.
-        bl_material = materials.mi_material_to_bl_material(mi_context, mi_props, mi_emitter=mi_emitter)
-
-    node.bl_mat = bl_material
-    return node
-
-def mi_emitter_to_bl_node(mi_context, mi_props):
-    # NOTE: Some Mitsuba emitters need to be imported as a Blender world material
-    if world.should_convert_mi_emitter_to_bl_world(mi_props):
-        node = common.create_blender_node(common.BlenderNodeType.WORLD, id=mi_props.id())
-        # Convert dependencies if any
-        _convert_named_references(mi_context, mi_props, node)
-
-        bl_world = world.mi_emitter_to_bl_world(mi_context, mi_props)
-
-        node.bl_world = bl_world
-    else:
-        node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
-        # Convert dependencies if any
-        _convert_named_references(mi_context, mi_props, node)
-
-        bl_light, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
-        
-        node.obj_type = common.BlenderObjectNodeType.LIGHT
-        node.bl_data = bl_light
-        node.world_matrix = world_matrix
-    return node
-
-def mi_shape_to_bl_node(mi_context, mi_props):
-    node = common.create_blender_node(common.BlenderNodeType.OBJECT, id=mi_props.id())
-    
-    mi_mats = mi_props_utils.named_references_with_class(mi_context, mi_props, 'BSDF')
-    assert len(mi_mats) == 1
-    mi_emitters = mi_props_utils.named_references_with_class(mi_context, mi_props, 'Emitter')
-    assert len(mi_emitters) <= 1
-
-    mi_mat_node = mi_bsdf_to_bl_node(mi_context, mi_mats[0], mi_emitter=mi_emitters[0] if len(mi_emitters) == 1 else None)
-    node.add_child(mi_mat_node)
-
-    # Convert the shape
-    bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
-    
-    node.obj_type = common.BlenderObjectNodeType.SHAPE
-    node.bl_data = bl_shape
-    node.world_matrix = world_matrix
-    return node
-
-def mi_texture_to_bl_node(mi_context, mi_props):
+def convert_mi_texture(mi_context, node_id):
+    mi_props = mi_context.mi_state.nodes[node_id].props
     # We only parse bitmap textures
     if mi_props.plugin_name() != 'bitmap':
         return None
 
-    node = common.create_blender_node(common.BlenderNodeType.IMAGE, id=mi_props.id())
-    # Convert dependencies if any
-    _convert_named_references(mi_context, mi_props, node)
     # Load the image
-    bl_image = mi_context.get_bl_image(mi_props.id())
-    if bl_image is None:
-        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
-        if bl_image is None:
+    bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
+    return bl_image
+
+def convert_mi_emitter(mi_context, node_id):
+    mi_props = mi_context.mi_state.nodes[node_id].props
+
+    if world.should_convert_mi_emitter_to_bl_world(mi_props):
+        bl_data = world.mi_emitter_to_bl_world(mi_context, mi_props)
+        if mi_context.bl_scene.world is not None:
+            mi_context.log(f'Multiple Blender worlds is not supported.', 'ERROR')
             return None
-        mi_context.register_bl_image(mi_props.id(), bl_image)
+        mi_context.bl_scene.world = bl_data
+    else:
+        em_name = mi_props.id() if mi_props.id() else f'Emitter_{node_id}'
+        bl_data, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
+        bl_obj = bpy.data.objects.new(em_name, bl_data)
+        bl_obj.matrix_world = world_matrix
+
+        mi_context.bl_collection.objects.link(bl_obj)
+
+    return bl_data
+
+def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
+    from mitsuba import ObjectType
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    bsdf_name = mi_props.id() if mi_props.id() else f'Material_{node_id}'
+    # Parse referenced textures and BSDFs to ensure they are loaded before we parse the material
+    textures = get_references_by_type(mi_context, mi_props, [ObjectType.Texture, ObjectType.BSDF])
+    for tex_id in textures:
+        convert_mi_node(mi_context, tex_id)
     
-    node.bl_image = bl_image
-    return node
+    if emitter_id is None:
+        em_props = None
+    else:
+        em_props = mi_context.mi_state.nodes[emitter_id].props
 
-_bl_data_converters = {
-    'Scene': mi_scene_to_bl_node,
-    'Integrator': mi_integrator_to_bl_node,
-    'Sensor': mi_sensor_to_bl_node,
-    'Sampler': mi_sampler_to_bl_node,
-    'Film': mi_film_to_bl_node,
-    'BSDF': mi_bsdf_to_bl_node,
-    'Emitter': mi_emitter_to_bl_node,
-    'Shape': mi_shape_to_bl_node,
-    'Texture': mi_texture_to_bl_node,
-    'ReconstructionFilter': mi_rfilter_to_bl_node,
-}
+    bl_material = materials.mi_material_to_bl_material(mi_context, mi_props, mi_emitter=em_props)
+    if bl_material is None:
+        raise ValueError(f'Failed to convert Mitsuba BSDF "{bsdf_name}".')
 
-def mi_props_to_bl_data_node(mi_context, mi_cls, mi_props):
-    if mi_cls not in _bl_data_converters:
-        mi_context.log(f'Mitsuba class "{mi_cls}" not supported.', 'ERROR')
-        return None
-    node = _bl_data_converters[mi_cls](mi_context, mi_props)
-    if node is None:
-        mi_context.log(f'Failed to convert Mitsuba class "{mi_cls}".', 'ERROR')
-        return None
-    return node
+    return bl_material
 
-#########################
-## Scene instantiation ##
-#########################
+def convert_mi_sensor(mi_context, node_id):
+    from mitsuba import ObjectType
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    camera_name = mi_props.id() if mi_props.id() else f'Camera_{node_id}'
+    # Convert the camera
+    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
 
-def instantiate_bl_scene_node(mi_context, bl_node):
-    for child_node in bl_node.children:
-        if not instantiate_bl_data_node(mi_context, child_node):
-            return False
-    return True
-
-def instantiate_bl_shape_object_node(mi_context, bl_node):
-    bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
-    bl_obj.matrix_world = bl_node.world_matrix
-    
-    shape_has_material = False
-    for child_node in bl_node.children:
-        # NOTE: Mitsuba shapes support only one BSDF
-        if child_node.type == common.BlenderNodeType.MATERIAL:
-            shape_has_material = True
-            bl_node.bl_data.materials.clear()
-            bl_node.bl_data.materials.append(child_node.bl_mat)
-            bl_obj.active_material_index = 0
-            break
-
-    if not shape_has_material:
-        mi_context.log(f'Shape "{bl_node.id}" does not have a material. Using default diffuse.', 'WARN')
-
-    mi_context.bl_collection.objects.link(bl_obj)
-
-    return True
-
-def instantiate_bl_camera_object_node(mi_context, bl_node):
-    # FIXME: Move this for delayed instantiation as the whole scene needs to
-    #        be created in order to support multiple camera settings.
-    # FIXME: Handle child nodes
-    bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
-    bl_obj.matrix_world = bl_node.world_matrix
+    bl_obj = bpy.data.objects.new(camera_name, bl_camera)
+    bl_obj.matrix_world = world_matrix
 
     mi_context.bl_collection.objects.link(bl_obj)
     mi_context.bl_scene.camera = bl_obj
 
-    # Instantiate children nodes. These include sampler and film properties.
-    for child_node in bl_node.children:
-        if not instantiate_bl_data_node(mi_context, child_node):
-            return False
+    # Instantiate potential child sampler
+    mi_children = get_references_by_type(mi_context, mi_props, [ObjectType.Sampler, ObjectType.Film])
+    #TODO check correct number of samplers/films
+    for child_id in mi_children:
+        convert_mi_node(mi_context, child_id)
 
-    return True
+    return bl_obj
 
-def instantiate_bl_light_object_node(mi_context, bl_node):
-    bl_obj = bpy.data.objects.new(bl_node.id, bl_node.bl_data)
-    bl_obj.matrix_world = bl_node.world_matrix
+def convert_mi_shape(mi_context, node_id):
+    from mitsuba import ObjectType
+    mi_props = mi_context.mi_state.nodes[node_id].props
+    shape_name = mi_props.id() if mi_props.id() else f'Shape_{node_id}'
+
+    mi_emitters = get_references_by_type(mi_context, mi_props, [ObjectType.Emitter])
+    if len(mi_emitters) > 1:
+        raise ValueError(f'Tried to import a shape with multiple emitters. Mitsuba supports only one emitter per shape.')
+
+    # Convert the shape
+    bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
+    bl_obj = bpy.data.objects.new(shape_name, bl_shape)
+    bl_obj.matrix_world = world_matrix
+
+    # Add a material
+    bl_shape.materials.clear()
+    mi_mats = get_references_by_type(mi_context, mi_props, [ObjectType.BSDF])
+    if len(mi_mats) == 0:
+        mi_context.log(f'Shape "{shape_name}" does not have a material. Using default diffuse.', 'WARN')
+    elif len(mi_mats) > 1:
+        raise ValueError(f'Tried to import a shape with multiple BSDFs. Mitsuba supports only one BSDF per shape.')
+    else:
+        # Make sure the material is converted
+        if mi_emitters:
+            em_id = mi_emitters[0]
+        else:
+            em_id = None
+        bl_mat = convert_mi_node(mi_context, mi_mats[0], extra_id=em_id)
+        bl_shape.materials.append(bl_mat)
+        bl_obj.active_material_index = 0
 
     mi_context.bl_collection.objects.link(bl_obj)
+    return bl_obj
 
-    return True
+def convert_mi_node(mi_context, node_id, extra_id=None):
+    from mitsuba import ObjectType
 
-_bl_object_node_instantiators = {
-    common.BlenderObjectNodeType.SHAPE: instantiate_bl_shape_object_node,
-    common.BlenderObjectNodeType.CAMERA: instantiate_bl_camera_object_node,
-    common.BlenderObjectNodeType.LIGHT: instantiate_bl_light_object_node,
-}
+    if node_id in mi_context.bl_data_cache and extra_id is None:
+        return mi_context.bl_data_cache[node_id]
 
-def instantiate_bl_object_node(mi_context, bl_node):
-    node_obj_type = bl_node.obj_type
-    if node_obj_type not in _bl_object_node_instantiators:
-        mi_context.log(f'Unknown Blender object node type "{node_obj_type}".', 'ERROR')
-        return False
-    if not _bl_object_node_instantiators[node_obj_type](mi_context, bl_node):
-        mi_context.log(f'Failed to instantiate Blender object node "{node_obj_type}".', 'ERROR')
-        return False
-    return True
+    #TODO: generate convenient default object names
+    mi_node = mi_context.mi_state.nodes[node_id]
+    converters = {
+        ObjectType.Shape: convert_mi_shape,
+        ObjectType.Sensor: convert_mi_sensor,
+        ObjectType.Integrator: convert_mi_integrator,
+        ObjectType.Sampler: convert_mi_sampler,
+        ObjectType.Film: convert_mi_film,
+        ObjectType.Emitter: convert_mi_emitter,
+        ObjectType.Texture: convert_mi_texture,
+        ObjectType.ReconstructionFilter: convert_mi_rfilter,
+    }
+    # TODO: maybe delay sensor instantiation ?
+    if mi_node.type == ObjectType.BSDF:
+        # Need to pass the emitter ID if present
+        bl_data = convert_mi_bsdf(mi_context, node_id, emitter_id=extra_id)
+    elif mi_node.type in converters:
+        bl_data = converters[mi_node.type](mi_context, node_id)
+    else:
+        raise ValueError(f'Unknown Mitsuba node type "{mi_node.type}".')
 
-def instantiate_film_properties_node(mi_context, bl_node):
-    if not renderer.apply_mi_film_properties(mi_context, bl_node.mi_props):
-        return False
+    if extra_id is None and mi_node.type in [ObjectType.BSDF, ObjectType.Texture]:
+        mi_context.bl_data_cache[node_id] = bl_data
+    return bl_data
 
-    # Instantiate child rfilter if present.
-    for child_node in bl_node.children:
-        if not instantiate_bl_data_node(mi_context, child_node):
-            return False
-
-    return True
-
-def instantiate_integrator_properties_node(mi_context, bl_node):
-    return renderer.apply_mi_integrator_properties(mi_context, bl_node.mi_props)
-
-def instantiate_rfilter_properties_node(mi_context, bl_node):
-    return renderer.apply_mi_rfilter_properties(mi_context, bl_node.mi_props)
-
-def instantiate_sampler_properties_node(mi_context, bl_node):
-    return renderer.apply_mi_sampler_properties(mi_context, bl_node.mi_props)
-
-_bl_properties_node_instantiators = {
-    common.BlenderPropertiesNodeType.FILM: instantiate_film_properties_node,
-    common.BlenderPropertiesNodeType.INTEGRATOR: instantiate_integrator_properties_node,
-    common.BlenderPropertiesNodeType.RFILTER: instantiate_rfilter_properties_node,
-    common.BlenderPropertiesNodeType.SAMPLER: instantiate_sampler_properties_node,
-}
-
-def instantiate_bl_properties_node(mi_context, bl_node):
-    node_prop_type = bl_node.prop_type
-    if node_prop_type not in _bl_properties_node_instantiators:
-        mi_context.log(f'Unknown Blender property node type "{node_prop_type}".', 'ERROR')
-        return False
-    if not _bl_properties_node_instantiators[node_prop_type](mi_context, bl_node):
-        mi_context.log(f'Failed to instantiate Blender property node "{node_prop_type}".', 'ERROR')
-        return False
-    return True
-
-def instantiate_bl_material_node(mi_context, bl_node):
-    # Nothing to do here.
-    return True
-
-def instantiate_bl_world_node(mi_context, bl_node):
-    if mi_context.bl_scene.world is not None:
-        mi_context.log(f'Multiple Blender worlds is not supported.', 'ERROR')
-        return False
-    mi_context.bl_scene.world = bl_node.bl_world
-    return True
-
-def instantiate_bl_image_node(mi_context, bl_node):
-    # Nothing to do here.
-    return True
-
-_bl_node_instantiators = {
-    common.BlenderNodeType.SCENE: instantiate_bl_scene_node,
-    common.BlenderNodeType.MATERIAL: instantiate_bl_material_node,
-    common.BlenderNodeType.OBJECT: instantiate_bl_object_node,
-    common.BlenderNodeType.PROPERTIES: instantiate_bl_properties_node,
-    common.BlenderNodeType.WORLD: instantiate_bl_world_node,
-    common.BlenderNodeType.IMAGE: instantiate_bl_image_node,
-}
-
-def instantiate_bl_data_node(mi_context, bl_node):
-    node_type = bl_node.type
-    if node_type not in _bl_node_instantiators:
-        mi_context.log(f'Unknown Blender node type "{node_type}".', 'ERROR')
-        return False
-    if not _bl_node_instantiators[node_type](mi_context, bl_node):
-        mi_context.log(f'Failed to instantiate Blender node "{node_type}".', 'ERROR')
-        return False
-    return True
-
+def convert_mi_scene(mi_context):
+    from mitsuba import Properties
+    for key, val in mi_context.mi_state.root.props.items():
+        if isinstance(val, Properties.ResolvedReference):
+            convert_mi_node(mi_context, val.index())
 
 #########################
 ##    Main loading     ##
 #########################
 
-def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat):
+def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
     
     Params
@@ -373,34 +220,33 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     bl_collection: Blender collection
     filepath: Path to the Mitsuba XML scene file
     global_mat: Axis conversion matrix
+    merge_shapes: Whether to merge similar shapes (same material) into a single one
+    merge_plugins: Whether to merge identical plugins (e.g. materials) into a single one
     '''
+    #TODO: progress bar
     start_time = time.time()
     # Load the Mitsuba XML and extract the objects' properties
-    from mitsuba import xml_to_props
-    raw_props = xml_to_props(filepath)
-    mi_scene_props = common.MitsubaSceneProperties(raw_props)
-    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_scene_props, global_mat)
+    import mitsuba as mi
+    config = mi.parser.ParserConfig(mi.variant())
+    config.merge_meshes = merge_shapes
+    config.merge_equivalent = merge_plugins
+    mi_state = mi.parser.parse_file(config, filepath)
+    # Resolve all references and merge equivalent plugins if enabled
+    mi.parser.transform_all(config, mi_state)
+    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_state, global_mat)
 
-    _, mi_props = mi_scene_props.get_first_of_class('Scene')
-    bl_scene_data_node = mi_props_to_bl_data_node(mi_context, 'Scene', mi_props)
-    if bl_scene_data_node is None:
-        mi_context.log('Failed to load Mitsuba scene', 'ERROR')
-        return
-    
     # Initialize the Mitsuba renderer inside of Blender
     renderer.init_mitsuba_renderer(mi_context)
 
-    if not instantiate_bl_data_node(mi_context, bl_scene_data_node):
-        mi_context.log('Failed to instantiate Blender scene', 'ERROR')
-        return
+    # Convert the Mitsuba scene state to a Blender scene
+    #TODO: error checking
+    convert_mi_scene(mi_context)
 
     # Instantiate a default Blender world if none was created
     if mi_context.bl_scene.world is None:
         mi_context.bl_scene.world = world.create_default_bl_world()
     
-    # Check that every property was accessed at least once as a sanity check
-    for cls, prop in mi_scene_props:
-        _check_unqueried_props(mi_context, cls, prop)
+    # TODO: maybeCheck that every property was accessed at least once as a sanity check
 
     end_time = time.time()
     mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}s.', 'INFO')
