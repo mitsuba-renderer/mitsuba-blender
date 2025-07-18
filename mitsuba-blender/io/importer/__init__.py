@@ -85,8 +85,8 @@ def convert_mi_emitter(mi_context, node_id):
     return bl_data
 
 def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
-    if node_id in mi_context.bl_material_cache:
-        # Already converted this node
+    # Look up the material in the cache if it is not emissive
+    if node_id in mi_context.bl_material_cache and emitter_id is None:
         return mi_context.bl_material_cache[node_id]
 
     mi_props = mi_context.mi_state.nodes[node_id].props
@@ -103,7 +103,8 @@ def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
         return None
 
     # Store the material in the cache
-    mi_context.bl_material_cache[node_id] = bl_material
+    if emitter_id is None:
+        mi_context.bl_material_cache[node_id] = bl_material
     return bl_material
 
 def convert_mi_sensor(mi_context, node_id):
