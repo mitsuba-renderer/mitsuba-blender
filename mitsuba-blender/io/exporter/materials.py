@@ -234,35 +234,23 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
         }
         return params
     elif mat_I.type != 'EMISSION' and mat_II.type != 'EMISSION':
-
+        # TODO: When we can process textures in-memory, support exporting mask BSDFs
         weight = convert_color_texture_node(export_ctx, current_node.inputs['Fac'])
+        params = {
+            'type': 'blendbsdf',
+            'weight': weight
+        }
+        # add first material
+        mat_A = cycles_material_to_dict(export_ctx, mat_I)
+        params.update([
+            ('bsdf1', mat_A)
+        ])
 
-        if mat_I.type == 'BSDF_TRANSPARENT' or mat_II.type == 'BSDF_TRANSPARENT':
-            #FIXME: What if the transparent opacity is not 1?
-            params = {
-                'type': 'mask',
-                'opacity': weight
-            }
-            other_mat = mat_II if mat_I.type == 'BSDF_TRANSPARENT' else mat_I
-            mat_params = cycles_material_to_dict(export_ctx, other_mat)
-            params.update([('bsdf', mat_params)])
-
-        else:
-            params = {
-                'type': 'blendbsdf',
-                'weight': weight
-            }
-            # add first material
-            mat_A = cycles_material_to_dict(export_ctx, mat_I)
-            params.update([
-                ('bsdf1', mat_A)
-            ])
-
-            # add second material
-            mat_B = cycles_material_to_dict(export_ctx, mat_II)
-            params.update([
-                ('bsdf2', mat_B)
-            ])
+        # add second material
+        mat_B = cycles_material_to_dict(export_ctx, mat_II)
+        params.update([
+            ('bsdf2', mat_B)
+        ])
 
         return params
     else:#one bsdf, one emitter
@@ -341,12 +329,16 @@ def convert_transparent_materials_cycles(export_ctx, current_node):
         # a texture. This will be doable once we convert textures in-memory instead
         # of on-disk (cf PR #121).
         export_ctx.log("Transparent BSDF: opacity textures are currently not supported. Consider using a Mix Shader instead.", 'WARN')
-    opacity_bl = list(current_node.inputs['Color'].default_value)
+    bl_opacity = current_node.inputs['Color'].default_value
+    if min(bl_opacity) == 1.0:
+        # Completely transparent, export a null material
+        return {'type': 'null'}
+
     # Invert the opacity value to match Mitsuba's convention
-    opacity_mi = [*[1.0 - x for x in opacity_bl[:3]], opacity_bl[3]]
+    mi_opacity = [*[1.0 - x for x in bl_opacity[:3]], bl_opacity[3]]
     params = {
         'type': 'mask',
-        'opacity': export_ctx.spectrum(opacity_mi),
+        'opacity': export_ctx.spectrum(mi_opacity),
         'bsdf': {
             'type': 'diffuse',
             'reflectance': export_ctx.spectrum(0.0)
