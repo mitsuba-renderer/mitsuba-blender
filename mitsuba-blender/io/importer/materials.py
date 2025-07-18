@@ -391,16 +391,26 @@ def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bu
         # NOTE: We always parse the Mitsuba material; we don't use the material cache.
         #       This is because we have no way of reusing already created materials as a 'sub-material'.
         mi_child_mats = mi_context.mi_state.nodes[mi_child_ids[0]].props
-        write_mi_material_to_node_graph(mi_context, mi_child_mats, bl_mat_wrap, out_socket_id, is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
+        write_mi_material_to_node_graph(mi_context, mi_child_mats, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal)
+        # TODO: return values seem inconsistent
         return True
     elif mi_child_material_count == 2:
         # This case is handled by creating a two-side material where the front face has the first
         # material and the back face has the second one.
-        mi_child_mats = [mi_context.mi_state.nodes[i].props for i in mi_child_ids]
-        write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_child_mats[0], mi_child_mats[1], mi_bump=mi_bump, mi_normal=mi_normal)
+        mi_front_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+        mi_back_mat = mi_context.mi_state.nodes[mi_child_ids[1]].props
+        bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
+        # Generate a geometry node that will select the correct BSDF based on face orientation
+        bl_mat_wrap.ensure_node_type([out_socket_id, 'Fac'], 'ShaderNodeNewGeometry', 'Backfacing')
+        # Create a new material wrapper with the mix shader as output node
+        bl_child_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+        # Write the children materials
+        write_mi_material_to_node_graph(mi_context, mi_front_mat, bl_child_mat_wrap, 'Shader', mi_bump=mi_bump, mi_normal=mi_normal)
+        write_mi_material_to_node_graph(mi_context, mi_back_mat, bl_child_mat_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
         return True
     else:
         mi_context.log(f'Mitsuba twosided material "{mi_mat.id()}" has {mi_child_material_count} child material(s). Expected 1 or 2.', 'ERROR')
+        #TODO error checking consistency pass
         return False
 
 def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
@@ -585,21 +595,6 @@ def write_mi_null_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
 ##   Main import    ##
 ######################
 
-def write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat, mi_back_mat=None, mi_bump=None, mi_normal=None):
-    bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
-    # Generate a geometry node that will select the correct BSDF based on face orientation
-    bl_mat_wrap.ensure_node_type([out_socket_id, 'Fac'], 'ShaderNodeNewGeometry', 'Backfacing')
-    # Create a new material wrapper with the mix shader as output node
-    bl_child_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
-    # Write the child materials
-    write_mi_material_to_node_graph(mi_context, mi_front_mat, bl_child_mat_wrap, 'Shader', is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
-    if mi_back_mat is not None:
-        write_mi_material_to_node_graph(mi_context, mi_back_mat, bl_child_mat_wrap, 'Shader_001', is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
-    else:
-        bl_diffuse = bl_child_mat_wrap.ensure_node_type(['Shader_001'], 'ShaderNodeBsdfDiffuse', 'BSDF')
-        bl_diffuse.inputs['Color'].default_value = [0.0, 0.0, 0.0, 1.0]
-    return True
-
 def write_bl_error_material(bl_mat_wrap, out_socket_id):
     ''' Write a Blender error material that can be applied whenever
     a Mitsuba material cannot be loaded.
@@ -625,20 +620,7 @@ _material_writers = {
     'null': write_mi_null_bsdf,
 }
 
-# List of materials that are always two-sided. These are the transmissive materials and
-# a few material wrappers.
-_always_twosided_bsdfs = [
-    'dielectric',
-    'roughdielectric',
-    'thindielectric',
-    'mask',
-    'bumpmap',
-    'normalmap',
-    'null',
-]
-
-def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False, mi_bump=None, mi_normal=None):
-    #FIXME: is_within_twosided is broken now
+def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     ''' Write a Mitsuba material in a node graph starting at a specific
     node in the shader graph. This function is always guaranteed to succeed.
     If a material cannot be converted, it will result in a distinctive error material.
@@ -649,14 +631,7 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
         write_bl_error_material(bl_mat_wrap, out_socket_id)
         return
 
-    if is_within_twosided and mat_type == 'twosided':
-        mi_context.log('Cannot have nested twosided materials.', 'ERROR')
-        return
-
-    if not is_within_twosided and mat_type != 'twosided' and mat_type not in _always_twosided_bsdfs:
-        # Write one-sided material
-        write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat=mi_mat, mi_back_mat=None, mi_bump=mi_bump, mi_normal=mi_normal)
-    elif not _material_writers[mat_type](mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal):
+    if not _material_writers[mat_type](mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal):
         mi_context.log(f'Failed to convert Mitsuba material "{mi_mat.id()}". Skipping.', 'WARN')
         write_bl_error_material(bl_mat_wrap, out_socket_id)
 
