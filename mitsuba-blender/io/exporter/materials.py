@@ -27,6 +27,9 @@ def convert_float_texture_node(export_ctx, socket):
     if socket.is_linked:
         node = socket.links[0].from_node
 
+        if node.type == "SEPARATE_COLOR":
+            node = node.inputs[0].links[0].from_node
+
         if node.type == "TEX_IMAGE":
             params = export_texture_node(export_ctx, node)
         else:
