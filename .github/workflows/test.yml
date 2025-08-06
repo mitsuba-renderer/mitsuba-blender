@@ -26,10 +26,10 @@ jobs:
           os: "ubuntu-latest",
           mitsuba-version: "3.5.0"
         }
-        # - {
-        #   os: "windows-latest",
-        #   mitsuba-version: "3.5.0"
-        # }
+        - {
+          os: "windows-latest",
+          mitsuba-version: "3.5.0"
+        }
         blender:
         - {
           version: "3.6",
