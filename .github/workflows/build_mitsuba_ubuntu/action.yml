@@ -19,7 +19,6 @@ runs:
     with:
       path: |
         ~/.cache
-        mitsuba3/build
       key: build-ubuntu-${{ github.run_id }}
       restore-keys: |
         build-ubuntu-
@@ -43,16 +42,11 @@ runs:
     run: |
       cd mitsuba3
       mkdir -p build
-      export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
-      export CCACHE_NOHASHDIR=1
-      export CCACHE_DEBUG=1
       export CMAKE_CXX_COMPILER_LAUNCHER=ccache
       export CCACHE_DEBUGDIR=$GITHUB_WORKSPACE/ccache-debug
-      ccache -s
       cd build
       cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release 
-      ninja -d explain
-      ccache -s
+      ninja
 
   - name: Store ccache
     if: always()
@@ -61,5 +55,4 @@ runs:
       key: build-ubuntu-${{ github.run_id }}
       path: |
         ~/.cache
-        mitsuba3/build
 
