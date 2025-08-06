@@ -24,8 +24,8 @@ def mi_perspective_to_bl_camera(mi_context, mi_sensor):
     bl_camera.shift_x = mi_sensor.get('principal_point_offset_x', 0.0)
     bl_camera.shift_y = mi_sensor.get('principal_point_offset_y', 0.0)
 
-    if mi_sensor.has_property('focal_length'):
-        mi_sensor.lens = mi_sensor.get('focal_length', 50)
+    if 'focal_length' in mi_sensor:
+        mi_sensor.lens = mi_sensor['focal_length']
     else:
         fov_axis = mi_sensor.get('fov_axis', 'x')
         fov = math.radians(mi_sensor.get('fov', 80))

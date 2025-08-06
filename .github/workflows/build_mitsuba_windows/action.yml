@@ -1,0 +1,38 @@
+name: Build Mitsuba 3 on Windows
+runs:
+  using: composite
+  steps:
+  - name: Install Mitsuba build dependencies
+    shell: bash
+    run: |
+      choco install ninja cmake
+      python -m pip install setuptools typing_extensions numpy
+
+  - name: Checkout Mitsuba 3 repo
+    uses: actions/checkout@v4
+    with:
+      repository: mitsuba-renderer/mitsuba3
+      path: mitsuba3
+      submodules: recursive
+
+  - name: Restore Mitsuba 3 build
+    uses: actions/cache/restore@v4
+    with:
+      key: mitsuba-build-windows
+      path: mitsuba3/build
+
+  - name: Build Mitsuba 3
+    shell: bash
+    run: |
+      cd mitsuba3
+      export CMAKE_POLICY_VERSION_MINIMUM=3.5
+      cmake -B build -DCMAKE_BUILD_TYPE=Release
+      cmake --build build --config Release --parallel
+
+  - name: Cache Mitsuba 3 build
+    if: always()
+    uses: actions/cache/save@v4
+    with:
+      key: mitsuba-build-windows
+      path: mitsuba3/build
+

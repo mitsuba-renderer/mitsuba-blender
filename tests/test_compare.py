@@ -13,8 +13,6 @@ def test_round_trip(xml_scene, resource_resolver, mitsuba_scene_ztest):
     pixel_count = resolution[0] * resolution[1]
     spp = sample_budget // pixel_count
 
-    significance_level = 0.01
-
     ref_scene_file = resource_resolver.get_absolute_resource_path(xml_scene)
     ref_scene_name, _ = os.path.splitext(os.path.basename(ref_scene_file))
     test_output_dir = resource_resolver.ensure_resource_dir(f'out/{ref_scene_name}')

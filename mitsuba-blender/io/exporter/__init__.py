@@ -28,22 +28,24 @@ class SceneConverter:
     '''
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
-        self.use_selection = False # Only export selection
-        self.ignore_background = True
         self.render = render
 
-    def set_path(self, name, split_files=False):
-        from mitsuba.python.xml import WriteXML
-        # Ideally, this should only be created if we want to write a scene.
-        # For now we need it to save meshes and packed textures.
-        # TODO: get rid of all writing to disk when creating the dict
-        if not self.render:
-            self.xml_writer = WriteXML(name, self.export_ctx.subfolders,
-                                       split_files=split_files)
-        # Give the path to the export context, for saving meshes and files
-        self.export_ctx.directory, _ = os.path.split(name)
+    def scene_to_dict(self, depsgraph, window_manager, use_selection=False, ignore_background=True):
+        """
+        Convert a Blender scene to a Mitsuba-compatible dict.
 
-    def scene_to_dict(self, depsgraph, window_manager):
+        Parameters
+        ----------
+
+        depsgraph : bpy.types.Depsgraph
+            The evaluated dependency graph of the scene to export.
+        window_manager : bpy.types.WindowManager
+            The window manager to update the progress bar.
+        use_selection : bool, optional
+            Only export selected objects. Defaults to False.
+        ignore_background : bool, optional
+            Ignore the default background in Blender's world settings. Defaults to True.
+        """
         # Switch to object mode before exporting stuff, so everything is defined properly
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -61,7 +63,7 @@ class SceneConverter:
             }
         self.export_ctx.data_add(integrator)
 
-        materials.export_world(self.export_ctx, b_scene.world, self.ignore_background)
+        materials.export_world(self.export_ctx, b_scene.world, ignore_background)
 
         # Establish list of particle objects
         particles = []
@@ -78,7 +80,7 @@ class SceneConverter:
             window_manager.progress_update(progress_counter)
             progress_counter += 1
 
-            if self.use_selection:
+            if use_selection:
                 #skip if it's not selected or if it's an instance and the parent object is not selected
                 if not object_instance.is_instance and not object_instance.object.original.select_get():
                     continue
@@ -104,8 +106,16 @@ class SceneConverter:
             else:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 
-    def dict_to_xml(self):
-        self.xml_writer.process(self.export_ctx.scene_data)
+    def dict_to_xml(self, filename):
+        import mitsuba as mi
+        config = mi.parser.ParserConfig(mi.variant())
+        state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
+        # Reorder the plugins so they are written in a legible order
+        mi.parser.transform_reorder(config, state)
+        # Place files in convenient subfolders (e.g. textures, meshes, etc.)
+        output_dir = os.path.dirname(filename)
+        mi.parser.transform_relocate(config, state, output_dir)
+        mi.parser.write_file(state, filename, True)
 
     def dict_to_scene(self):
         from mitsuba import load_dict

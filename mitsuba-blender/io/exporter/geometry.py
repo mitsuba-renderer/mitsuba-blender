@@ -199,15 +199,15 @@ def export_object(deg_instance, export_ctx, is_particle):
                         'bsdf': {'type':'diffuse'}
                     }
                     export_ctx.data_add(default_bsdf)
-                params['bsdf'] = {'type':'ref', 'id':'default-bsdf'}
+                params['bsdf'] = export_ctx.create_ref('default-bsdf')
             else:
                 mat_id = f"mat-{b_object.data.materials[mat_nr].name}"
                 if export_ctx.exported_mats.has_mat(mat_id): # Add one emitter *and* one bsdf
                     mixed_mat = export_ctx.exported_mats.mats[mat_id]
-                    params['bsdf'] = {'type':'ref', 'id':mixed_mat['bsdf']}
+                    params['bsdf'] = export_ctx.create_ref(mixed_mat['bsdf'])
                     params['emitter'] = mixed_mat['emitter']
                 else:
-                    params['bsdf'] = {'type':'ref', 'id':mat_id}
+                    params['bsdf'] = export_ctx.create_ref(mat_id)
 
             # Add dict to the scene dict
             if use_shapegroup:

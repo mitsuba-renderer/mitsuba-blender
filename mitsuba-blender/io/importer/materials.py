@@ -15,8 +15,8 @@ import bpy
 
 from . import bl_shader_utils
 from . import mi_spectra_utils
-from . import mi_props_utils
 from . import textures
+from .mi_props_utils import get_references_by_type
 
 #################
 ##  Utilities  ##
@@ -40,6 +40,20 @@ def _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, default):
     if pdf == 0.0:
         return default
     return list(color / pdf)
+
+def get_bl_texture(mi_context, mi_tex_id):
+    if mi_tex_id in mi_context.bl_texture_cache:
+        return mi_context.bl_texture_cache[mi_tex_id]
+    mi_props = mi_context.mi_state.nodes[mi_tex_id].props
+    # We only parse bitmap textures
+    if mi_props.plugin_name() != 'bitmap':
+        mi_context.log(f'Mitsuba texture "{mi_props.id()}" of type "{mi_props.plugin_name()}" is not supported. Only "bitmap" textures are supported.', 'ERROR')
+        return None
+
+    # Load the image
+    bl_image = textures.mi_texture_to_bl_image(mi_context, mi_props)
+    mi_context.bl_texture_cache[mi_tex_id] = bl_image
+    return bl_image
 
 ################################
 ##  Misc property converters  ##
@@ -113,21 +127,9 @@ def mi_microfacet_to_bl_microfacet(mi_context, mi_microfacet_distribution):
 ##  Float property writers  ##
 ##############################
 
-def write_mi_float_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_id = mi_texture.id()
-    bl_image = mi_context.get_bl_image(mi_texture_id)
-    if bl_image is None:
-        # FIXME: We forcibly disable sRGB conversion for float textures.
-        #        This should probably be done elsewhere.
-        mi_texture['raw'] = True
-        # If the image is not in the cache, load it from disk.
-        # This can happen if we have a texture inside of a BSDF that is itself into a
-        # twosided BSDF.
-        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_texture)
-        if bl_image is None:
-            bl_mat_wrap.out_node[out_socket_id].default_value = default
-            return
-        mi_context.register_bl_image(mi_texture_id, bl_image)
+def write_mi_float_bitmap(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture = mi_context.mi_state.nodes[mi_tex_id].props
+    bl_image = get_bl_texture(mi_context, mi_tex_id)
 
     # FIXME: Support texture coordinate mapping
     # FIXME: For float textures, it is not always clear if we should use the 'Alpha' output instead of the luminance value.
@@ -140,12 +142,12 @@ _float_texture_writers = {
     'bitmap': write_mi_float_bitmap
 }
 
-def write_mi_float_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_type = mi_texture.plugin_name()
+def write_mi_float_texture(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_type = mi_context.mi_state.nodes[mi_tex_id].props.plugin_name()
     if mi_texture_type not in _float_texture_writers:
         mi_context.log(f'Mitsuba Texture type "{mi_texture_type}" is not supported.', 'ERROR')
         return
-    _float_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
+    _float_texture_writers[mi_texture_type](mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default)
 
 def write_mi_float_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
     reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
@@ -156,7 +158,7 @@ _float_spectrum_writers = {
 }
 
 def write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
-    mi_obj_class_name = mi_obj.class_().name()
+    mi_obj_class_name = mi_obj.class_name()
     if mi_obj_class_name not in _float_spectrum_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return
@@ -167,21 +169,22 @@ def write_mi_float_value(mi_context, float_value, bl_mat_wrap, out_socket_id, tr
         float_value = transformation(float_value)
     bl_mat_wrap.out_node.inputs[out_socket_id].default_value = float_value
 
-def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None):
+def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None, transformation=None, bounded=True):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Float:
             mi_prop_value = mi_mat.get(mi_prop_name, default)
             write_mi_float_value(mi_context, mi_prop_value, bl_mat_wrap, out_socket_id, transformation)
-        elif mi_prop_type == Properties.Type.NamedReference:
-            mi_texture_ref_id = mi_mat.get(mi_prop_name)
-            mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
-            assert mi_texture is not None
-            write_mi_float_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
-        elif mi_prop_type == Properties.Type.Object:
-            mi_obj = mi_mat.get(mi_prop_name)
-            write_mi_float_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+        elif mi_prop_type == Properties.Type.Color:
+            if bounded:
+                mi_col = mi_mat.get_texture(mi_prop_name, default)
+            else:
+                mi_col = mi_mat.get_unbounded_texture(mi_prop_name, default)
+            write_mi_float_spectrum(mi_context, mi_col, bl_mat_wrap, out_socket_id, default)
+        elif mi_prop_type == Properties.Type.ResolvedReference:
+            mi_tex_id = mi_mat[mi_prop_name].index()
+            write_mi_float_texture(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default)
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to float.', 'ERROR')
     elif default is not None:
@@ -193,18 +196,10 @@ def write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_s
 ##  RGB property writers  ##
 ############################
 
-def write_mi_rgb_bitmap(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_id = mi_texture.id()
-    bl_image = mi_context.get_bl_image(mi_texture_id)
-    if bl_image is None:
-        # If the image is not in the cache, load it from disk.
-        # This can happen if we have a texture inside of a BSDF that is itself into a
-        # twosided BSDF.
-        bl_image = textures.mi_texture_to_bl_image(mi_context, mi_texture)
-        if bl_image is None:
-            bl_mat_wrap.out_node[out_socket_id].default_value = bl_shader_utils.rgb_to_rgba(default)
-            return
-        mi_context.register_bl_image(mi_texture_id, bl_image)
+def write_mi_rgb_bitmap(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
+    bl_image = get_bl_texture(mi_context, mi_tex_id)
+    #TODO: handle None case
+    mi_texture = mi_context.mi_state.nodes[mi_tex_id].props
 
     # FIXME: Support texture coordinate mapping
     bl_teximage = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeTexImage', 'Color')
@@ -216,12 +211,12 @@ _rgb_texture_writers = {
     'bitmap': write_mi_rgb_bitmap
 }
 
-def write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default=None):
-    mi_texture_type = mi_texture.plugin_name()
+def write_mi_rgb_texture(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default=None):
+    mi_texture_type = mi_context.mi_state.nodes[mi_tex_id].props.plugin_name()
     if mi_texture_type not in _rgb_texture_writers:
         mi_context.log(f'Mitsuba Texture type "{mi_texture_type}" is not supported.', 'ERROR')
         return
-    _rgb_texture_writers[mi_texture_type](mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
+    _rgb_texture_writers[mi_texture_type](mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default)
 
 def write_mi_rgb_srgb_reflectance_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
     reflectance = mi_spectra_utils.convert_mi_srgb_reflectance_spectrum(mi_obj, default)
@@ -232,7 +227,7 @@ _rgb_spectrum_writers = {
 }
 
 def write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default=None):
-    mi_obj_class_name = mi_obj.class_().name()
+    mi_obj_class_name = mi_obj.class_name()
     if mi_obj_class_name not in _rgb_spectrum_writers:
         mi_context.log(f'Mitsuba object type "{mi_obj_class_name}" is not supported.', 'ERROR')
         return
@@ -243,25 +238,21 @@ def write_mi_rgb_value(mi_context, rgb_value, bl_mat_wrap, out_socket_id):
 
 def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Color:
-            write_mi_rgb_value(mi_context, list(mi_mat.get(mi_prop_name, default)), bl_mat_wrap, out_socket_id)
-        if mi_prop_type == Properties.Type.Float:
+            mi_col = mi_mat.get_texture(mi_prop_name)
+            write_mi_rgb_spectrum(mi_context, mi_col, bl_mat_wrap, out_socket_id, default)
+        elif mi_prop_type == Properties.Type.Float:
             if mi_prop_name in mi_mat:
                 col_val = mi_mat.get(mi_prop_name)
                 col = [col_val, col_val, col_val]
             else:
                 col = default
             write_mi_rgb_value(mi_context, list(col), bl_mat_wrap, out_socket_id)
-        elif mi_prop_type == Properties.Type.NamedReference:
-            mi_texture_ref_id = mi_mat.get(mi_prop_name)
-            mi_texture = mi_context.mi_scene_props.get_with_id_and_class(mi_texture_ref_id, 'Texture')
-            assert mi_texture is not None
-            write_mi_rgb_texture(mi_context, mi_texture, bl_mat_wrap, out_socket_id, default)
-        elif mi_prop_type == Properties.Type.Object:
-            mi_obj = mi_mat.get(mi_prop_name)
-            write_mi_rgb_spectrum(mi_context, mi_obj, bl_mat_wrap, out_socket_id, default)
+        elif mi_prop_type == Properties.Type.ResolvedReference:
+            mi_tex_id = mi_mat[mi_prop_name].index()
+            write_mi_rgb_texture(mi_context, mi_tex_id, bl_mat_wrap, out_socket_id, default)
         else:
             mi_context.log(f'Material property "{mi_prop_name}" of type "{mi_prop_type}" cannot be converted to rgb.', 'ERROR')
     elif default is not None:
@@ -275,7 +266,7 @@ def write_mi_rgb_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
 
 def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     from mitsuba import Properties
-    if mi_mat.has_property(mi_prop_name):
+    if mi_prop_name in mi_mat:
         mi_prop_type = mi_mat.type(mi_prop_name)
         if mi_prop_type == Properties.Type.Float:
             bl_mat_wrap.out_node.inputs[out_socket_id].default_value = mi_mat.get(mi_prop_name, default)
@@ -295,22 +286,24 @@ def write_mi_ior_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_soc
 def write_mi_roughness_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default=None):
     # FIXME: Check that the roughness value transformation is actually correct.
     # FIXME: Verify that roughness textures don't also need to take the transformation into account.
-    write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default ** 2, lambda x: math.sqrt(x))
+    write_mi_float_property(mi_context, mi_mat, mi_prop_name, bl_mat_wrap, out_socket_id, default ** 2, lambda x: math.sqrt(x), bounded=False)
 
 #############################
 ##  Normal & Bump writers  ##
 #############################
 
 def write_mi_bump_and_normal_maps(mi_context, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    from mitsuba import ObjectType
     normal_mat_wrap = bl_mat_wrap
     if mi_bump is not None:
         bl_bump = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBump', 'Normal')
         bl_bump_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_bump)
-        mi_bump_textures = mi_props_utils.named_references_with_class(mi_context, mi_bump, 'Texture')
-        assert len(mi_bump_textures) == 1
-        write_mi_float_bitmap(mi_context, mi_bump_textures[0], bl_bump_wrap, 'Height', 0.0)
-        # FIXME: Can we map directly this value ?
-        write_mi_float_property(mi_context, mi_bump, 'scale', bl_bump_wrap, 'Distance', 1.0)
+        mi_tex_ids = get_references_by_type(mi_context, mi_bump, [ObjectType.Texture])
+        assert len(mi_tex_ids) == 1
+        write_mi_float_bitmap(mi_context, mi_tex_ids[0], bl_bump_wrap, 'Height', 0.0)
+        height = mi_bump.get('scale', 1.0)
+        write_mi_float_value(mi_context, height, bl_bump_wrap, 'Distance')
+
         normal_mat_wrap = bl_bump_wrap
 
     if mi_normal is not None:
@@ -323,11 +316,14 @@ def write_mi_bump_and_normal_maps(mi_context, bl_mat_wrap, out_socket_id, mi_bum
 ###########################
 
 def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
+    from mitsuba import Properties
     bl_add = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeAddShader', 'Shader')
     bl_add_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_add)
 
     bl_emissive = bl_add_wrap.ensure_node_type(['Shader'], 'ShaderNodeEmission', 'Emission')
-    radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get('radiance'), [1.0, 1.0, 1.0])
+    if mi_emitter.type('radiance') == Properties.Type.Color:
+        radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get_emissive_texture('radiance'), [1.0, 1.0, 1.0])
+
     bl_emissive.inputs['Color'].default_value = bl_shader_utils.rgb_to_rgba(radiance)
     bl_emissive.inputs['Strength'].default_value = strength
 
@@ -387,21 +383,34 @@ def write_mi_diffuse_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bum
     return True
 
 def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
-    mi_child_materials = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
-    mi_child_material_count = len(mi_child_materials)
+    from mitsuba import ObjectType
+    mi_child_ids = get_references_by_type(mi_context, mi_mat, [ObjectType.BSDF])
+    mi_child_material_count = len(mi_child_ids)
     if mi_child_material_count == 1:
         # This case is handled by simply parsing the material. Blender materials are two-sided by default
         # NOTE: We always parse the Mitsuba material; we don't use the material cache.
         #       This is because we have no way of reusing already created materials as a 'sub-material'.
-        write_mi_material_to_node_graph(mi_context, mi_child_materials[0], bl_mat_wrap, out_socket_id, is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
+        mi_child_mats = mi_context.mi_state.nodes[mi_child_ids[0]].props
+        write_mi_material_to_node_graph(mi_context, mi_child_mats, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal)
+        # TODO: return values seem inconsistent
         return True
     elif mi_child_material_count == 2:
         # This case is handled by creating a two-side material where the front face has the first
         # material and the back face has the second one.
-        write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_child_materials[0], mi_child_materials[1], mi_bump=mi_bump, mi_normal=mi_normal)
+        mi_front_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+        mi_back_mat = mi_context.mi_state.nodes[mi_child_ids[1]].props
+        bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
+        # Generate a geometry node that will select the correct BSDF based on face orientation
+        bl_mat_wrap.ensure_node_type([out_socket_id, 'Fac'], 'ShaderNodeNewGeometry', 'Backfacing')
+        # Create a new material wrapper with the mix shader as output node
+        bl_child_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+        # Write the children materials
+        write_mi_material_to_node_graph(mi_context, mi_front_mat, bl_child_mat_wrap, 'Shader', mi_bump=mi_bump, mi_normal=mi_normal)
+        write_mi_material_to_node_graph(mi_context, mi_back_mat, bl_child_mat_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
         return True
     else:
         mi_context.log(f'Mitsuba twosided material "{mi_mat.id()}" has {mi_child_material_count} child material(s). Expected 1 or 2.', 'ERROR')
+        #TODO error checking consistency pass
         return False
 
 def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
@@ -442,15 +451,17 @@ def write_mi_thindielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     return True
 
 def write_mi_blend_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    from mitsuba import ObjectType
     bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
     bl_mix_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
     write_mi_float_property(mi_context, mi_mat, 'weight', bl_mix_wrap, 'Fac', 0.5)
     # NOTE: We assume that the two BSDFs are ordered in the list of named references
-    mi_child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
-    mi_child_mats_count = len(mi_child_mats)
+    mi_child_ids = get_references_by_type(mi_context, mi_mat, [ObjectType.BSDF])
+    mi_child_mats_count = len(mi_child_ids)
     if mi_child_mats_count != 2:
         mi_context.log(f'Unexpected number of child BSDFs in blendbsdf. Expected 2 but got {mi_child_mats_count}.', 'ERROR')
         return False
+    mi_child_mats = [mi_context.mi_state.nodes[i].props for i in mi_child_ids]
     write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader', mi_bump=mi_bump, mi_normal=mi_normal)
     write_mi_material_to_node_graph(mi_context, mi_child_mats[1], bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -472,6 +483,7 @@ def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
     bl_glossy.distribution = mi_microfacet_to_bl_microfacet(mi_context, mi_mat.get('distribution', 'beckmann'))
+    #FIXME: this is completely broken for textured reflectance
     reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
     write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.1)
@@ -480,24 +492,50 @@ def write_mi_roughconductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id,
     return True
 
 def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
-    bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
-    bl_mix_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
-    # Connect the opacity. A value of 0 is completely transparent and 1 is completely opaque.
-    write_mi_float_property(mi_context, mi_mat, 'opacity', bl_mix_wrap, 'Fac', 0.5)
-    # Add a transparent node to the top socket of the mix shader
-    bl_mix_wrap.ensure_node_type(['Shader'], 'ShaderNodeBsdfTransparent', 'BSDF')
-    # Parse the other BSDF
-    mi_child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
-    mi_child_mats_count = len(mi_child_mats)
+    from mitsuba import ObjectType, Properties
+    # Parse the child BSDF
+    mi_child_ids = get_references_by_type(mi_context, mi_mat, [ObjectType.BSDF])
+    mi_child_mats_count = len(mi_child_ids)
     if mi_child_mats_count != 1:
         mi_context.log(f'Unexpected number of child BSDFs in mask BSDF. Expected 1 but got {mi_child_mats_count}.', 'ERROR')
         return False
-    write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
+
+    mi_child_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+    if mi_child_mat.plugin_name() == 'diffuse' and mi_child_mat.get_texture('reflectance').max() == 0:
+        # This can simply be a transparent material.
+        bl_transparent = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfTransparent', 'BSDF')
+        bl_transparent_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_transparent)
+        # Invert the opacity to match Blender's convention
+        if 'opacity' in mi_mat:
+            mi_prop_type = mi_mat.type('opacity')
+            if mi_prop_type == Properties.Type.Color:
+                mi_mat['opacity'] = 1 - mi_mat['opacity']
+                write_mi_rgb_spectrum(mi_context, mi_mat.get_texture('opacity'), bl_transparent_wrap, 'Color')
+            elif mi_prop_type == Properties.Type.Float:
+                col_val = 1 - mi_mat.get('opacity')
+                col = [col_val] * 3
+                write_mi_rgb_value(mi_context, col, bl_transparent_wrap, 'Color')
+            elif mi_prop_type == Properties.Type.ResolvedReference:
+                mi_context.log("Mask BSDF: opacity textures are currently not supported.", 'ERROR')
+            else:
+                mi_context.log(f'Material property "opacity" of type "{mi_prop_type}" cannot be converted to rgb.', 'ERROR')
+        else:
+            bl_transparent_wrap.out_node.inputs['Color'].default_value = bl_shader_utils.rgb_to_rgba([0.5]*3)
+    else:
+        bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
+        bl_mix_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
+        # Connect the opacity. A value of 0 is completely transparent and 1 is completely opaque.
+        write_mi_float_property(mi_context, mi_mat, 'opacity', bl_mix_wrap, 'Fac', 0.5)
+        # Add a transparent node to the top socket of the mix shader
+        bl_mix_wrap.ensure_node_type(['Shader'], 'ShaderNodeBsdfTransparent', 'BSDF')
+        write_mi_material_to_node_graph(mi_context, mi_child_mat, bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
+
     return True
 
 # FIXME: The plastic and roughplastic don't have simple equivalent in Blender. We rely on a
 #        crude approximation using a Disney principled shader.
 def write_mi_plastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    mi_context.log('Mitsuba plastic BSDF is not supported in Blender. Using Principled BSDF as an approximation.', 'WARN')
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
@@ -512,6 +550,7 @@ def write_mi_plastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bum
     return True
 
 def write_mi_roughplastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    mi_context.log('Mitsuba roughplastic BSDF is not supported in Blender. Using Principled BSDF as an approximation.', 'WARN')
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'diffuse_reflectance', bl_principled_wrap, 'Base Color', [0.5, 0.5, 0.5])
@@ -527,47 +566,36 @@ def write_mi_roughplastic_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, m
     return True
 
 def write_mi_bumpmap_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    from mitsuba import ObjectType
     if mi_bump is not None:
         mi_context.log('Cannot have nested bumpmap BSDFs', 'ERROR')
         return False
-    child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
-    assert len(child_mats) == 1
+    mi_child_ids = get_references_by_type(mi_context, mi_mat, [ObjectType.BSDF])
+    assert len(mi_child_ids) == 1
 
-    write_mi_material_to_node_graph(mi_context, child_mats[0], bl_mat_wrap, out_socket_id, mi_bump=mi_mat, mi_normal=mi_normal)
+    child_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+    write_mi_material_to_node_graph(mi_context, child_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_mat, mi_normal=mi_normal)
     return True
 
 def write_mi_normalmap_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
+    from mitsuba import ObjectType
     if mi_normal is not None:
         mi_context.log('Cannot have nested normalmap BSDFs', 'ERROR')
         return False
-    child_mats = mi_props_utils.named_references_with_class(mi_context, mi_mat, 'BSDF')
-    assert len(child_mats) == 1
+    mi_child_ids = get_references_by_type(mi_context, mi_mat, [ObjectType.BSDF])
+    assert len(mi_child_ids) == 1
 
-    write_mi_material_to_node_graph(mi_context, child_mats[0], bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_mat)
+    child_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+    write_mi_material_to_node_graph(mi_context, child_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_mat)
     return True
 
 def write_mi_null_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
-    bl_transparent = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeTransparentBSDF', 'BSDF')
+    bl_transparent = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfTransparent', 'BSDF')
     return True
 
 ######################
 ##   Main import    ##
 ######################
-
-def write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat, mi_back_mat=None, mi_bump=None, mi_normal=None):
-    bl_mix = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeMixShader', 'Shader')
-    # Generate a geometry node that will select the correct BSDF based on face orientation
-    bl_mat_wrap.ensure_node_type([out_socket_id, 'Fac'], 'ShaderNodeNewGeometry', 'Backfacing')
-    # Create a new material wrapper with the mix shader as output node
-    bl_child_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_mix)
-    # Write the child materials
-    write_mi_material_to_node_graph(mi_context, mi_front_mat, bl_child_mat_wrap, 'Shader', is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
-    if mi_back_mat is not None:
-        write_mi_material_to_node_graph(mi_context, mi_back_mat, bl_child_mat_wrap, 'Shader_001', is_within_twosided=True, mi_bump=mi_bump, mi_normal=mi_normal)
-    else:
-        bl_diffuse = bl_child_mat_wrap.ensure_node_type(['Shader_001'], 'ShaderNodeBsdfDiffuse', 'BSDF')
-        bl_diffuse.inputs['Color'].default_value = [0.0, 0.0, 0.0, 1.0]
-    return True
 
 def write_bl_error_material(bl_mat_wrap, out_socket_id):
     ''' Write a Blender error material that can be applied whenever
@@ -594,19 +622,7 @@ _material_writers = {
     'null': write_mi_null_bsdf,
 }
 
-# List of materials that are always two-sided. These are the transmissive materials and
-# a few material wrappers.
-_always_twosided_bsdfs = [
-    'dielectric',
-    'roughdielectric',
-    'thindielectric',
-    'mask',
-    'bumpmap',
-    'normalmap',
-    'null',
-]
-
-def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, is_within_twosided=False, mi_bump=None, mi_normal=None):
+def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     ''' Write a Mitsuba material in a node graph starting at a specific
     node in the shader graph. This function is always guaranteed to succeed.
     If a material cannot be converted, it will result in a distinctive error material.
@@ -617,14 +633,7 @@ def write_mi_material_to_node_graph(mi_context, mi_mat, bl_mat_wrap, out_socket_
         write_bl_error_material(bl_mat_wrap, out_socket_id)
         return
 
-    if is_within_twosided and mat_type == 'twosided':
-        mi_context.log('Cannot have nested twosided materials.', 'ERROR')
-        return
-
-    if not is_within_twosided and mat_type != 'twosided' and mat_type not in _always_twosided_bsdfs:
-        # Write one-sided material
-        write_twosided_material(mi_context, bl_mat_wrap, out_socket_id, mi_front_mat=mi_mat, mi_back_mat=None, mi_bump=mi_bump, mi_normal=mi_normal)
-    elif not _material_writers[mat_type](mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal):
+    if not _material_writers[mat_type](mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=mi_bump, mi_normal=mi_normal):
         mi_context.log(f'Failed to convert Mitsuba material "{mi_mat.id()}". Skipping.', 'WARN')
         write_bl_error_material(bl_mat_wrap, out_socket_id)
 

@@ -1,7 +1,9 @@
 <scene version="2.1.0">
 
     <sensor type="perspective">
-        <rfilter type="box" />
+        <film type="hdrfilm">
+            <rfilter type="box" />
+        </film>
     </sensor>
 
 </scene>

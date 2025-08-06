@@ -47,7 +47,7 @@ def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
 ######################
 
 def mi_ply_to_bl_shape(mi_context, mi_shape):
-    assert mi_shape.has_property('filename')
+    assert 'filename' in mi_shape
 
     filename = mi_shape['filename']
     abs_path = mi_context.resolve_scene_relative_path(filename)
@@ -68,7 +68,7 @@ def mi_ply_to_bl_shape(mi_context, mi_shape):
 def mi_obj_to_bl_shape(mi_context, mi_shape):
     start_time = time.time()
 
-    assert mi_shape.has_property('filename')
+    assert 'filename' in mi_shape
 
     filename = mi_shape.get('filename')
     abs_path = mi_context.resolve_scene_relative_path(filename)
@@ -97,7 +97,7 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
-    if mi_shape.has_property('to_world'):
+    if 'to_world' in mi_shape:
         world_matrix = mi_context.mi_space_to_bl_space(bl_transform_utils.mi_transform_to_bl_transform(mi_shape.get('to_world', None)))
         radius = 1.0
     else:
@@ -107,7 +107,7 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
 
     # Create a UV sphere mesh
     # NOTE: The 'diameter' parameter seems to be missnamed as it results in sphere twice as big as expected
-    bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16, diameter=radius, calc_uvs=True)
+    bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16, radius=radius, calc_uvs=True)
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 

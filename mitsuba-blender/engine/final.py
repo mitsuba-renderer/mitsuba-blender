@@ -38,7 +38,6 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
             # Temporary workaround as long as the dict creation writes stuff to dict
             with tempfile.TemporaryDirectory() as dummy_dir:
                 filepath = os.path.join(dummy_dir, "scene.xml")
-                self.converter.set_path(filepath)
                 self.converter.scene_to_dict(depsgraph)
                 Thread.thread().file_resolver().prepend(dummy_dir)
                 mts_scene = self.converter.dict_to_scene()

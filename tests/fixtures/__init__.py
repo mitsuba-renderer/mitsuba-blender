@@ -32,13 +32,17 @@ class MitsubaSceneParser:
         self.props = None
 
     def load_xml(self, scene_file):
-        import mitsuba
-        self.props = mitsuba.xml_to_props(scene_file)
+        import mitsuba as mi
+
+        config = mi.parser.ParserConfig(mi.variant())
+        mi_state = mi.parser.parse_file(config, scene_file)
+        mi.parser.transform_all(config, mi_state)
+        self.state = mi_state
 
     def get_props_by_name(self, plugin_name):
-        for _, props in self.props:
-            if props.plugin_name() == plugin_name:
-                return props
+        for node in self.state.nodes:
+            if node.props.plugin_name() == plugin_name:
+                return node.props
         return None
 
 @pytest.fixture
