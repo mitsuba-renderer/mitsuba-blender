@@ -302,6 +302,32 @@ class MitsubaRenderSettings(PropertyGroup):
     bpy.utils.register_class(IntegratorProperties)
     available_integrators : PointerProperty(type = IntegratorProperties)
 
+    viewport_disabled: BoolProperty(
+        name = 'viewport_disabled',
+        description = 'Disable viewport',
+        default = False,
+    )
+
+    viewport_max_spp: EnumProperty(
+        name = 'viewport_max_spp',
+        description = 'Maximum samples per pixel with progressive rendering',
+        items=[tuple([str(v)] * 3) for v in [2, 4, 8, 16, 32, 64, 128, 256, 512]],
+        default = "64",
+    )
+
+    viewport_enum_integrators = [
+        (name, integrator['label'], integrator['description'])
+        for name, integrator in integrator_data.items()
+        if name in ['direct', 'path']
+    ]
+
+    viewport_active_integrator : EnumProperty(
+        name = "Integrator",
+        items = viewport_enum_integrators,
+        default = 'direct',
+    )
+    viewport_available_integrators : PointerProperty(type = IntegratorProperties)
+
     @classmethod
     def register(cls):
         bpy.types.Scene.mitsuba = PointerProperty(
@@ -417,6 +443,27 @@ class MITSUBA_CAMERA_PT_rfilter(bpy.types.Panel):
             cam_settings = context.scene.camera.data.mitsuba
             layout.prop(cam_settings, "active_rfilter", text="Filter")
             getattr(cam_settings.rfilters, cam_settings.active_rfilter).draw(layout)
+
+class MITSUBA_VIEWPORT_PT_engine(bpy.types.Panel):
+    bl_idname = "MITSUBA_VIEWPORT_PT_engine"
+    bl_label = "Viewport"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context = 'render'
+    COMPAT_ENGINES = { 'MITSUBA' }
+
+    @classmethod
+    def poll(cls, context):
+        return context.engine in cls.COMPAT_ENGINES
+
+    def draw(self, context):
+        layout = self.layout
+        mitsuba_settings = context.scene.mitsuba
+        layout.prop(mitsuba_settings, "viewport_progressive", text="Enable progressive rendering")
+        layout.prop(mitsuba_settings, "viewport_max_spp", text="Maximum spp")
+        layout.separator(type='LINE')
+        layout.prop(mitsuba_settings, "viewport_active_integrator", text="Integrator")
+        getattr(mitsuba_settings.viewport_available_integrators, mitsuba_settings.viewport_active_integrator).draw(layout)
 
 def draw_device(self, context):
     scene = context.scene
