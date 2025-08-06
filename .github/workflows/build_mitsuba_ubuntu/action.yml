@@ -27,8 +27,7 @@ runs:
   - name: Checkout Mitsuba 3 repo
     uses: actions/checkout@v4
     with:
-      repository: wjakob/nanobind
-      # repository: mitsuba-renderer/mitsuba3
+      repository: mitsuba-renderer/mitsuba3
       path: mitsuba3
       submodules: recursive
       fetch-depth: 0
