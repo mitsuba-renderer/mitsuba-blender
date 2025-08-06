@@ -1,7 +1,7 @@
 bl_info = {
     'name': 'Mitsuba-Blender',
     'author': 'Baptiste Nicolet, Dorian Ros, Rami Tabbara',
-    'version': (0, 1),
+    'version': (0, 5, 0),
     'blender': (2, 93, 0),
     'category': 'Render',
     'location': 'File menu, render engine menu',
