@@ -26,7 +26,7 @@ More in-depth information about the features of the add-on are available on the 
 
 :warning: For versions of blender prior to 3.5, you may encounter the error message `Failed to load Mitsuba package` after installing the dependencies via pip. In order to fix that, you need to run blender with the `--python-use-system-env` flag in order for it to correctly pick up the dependencies. In order to do so, find the path to the blender executable, and in a command prompt run:
 ```
-<path_to_blender> --python-use-sytem-env
+<path_to_blender> --python-use-system-env
 ```
 
 You can refer to the [Installation & Update Guide](https://github.com/mitsuba-renderer/mitsuba-blender/wiki/Installation-&-Update-Guide) on the wiki for more detailed instructions.
@@ -34,7 +34,7 @@ You can refer to the [Installation & Update Guide](https://github.com/mitsuba-re
 ### Supported versions
 
 Blender version should be at least `2.93`. The addon has been extensively tested
-on LTS versions of blender (`3.3`, `3.6`). We recommend using those whenever
+on LTS versions of blender (`4.2`, `4.5`). We recommend using those whenever
 possible.
 
 ## Running the unit tests
