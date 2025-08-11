@@ -22,7 +22,7 @@ import subprocess
 
 from . import io, engine
 
-DEPS_MITSUBA_VERSION = '3.6.4'
+DEPS_MITSUBA_VERSION = '3.7.0'
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
