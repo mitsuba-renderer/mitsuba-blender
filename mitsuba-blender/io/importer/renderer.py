@@ -5,7 +5,7 @@ if "bpy" in locals():
 
 import bpy
 
-from . import mi_props_utils
+from .mi_props_utils import get_references_by_type
 
 #################
 ##  Utilities  ##
@@ -78,6 +78,7 @@ def apply_mi_path_properties(mi_context, mi_props, bl_props=None):
     return True
 
 def apply_mi_moment_properties(mi_context, mi_props, bl_props=None):
+    from mitsuba import ObjectType
     if bl_props is not None:
         # FIXME: support moment integrator nesting
         mi_context.log('Mitsuba Integrator "moment" does not support being nested yet.', 'ERROR')
@@ -91,7 +92,10 @@ def apply_mi_moment_properties(mi_context, mi_props, bl_props=None):
     # Mitsuba properties
     mi_renderer.active_integrator = 'moment'
     bl_child_integrator_list = bl_moment_props.integrators
-    for mi_integrator_props in mi_props_utils.named_references_with_class(mi_context, mi_props, 'Integrator'):
+
+    mi_integrators = get_references_by_type(mi_context, mi_props, [ObjectType.Integrator])
+    for integrator_id in mi_integrators:
+        mi_integrator_props = mi_context.mi_state.nodes[integrator_id].props
         bl_child_integrator_list.new(name=mi_integrator_props.id())
         bl_child_integrator = bl_child_integrator_list.collection[bl_child_integrator_list.count-1]
         if not apply_mi_integrator_properties(mi_context, mi_integrator_props, bl_child_integrator):

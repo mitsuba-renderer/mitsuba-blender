@@ -500,8 +500,8 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
         mi_context.log(f'Unexpected number of child BSDFs in mask BSDF. Expected 1 but got {mi_child_mats_count}.', 'ERROR')
         return False
 
-    mi_child_mats = [mi_context.mi_state.nodes[i].props for i in mi_child_ids]
-    if mi_child_mats[0].plugin_name() == 'diffuse' and mi_child_mats[0].get_texture('reflectance').max() == 0:
+    mi_child_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
+    if mi_child_mat.plugin_name() == 'diffuse' and mi_child_mat.get_texture('reflectance').max() == 0:
         # This can simply be a transparent material.
         bl_transparent = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfTransparent', 'BSDF')
         bl_transparent_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_transparent)
@@ -528,7 +528,7 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
         write_mi_float_property(mi_context, mi_mat, 'opacity', bl_mix_wrap, 'Fac', 0.5)
         # Add a transparent node to the top socket of the mix shader
         bl_mix_wrap.ensure_node_type(['Shader'], 'ShaderNodeBsdfTransparent', 'BSDF')
-        write_mi_material_to_node_graph(mi_context, mi_child_mats[0], bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
+        write_mi_material_to_node_graph(mi_context, mi_child_mat, bl_mix_wrap, 'Shader_001', mi_bump=mi_bump, mi_normal=mi_normal)
 
     return True
 
