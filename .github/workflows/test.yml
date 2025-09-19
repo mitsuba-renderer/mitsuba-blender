@@ -24,11 +24,11 @@ jobs:
         environment:
         - {
           os: "ubuntu-latest",
-          mitsuba-version: "3.7.0"
+          mitsuba-version: "3.7.1"
         }
         - {
           os: "windows-latest",
-          mitsuba-version: "3.7.0"
+          mitsuba-version: "3.7.1"
         }
         blender:
         - {
