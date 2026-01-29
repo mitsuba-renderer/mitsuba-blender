@@ -13,10 +13,11 @@ def export_texture_node(export_ctx, tex_node):
     #get the relative path to the copied texture from the full path to the original texture
     params['filename'] = export_ctx.export_texture(tex_node.image)
     #TODO: texture transform (mapping node)
-    if tex_node.image.colorspace_settings.name in ['Non-Color', 'Raw', 'Linear']:
+    colorspace_name = tex_node.image.colorspace_settings.name
+    if 'Non-Color' in colorspace_name or 'Linear' in colorspace_name:
         #non color data, tell mitsuba not to apply gamma conversion to it
         params['raw'] = True
-    elif tex_node.image.colorspace_settings.name != 'sRGB':
+    elif colorspace_name != 'sRGB':
         export_ctx.log("Mitsuba only supports sRGB textures for color data.", 'WARN')
 
     return params

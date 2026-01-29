@@ -128,6 +128,8 @@ def create_material(mat_cfg):
             tex_image = nodes.new(type="ShaderNodeTexImage")
             tex_image.location = (-400, 0)
             tex_image.image = bpy.data.images.load(mat_cfg["texture"]["filepath"])
+            tex_image.image.colorspace_settings.name = mat_cfg["texture"].get("colorspace", "sRGB") # default to sRGB
+
             links.new(tex_image.outputs["Color"], bsdf.inputs["Base Color"])
             if "optimizable" in mat_cfg["texture"]:
                 mat["optimizable"] = mat_cfg["texture"]["optimizable"]
