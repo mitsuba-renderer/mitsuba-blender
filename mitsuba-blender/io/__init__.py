@@ -58,7 +58,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat)
+            importer.load_mitsuba_scene(self, context, scene, collection, self.filepath, axis_mat)
         except (RuntimeError, NotImplementedError) as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")
@@ -109,7 +109,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.reset()
 
     def reset(self):
-        self.converter = exporter.SceneConverter()
+        self.converter = exporter.SceneConverter(self)
 
     def execute(self, context):
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
