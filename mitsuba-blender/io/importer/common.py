@@ -201,7 +201,8 @@ class MitsubaSceneProperties:
 
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
-    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_scene_props, axis_matrix):
+    def __init__(self, import_helper, bl_context, bl_scene, bl_collection, filepath, mi_scene_props, axis_matrix):
+        self.import_helper = import_helper
         self.bl_context = bl_context
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
@@ -231,8 +232,18 @@ class MitsubaSceneImportContext:
             'ERROR': LogLevel.Error,
             'TRACE': LogLevel.Trace
             }
+        log_level_blender = {
+            'DEBUG': 'DEBUG',
+            'INFO': 'INFO',
+            'WARN': 'WARNING',
+            'ERROR': 'ERROR',
+            'TRACE': 'INFO'
+            }
+
         if level not in log_level:
             raise ValueError("Invalid logging level '%s'!" % level)
+
+        self.import_helper.report({log_level_blender[level]}, message)
         Log(log_level[level], message)
 
     def bl_space_to_mi_space(self, matrix):

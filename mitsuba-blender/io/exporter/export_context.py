@@ -63,7 +63,7 @@ class ExportContext:
     Export Context
     '''
 
-    def __init__(self):
+    def __init__(self, export_helper):
         self.scene_data = OrderedDict([('type','scene')])
         self.counter = 0 # Counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
@@ -79,6 +79,7 @@ class ExportContext:
             'shape': 'meshes',
             'spectrum': 'spectra'
                             }
+        self.export_helper = export_helper
 
 
     def data_add(self, mts_dict, name=''):
@@ -126,8 +127,18 @@ class ExportContext:
             'ERROR': LogLevel.Error,
             'TRACE': LogLevel.Trace
             }
+        log_level_blender = {
+            'DEBUG': 'DEBUG',
+            'INFO': 'INFO',
+            'WARN': 'WARNING',
+            'ERROR': 'ERROR',
+            'TRACE': 'INFO'
+            }
+
         if level not in log_level:
             raise ValueError("Invalid logging level '%s'!" % level)
+
+        self.export_helper.report({log_level_blender[level]}, message)
         Log(log_level[level], message)
 
     def export_texture(self, image):

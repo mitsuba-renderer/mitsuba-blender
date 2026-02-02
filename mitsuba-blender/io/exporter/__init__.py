@@ -26,8 +26,8 @@ class SceneConverter:
     Converts a blender scene to a Mitsuba-compatible dict.
     Either save it as an XML or load it as a scene.
     '''
-    def __init__(self, render=False):
-        self.export_ctx = export_context.ExportContext()
+    def __init__(self, export_helper, render=False):
+        self.export_ctx = export_context.ExportContext(export_helper)
         self.use_selection = False # Only export selection
         self.ignore_background = True
         self.render = render

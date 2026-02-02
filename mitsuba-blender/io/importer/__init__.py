@@ -363,7 +363,7 @@ def instantiate_bl_data_node(mi_context, bl_node):
 ##    Main loading     ##
 #########################
 
-def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat):
+def load_mitsuba_scene(import_helper, bl_context, bl_scene, bl_collection, filepath, global_mat):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
     
     Params
@@ -379,7 +379,7 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     from mitsuba import xml_to_props
     raw_props = xml_to_props(filepath)
     mi_scene_props = common.MitsubaSceneProperties(raw_props)
-    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_scene_props, global_mat)
+    mi_context = common.MitsubaSceneImportContext(import_helper, bl_context, bl_scene, bl_collection, filepath, mi_scene_props, global_mat)
 
     _, mi_props = mi_scene_props.get_first_of_class('Scene')
     bl_scene_data_node = mi_props_to_bl_data_node(mi_context, 'Scene', mi_props)
