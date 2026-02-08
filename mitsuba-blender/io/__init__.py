@@ -8,6 +8,8 @@ if "bpy" in locals():
         importlib.reload(importer_yml)
     if "exporter" in locals():
         importlib.reload(exporter)
+    if "hdri_converter" in locals():
+        importlib.reload(hdri_converter)
 
 import bpy
 from bpy.props import (
@@ -25,6 +27,7 @@ from . import bl_utils
 from . import importer
 from . import importer_yml
 from . import exporter
+from . import hdri_converter
 
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
@@ -303,7 +306,13 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_import_func)
     bpy.types.TOPBAR_MT_file_import.append(menu_yml_import_func)
 
+    # Register HDRI converter
+    hdri_converter.register()
+
 def unregister():
+    # Unregister HDRI converter
+    hdri_converter.unregister()
+
     for cls in classes:
         bpy.utils.unregister_class(cls)
 
