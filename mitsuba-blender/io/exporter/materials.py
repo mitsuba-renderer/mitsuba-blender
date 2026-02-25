@@ -456,6 +456,12 @@ def convert_world(export_ctx, world, ignore_background):
             export_ctx.log('Ignoring envmap with zero strength.', 'INFO')
             return
 
+        # If using realsky addon, scale strength by 2^-6 to account for -6 exposure in Blender
+        scene = export_ctx.deg.scene
+        realsky_enabled = hasattr(scene, 'sky_settings') and scene.sky_settings.enabled
+        if realsky_enabled:
+            strength *= 2**-6
+            
         if surface_node.type in ['BACKGROUND', 'EMISSION']:
             socket = surface_node.inputs["Color"]
             if socket.is_linked:

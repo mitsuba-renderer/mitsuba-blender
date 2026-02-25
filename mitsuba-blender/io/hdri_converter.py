@@ -51,9 +51,16 @@ class RENDER_OT_convert_to_hdri(Operator):
     samples: IntProperty(
         name="Samples",
         description="Number of render samples",
-        default=512,
+        default=256,
         min=1,
         max=8192
+    )
+
+    clip_end: IntProperty(
+        name="Clip End",
+        description="Camera clip end distance (set to 800000 if using with RealSky addon clouds)",
+        default=1000,
+        min=1
     )
 
     def invoke(self, context, event):
@@ -102,6 +109,7 @@ class RENDER_OT_convert_to_hdri(Operator):
         camera_obj.rotation_euler[0] = 1.5708  # 90 degrees (X)
         camera_obj.rotation_euler[1] = 0.0     # 0 degrees (Y)
         camera_obj.rotation_euler[2] = -1.5708 # -90 degrees (Z)
+        camera_obj.data.clip_end = self.clip_end  # Set clip end distance (important for RealSky clouds)
 
         scene.camera = camera_obj
         return camera_obj

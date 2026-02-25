@@ -2,6 +2,7 @@
 
 import bpy
 import os
+import math
 
 
 def resolve_relative_filepaths(data, base_dir):
@@ -59,9 +60,152 @@ def setup_cameras(scene, cfg):
 
 def setup_background(scene, config):
     """Set up environment background based on configuration."""
-    if "background" in config and "envmap" in config["background"]:
-        bg_cfg = config["background"]
+    if "background" not in config:
+        return
+    bg_cfg = config["background"]
+    if "dynamic_lighting" in config["background"]:
+        print("dynamic lighting....")
 
+        # --- 1. CLEANUP PHASE ---
+        # Remove old Real Sky worlds to prevent append collisions
+        for w in bpy.data.worlds:
+            if "Real Sky" in w.name:
+                bpy.data.worlds.remove(w)
+                
+        # Remove old Sun objects globally to prevent "Sun.001" naming collisions
+        for obj in bpy.data.objects:
+            if obj.name.startswith("Sun") and obj.type == 'LIGHT':
+                bpy.data.objects.remove(obj, do_unlink=True)
+                
+        for light in bpy.data.lights:
+            if light.name.startswith("Sun"):
+                bpy.data.lights.remove(light)
+        
+        # if not scene.world:
+        #     scene.world = bpy.data.worlds.new("World")
+        # world = scene.world
+        bpy.context.scene.sky_settings.enabled = True
+        sky_settings = bpy.context.scene.sky_settings
+
+        lighting_cfg = bg_cfg["dynamic_lighting"]
+        print(lighting_cfg)
+
+        # sun settings
+        sun_cfg = lighting_cfg.get("sun", {})
+        sky_settings.direction = math.radians(sun_cfg.get("north_direction", 0))
+        sky_settings.time = sun_cfg.get("time", 12.0)
+        sky_settings.month = sun_cfg.get("month", 1)
+        sky_settings.day31 = sun_cfg.get("day", 1)
+        sky_settings.latitude = math.radians(sun_cfg.get("latitude", 45.0)) # 45 degrees in radians
+        
+        # sky settings
+        sky_cfg = lighting_cfg.get("sky", {})
+        sky_settings.sky_method = sky_cfg.get("sky_method", "Real Sky")
+        sky_settings.altitude = sky_cfg.get("altitude", 1.0)
+        sky_settings.turbidity = sky_cfg.get("turbidity", 22.0) # percent
+        sky_settings.albedo = sky_cfg.get("albedo", 30.0) # percent
+
+        # clouds settings
+        def setup_viewport_for_clouds(clouds_settings, view_3d_area, cloud_type):
+            if view_3d_area: # Trick the add-on into running as if we clicked inside the 3D Viewport
+                with bpy.context.temp_override(area=view_3d_area):
+                    if cloud_type == "cirrus":
+                        clouds_settings.cirrus = True
+                    elif cloud_type == "cirrocumulus":
+                        clouds_settings.cirrocumulus = True
+                    elif cloud_type == "altostratus":
+                        clouds_settings.altostratus = True
+                    elif cloud_type == "cumulus":
+                        clouds_settings.cumulus = True
+            else: # Fallback in case there is no UI open
+                if cloud_type == "cirrus":
+                    clouds_settings.cirrus = True
+                elif cloud_type == "cirrocumulus":
+                    clouds_settings.cirrocumulus = True
+                elif cloud_type == "altostratus":
+                    clouds_settings.altostratus = True
+                elif cloud_type == "cumulus":
+                    clouds_settings.cumulus = True
+
+        if "clouds" in lighting_cfg:
+            # need to use cycles render engine for dynamic clouds to work
+
+            clouds_settings = bpy.context.scene.clouds_settings
+            cloud_cfg = lighting_cfg["clouds"]
+            print("cloud config:")
+            print(cloud_cfg)
+            scene.render.engine = 'CYCLES'
+
+            # Find an open 3D Viewport in the UI
+            view_3d_area = None
+            for window in bpy.context.window_manager.windows:
+                for area in window.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        view_3d_area = area
+                        break
+                if view_3d_area:
+                    break
+
+            if "cirrus" in cloud_cfg and cloud_cfg["cirrus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cirrus")
+                clouds_settings.cirrus_direction = math.radians(cloud_cfg["cirrus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cirrus_location = cloud_cfg["cirrus"].get("location", 0.0)
+                clouds_settings.cirrus_coverage = cloud_cfg["cirrus"].get("coverage", 50) # percent
+                clouds_settings.cirrus_density = cloud_cfg["cirrus"].get("density", 100) # percent
+
+                        
+            if "cirrocumulus" in cloud_cfg and cloud_cfg["cirrocumulus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cirrocumulus")
+                clouds_settings.cirrocumulus_direction = math.radians(cloud_cfg["cirrocumulus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cirrocumulus_location = cloud_cfg["cirrocumulus"].get("location", 0.0)
+                clouds_settings.cirrocumulus_coverage = cloud_cfg["cirrocumulus"].get("coverage", 50) # percent
+                clouds_settings.cirrocumulus_density = cloud_cfg["cirrocumulus"].get("density", 100) # percent
+
+            if "altostratus" in cloud_cfg and cloud_cfg["altostratus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "altostratus")
+                if "method" in cloud_cfg["altostratus"]:
+                    if cloud_cfg["altostratus"]["method"] == "Volume":
+                        clouds_settings.altostratus_mist = cloud_cfg["altostratus"].get("mist", True)
+                    elif cloud_cfg["altostratus"]["method"] == "Billboard":
+                        clouds_settings.altostratus_billboard_res = cloud_cfg["altostratus"].get("billboard_res", "Low")
+                    else:
+                        raise ValueError(f"Unknown altostratus method {cloud_cfg['altostratus']['method']}, expected one of 'Volume', 'Billboard'.")
+                clouds_settings.altostratus_direction = math.radians(cloud_cfg["altostratus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.altostratus_location = cloud_cfg["altostratus"].get("location", 0.0)
+                clouds_settings.altostratus_coverage = cloud_cfg["altostratus"].get("coverage", 50) # percent
+                clouds_settings.altostratus_density = cloud_cfg["altostratus"].get("density", 50) # percent
+
+            if "cumulus" in cloud_cfg and cloud_cfg["cumulus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cumulus")
+                if "method" in cloud_cfg["cumulus"]:
+                    if cloud_cfg["cumulus"]["method"] == "Volume":
+                        clouds_settings.cumulus_mist = cloud_cfg["cumulus"].get("mist", True)
+                    elif cloud_cfg["cumulus"]["method"] == "Billboard":
+                        clouds_settings.cumulus_billboard_res = cloud_cfg["cumulus"].get("billboard_res", "Low")
+                    else:
+                        raise ValueError(f"Unknown cumulus method {cloud_cfg['cumulus']['method']}, expected one of 'Volume', 'Billboard'.")
+                clouds_settings.cumulus_direction = math.radians(cloud_cfg["cumulus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cumulus_location = cloud_cfg["cumulus"].get("location", 0.0)
+                clouds_settings.cumulus_coverage = cloud_cfg["cumulus"].get("coverage", 50) # percent
+                clouds_settings.cumulus_density = cloud_cfg["cumulus"].get("density", 50) # percent
+
+
+        # Make clouds visible in viewpoint
+        for window in bpy.context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'VIEW_3D':
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            space.clip_end = 800000
+
+        # Extend the clipping distance for all cameras so the clouds render
+        for cam in bpy.data.cameras:
+            cam.clip_end = 800000
+
+        # Force a scene update
+        bpy.context.view_layer.update()
+
+    elif "envmap" in config["background"]:
         if not scene.world:
             scene.world = bpy.data.worlds.new("World")
         world = scene.world
@@ -74,13 +218,11 @@ def setup_background(scene, config):
         output = nodes.new(type="ShaderNodeOutputWorld")
         bg = nodes.new(type="ShaderNodeBackground")
 
-        if "envmap" in bg_cfg:
-            env = nodes.new(type="ShaderNodeTexEnvironment")
-            env.image = bpy.data.images.load(bg_cfg["envmap"]["filepath"])
-            links.new(env.outputs["Color"], bg.inputs["Color"])
+        env = nodes.new(type="ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(bg_cfg["envmap"]["filepath"])
+        links.new(env.outputs["Color"], bg.inputs["Color"])
 
-        if "strength" in bg_cfg:
-            bg.inputs["Strength"].default_value = bg_cfg["strength"]
+        bg.inputs["Strength"].default_value = bg_cfg["envmap"].get("strength", 1.0)
         links.new(bg.outputs["Background"], output.inputs["Surface"])
 
 
