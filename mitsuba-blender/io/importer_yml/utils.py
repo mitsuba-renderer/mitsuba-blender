@@ -37,8 +37,11 @@ def load_config(path="scene_config.yml"):
 
 def setup_render(scene, cfg):
     """Set up render settings based on configuration."""
-    scene.render.resolution_x = cfg["render"]["resolution_x"]
-    scene.render.resolution_y = cfg["render"]["resolution_y"]
+    if cfg["render"]:
+        render_cfg = cfg["render"]
+        scene.render.resolution_x = render_cfg.get("resolution_x", 1920)
+        scene.render.resolution_y = render_cfg.get("resolution_y", 1080)
+        #TODO: add samples 
 
 
 def setup_cameras(scene, cfg):
@@ -48,7 +51,7 @@ def setup_cameras(scene, cfg):
         cam = bpy.context.active_object
 
         cam.location = cam_cfg["location"]
-        cam.rotation_euler = cam_cfg["rotation_euler"]
+        cam.rotation_euler = cam_cfg["rotation"]
         if "name" in cam_cfg:
             cam.name = cam_cfg["name"]
             cam.data.name = cam_cfg["name"]
@@ -286,35 +289,114 @@ def create_material(mat_cfg):
 def setup_objects(scene, cfg):
     """Add objects to the scene based on configuration."""
     for obj_cfg in cfg.get("objects", []):
+        common_defaults = {
+            "size": obj_cfg.get("size", 2.0),
+            "radius": obj_cfg.get("radius", 1.0),
+            "align": obj_cfg.get("align", 'WORLD'),
+            "location": obj_cfg.get("location", (0, 0, 0)),
+            "rotation": obj_cfg.get("rotation", (0, 0, 0)),
+            "scale": obj_cfg.get("scale", (1, 1, 1)),
+        }
         if obj_cfg["type"] == "PRIMITIVE":
-            if obj_cfg["shape"] == "CUBE":
-                bpy.ops.mesh.primitive_cube_add(
-                    size=obj_cfg.get("size", 1.0),
-                    location=obj_cfg.get("location", (0, 0, 0)),
-                    rotation=obj_cfg.get("rotation", (0, 0, 0)),
-                    # scale=obj_cfg.get("scale", (0, 0, 0)),
-                )
-            elif obj_cfg["shape"] == "SPHERE":
+            if obj_cfg["shape"] == "SPHERE":
                 bpy.ops.mesh.primitive_uv_sphere_add(
-                    radius=obj_cfg.get("radius", 1.0),
-                    location=obj_cfg.get("location", (0, 0, 0)),
-                    rotation=obj_cfg.get("rotation", (0, 0, 0)),
-                    # scale=obj_cfg.get("scale", (0, 0, 0)),
+                    segments=obj_cfg.get("segments", 32),
+                    ring_count=obj_cfg.get("ring_count", 16),
+                    radius=common_defaults["radius"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CIRCLE":
+                bpy.ops.mesh.primitive_circle_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius=common_defaults["radius"],
+                    fill_type=obj_cfg.get("fill_type", 'NOTHING'),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CONE":
+                bpy.ops.mesh.primitive_cone_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius1=obj_cfg.get("radius1", 1.0),
+                    radius2=obj_cfg.get("radius2", 0.0),
+                    depth=obj_cfg.get("depth", 2.0),
+                    end_fill_type=obj_cfg.get("end_fill_type", 'NGON'),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CYLINDER":
+                bpy.ops.mesh.primitive_cylinder_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius=common_defaults["radius"],
+                    depth=obj_cfg.get("depth", 2.0),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CUBE":
+                bpy.ops.mesh.primitive_cube_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                )
+            elif obj_cfg["shape"] == "GRID":
+                bpy.ops.mesh.primitive_grid_add(
+                    x_subdivisions=obj_cfg.get("x_subdivisions", 10),
+                    y_subdivisions=obj_cfg.get("y_subdivisions", 10),
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "ICO_SPHERE":
+                bpy.ops.mesh.primitive_ico_sphere_add(
+                    subdivisions=obj_cfg.get("subdivisions", 2),
+                    radius=common_defaults["radius"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "MONKEY":
+                bpy.ops.mesh.primitive_monkey_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "PLANE":
+                bpy.ops.mesh.primitive_plane_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "TORUS":
+                bpy.ops.mesh.primitive_torus_add(
+                    major_segments=obj_cfg.get("major_segments", 48),
+                    minor_segments=obj_cfg.get("minor_segments", 12),
+                    major_radius=obj_cfg.get("major_radius", 1.0),
+                    minor_radius=obj_cfg.get("minor_radius", 0.25),
+                    abso_major_rad=obj_cfg.get("abso_major_rad", 1.25),
+                    abso_minor_rad=obj_cfg.get("abso_minor_rad", 0.75),
+                    mode=obj_cfg.get("mode", "MAJOR_MINOR"),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
                 )
             else:
-                raise ValueError(f"Unknown shape type {obj_cfg['shape']}, expected one of CUBE, SPHERE.")
-            #TODO: add other primitives: total available are
-            # primitive_circle_add()
-            # primitive_cone_add()
-            # primitive_cube_add() -- done
-            # primitive_cube_add_gizmo()
-            # primitive_cylinder_add()
-            # primitive_grid_add()
-            # primitive_ico_sphere_add()
-            # primitive_monkey_add()
-            # primitive_plane_add()
-            # primitive_torus_add()
-            # primitive_uv_sphere_add() -- done
+                raise ValueError(f"Unknown shape type {obj_cfg['shape']}, expected one of CUBE, SPHERE, CYLINDER, CONE, TORUS, PLANE, MONKEY, ICO_SPHERE, GRID, CIRCLE.")
 
         elif obj_cfg["type"] == "MESH":
             mesh_filepath = obj_cfg["filepath"]
@@ -331,13 +413,11 @@ def setup_objects(scene, cfg):
             else:
                 raise ValueError(f"Unknown file ending type {file_ending}, expected one of 'obj', 'stl', 'ply', 'fbx")
 
-        # Adjust pose and scaling for non-primitive objects
+        # Adjust pose and scaling for non-primitive objects, e.g. meshes
         obj = bpy.context.active_object
         if obj_cfg["type"] != "PRIMITIVE":
-            if "location" in obj_cfg:
-                obj.location = obj_cfg["location"]
-            if "rotation_euler" in obj_cfg:
-                obj.rotation_euler = obj_cfg["rotation_euler"]
+            obj.location = common_defaults["location"]
+            obj.rotation = common_defaults["rotation"]
             # Scale: prefer explicit 3-element scale, else uniform `size` if provided
             if "scale" in obj_cfg:
                 obj.scale = obj_cfg["scale"]
@@ -353,7 +433,6 @@ def setup_objects(scene, cfg):
             mat = create_material(obj_cfg["material"])
             obj.data.materials.clear()
             obj.data.materials.append(mat)
-
 
             # ensure UV map exists
             mesh = obj.data
