@@ -35,6 +35,19 @@ def load_config(path="scene_config.yml"):
     return config_data
 
 
+def reset_viewport_settings(scene):
+    """Reset viewport settings to default values."""
+    for window in bpy.context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.clip_end = 1000.0
+                        
+    if hasattr(scene, 'sky_settings'):
+        scene.sky_settings.enabled = False
+
+
 def setup_render(scene, cfg):
     """Set up render settings based on configuration."""
     if cfg["render"]:
@@ -48,7 +61,7 @@ def setup_cameras(scene, cfg):
     """Set up camera based on configuration."""
     for cam_cfg in cfg.get("camera", []):
         bpy.ops.object.camera_add()
-        cam = bpy.context.active_object
+        cam = bpy.context.view_layer.objects.active
 
         cam.location = cam_cfg["location"]
         cam.rotation_euler = cam_cfg["rotation"]
@@ -62,20 +75,49 @@ def setup_cameras(scene, cfg):
 
 
 def setup_background(scene, config):
+    def setup_viewport_for_clouds(clouds_settings, view_3d_area, cloud_type):
+        if view_3d_area: # Trick the add-on into running as if we clicked inside the 3D Viewport
+            with bpy.context.temp_override(area=view_3d_area):
+                if cloud_type == "cirrus":
+                    clouds_settings.cirrus = True
+                elif cloud_type == "cirrocumulus":
+                    clouds_settings.cirrocumulus = True
+                elif cloud_type == "altostratus":
+                    clouds_settings.altostratus = True
+                elif cloud_type == "cumulus":
+                    clouds_settings.cumulus = True
+        else: # Fallback in case there is no UI open
+            if cloud_type == "cirrus":
+                clouds_settings.cirrus = True
+            elif cloud_type == "cirrocumulus":
+                clouds_settings.cirrocumulus = True
+            elif cloud_type == "altostratus":
+                clouds_settings.altostratus = True
+            elif cloud_type == "cumulus":
+                clouds_settings.cumulus = True
+
     """Set up environment background based on configuration."""
     if "background" not in config:
         return
     bg_cfg = config["background"]
     if "dynamic_lighting" in config["background"]:
-        print("dynamic lighting....")
+        # Ensure Real Sky addon is enabled if possible
+        if not hasattr(bpy.context.scene, "sky_settings"):
+            try:
+                bpy.ops.preferences.addon_enable(module="real-sky-main")
+            except Exception:
+                try:
+                    bpy.ops.preferences.addon_enable(module="real-sky")
+                except Exception:
+                    print("Warning: Real Sky addon not found or could not be enabled. Dynamic lighting setup may fail.")
 
-        # --- 1. CLEANUP PHASE ---
+        # Cleanup
         # Remove old Real Sky worlds to prevent append collisions
         for w in bpy.data.worlds:
             if "Real Sky" in w.name:
                 bpy.data.worlds.remove(w)
                 
-        # Remove old Sun objects globally to prevent "Sun.001" naming collisions
+        # Remove old Sun objects globally to prevent naming collisions
         for obj in bpy.data.objects:
             if obj.name.startswith("Sun") and obj.type == 'LIGHT':
                 bpy.data.objects.remove(obj, do_unlink=True)
@@ -84,14 +126,10 @@ def setup_background(scene, config):
             if light.name.startswith("Sun"):
                 bpy.data.lights.remove(light)
         
-        # if not scene.world:
-        #     scene.world = bpy.data.worlds.new("World")
-        # world = scene.world
         bpy.context.scene.sky_settings.enabled = True
         sky_settings = bpy.context.scene.sky_settings
 
         lighting_cfg = bg_cfg["dynamic_lighting"]
-        print(lighting_cfg)
 
         # sun settings
         sun_cfg = lighting_cfg.get("sun", {})
@@ -109,34 +147,10 @@ def setup_background(scene, config):
         sky_settings.albedo = sky_cfg.get("albedo", 30.0) # percent
 
         # clouds settings
-        def setup_viewport_for_clouds(clouds_settings, view_3d_area, cloud_type):
-            if view_3d_area: # Trick the add-on into running as if we clicked inside the 3D Viewport
-                with bpy.context.temp_override(area=view_3d_area):
-                    if cloud_type == "cirrus":
-                        clouds_settings.cirrus = True
-                    elif cloud_type == "cirrocumulus":
-                        clouds_settings.cirrocumulus = True
-                    elif cloud_type == "altostratus":
-                        clouds_settings.altostratus = True
-                    elif cloud_type == "cumulus":
-                        clouds_settings.cumulus = True
-            else: # Fallback in case there is no UI open
-                if cloud_type == "cirrus":
-                    clouds_settings.cirrus = True
-                elif cloud_type == "cirrocumulus":
-                    clouds_settings.cirrocumulus = True
-                elif cloud_type == "altostratus":
-                    clouds_settings.altostratus = True
-                elif cloud_type == "cumulus":
-                    clouds_settings.cumulus = True
-
         if "clouds" in lighting_cfg:
             # need to use cycles render engine for dynamic clouds to work
-
             clouds_settings = bpy.context.scene.clouds_settings
             cloud_cfg = lighting_cfg["clouds"]
-            print("cloud config:")
-            print(cloud_cfg)
             scene.render.engine = 'CYCLES'
 
             # Find an open 3D Viewport in the UI
@@ -191,7 +205,6 @@ def setup_background(scene, config):
                 clouds_settings.cumulus_location = cloud_cfg["cumulus"].get("location", 0.0)
                 clouds_settings.cumulus_coverage = cloud_cfg["cumulus"].get("coverage", 50) # percent
                 clouds_settings.cumulus_density = cloud_cfg["cumulus"].get("density", 50) # percent
-
 
         # Make clouds visible in viewpoint
         for window in bpy.context.window_manager.windows:
@@ -276,10 +289,7 @@ def create_material(mat_cfg):
             tex_image.image.colorspace_settings.name = mat_cfg["texture"].get("colorspace", "sRGB") # default to sRGB
 
             links.new(tex_image.outputs["Color"], bsdf.inputs["Base Color"])
-            if "optimizable" in mat_cfg["texture"]:
-                mat["optimizable"] = mat_cfg["texture"]["optimizable"]
-            else:
-                mat["optimizable"] = False
+            mat["optimizable"] = mat_cfg["texture"].get("optimizable", False)
     else:
         raise ValueError(f"Unknown material configuration: {mat_cfg}")
 
@@ -414,10 +424,10 @@ def setup_objects(scene, cfg):
                 raise ValueError(f"Unknown file ending type {file_ending}, expected one of 'obj', 'stl', 'ply', 'fbx")
 
         # Adjust pose and scaling for non-primitive objects, e.g. meshes
-        obj = bpy.context.active_object
+        obj = bpy.context.view_layer.objects.active
         if obj_cfg["type"] != "PRIMITIVE":
             obj.location = common_defaults["location"]
-            obj.rotation = common_defaults["rotation"]
+            obj.rotation_euler = common_defaults["rotation"]
             # Scale: prefer explicit 3-element scale, else uniform `size` if provided
             if "scale" in obj_cfg:
                 obj.scale = obj_cfg["scale"]
@@ -442,7 +452,13 @@ def setup_objects(scene, cfg):
 
             # unwrap automatically bitmap
             bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.smart_project()
-            bpy.ops.object.mode_set(mode='OBJECT')
+            obj.select_set(True)
+            
+            # Use view_layer update to ensure context is ready
+            bpy.context.view_layer.update()
+            
+            with bpy.context.temp_override(active_object=obj, selected_editable_objects=[obj], selected_objects=[obj]):
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')

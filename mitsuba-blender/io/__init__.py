@@ -15,6 +15,8 @@ import bpy
 from bpy.props import (
         StringProperty,
         BoolProperty,
+        IntProperty,
+        EnumProperty,
     )
 from bpy_extras.io_utils import (
         ImportHelper,
@@ -31,7 +33,7 @@ from . import hdri_converter
 
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
-class ImportMistuba(bpy.types.Operator, ImportHelper):
+class ImportMitsuba(bpy.types.Operator, ImportHelper):
     """Import a Mitsuba scene"""
     bl_idname = "import_scene.mitsuba"
     bl_label = "Mitsuba Import"
@@ -230,6 +232,58 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    # HDRI Baking Settings
+    hdri_resolution: EnumProperty(
+        name="Resolution",
+        description="HDRI resolution (must be 2:1 aspect ratio)",
+        items=[
+            ('2048', "2K (2048x1024)", "2K resolution"),
+            ('4096', "4K (4096x2048)", "4K resolution (Standard)"),
+            ('8192', "8K (8192x4096)", "8K resolution (High Quality)"),
+            ('16384', "16K (16384x8192)", "16K resolution (Ultra Quality)"),
+        ],
+        default='4096'
+    )
+
+    hdri_output_format: EnumProperty(
+        name="Format",
+        description="Output file format for HDRI",
+        items=[
+            ('HDR', "Radiance HDR (.hdr)", "Radiance HDR format"),
+            ('OPEN_EXR', "OpenEXR (.exr)", "OpenEXR format"),
+        ],
+        default='OPEN_EXR'
+    )
+
+    hdri_samples: IntProperty(
+        name="Samples",
+        description="Number of render samples",
+        default=256,
+        min=1,
+        max=8192
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        
+        layout.prop(self, "use_selection")
+        layout.prop(self, "split_files")
+        layout.prop(self, "export_ids")
+        layout.prop(self, "ignore_background")
+        
+        layout.prop(self, "axis_forward")
+        layout.prop(self, "axis_up")
+        
+        scene = context.scene
+        realsky_enabled = hasattr(scene, 'sky_settings') and scene.sky_settings.enabled
+        
+        if realsky_enabled:
+            box = layout.box()
+            box.label(text="HDRI Baking Settings:")
+            box.prop(self, "hdri_resolution")
+            box.prop(self, "hdri_output_format")
+            box.prop(self, "hdri_samples")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -260,26 +314,25 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
         hidden_objects = []
         original_camera = scene.camera
         
-        if not is_envmap:
-            if realsky_enabled:
-                print("hiding objects...")
-                realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
-                for obj in scene.objects:
-                    if obj.name not in realsky_names and not obj.hide_render:
-                        print(obj.name)
-                        obj.hide_render = True
-                        hidden_objects.append(obj)
+        # bake the sky texture into an envmap if RealSky is enabled
+        #TODO: add option to bake for any non-envmap/non-rgb background, not just RealSky (e.g. procedural sky texture nodes)
+        #TODO: add option to skip HDRI baking and do not export background
+        if not is_envmap and realsky_enabled:
+            realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+            for obj in scene.objects:
+                if obj.name not in realsky_names and not obj.hide_render:
+                    obj.hide_render = True
+                    hidden_objects.append(obj)
             
             # import tempfile
             # hdri_filepath = os.path.join(tempfile.gettempdir(), "baked_envmap.exr")
             hdri_filepath = os.path.join(os.path.dirname(self.filepath), "baked_envmap.exr")
 
-            # TODO: change back to higher resolution and higher samples when not testing
             bpy.ops.render.convert_to_hdri(
                 filepath=hdri_filepath, 
-                output_format='OPEN_EXR',
-                resolution='2048',
-                samples=24,
+                output_format=self.hdri_output_format,
+                resolution=self.hdri_resolution,
+                samples=self.hdri_samples,
                 clip_end=800000 if realsky_enabled else 1000
             )
             
@@ -308,8 +361,7 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
             tree.links.new(env_node.outputs['Color'], bg_node.inputs['Color'])
             tree.links.new(bg_node.outputs['Background'], out_node.inputs['Surface'])
             
-            if realsky_enabled:
-                scene.view_settings.exposure = -6
+            scene.view_settings.exposure = -6
 
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
@@ -341,6 +393,7 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
 
         window_manager.progress_end()
 
+        #NOTE: what's the point of this if using baked envmap?
         if not is_envmap and realsky_enabled:
             realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
             for obj in scene.objects:
@@ -363,14 +416,14 @@ def menu_custom_export_func(self, context):
     self.layout.operator(ExportMitsubaExtended.bl_idname, text="Mitsuba (.xml) with Aux Data (.yml)")
 
 def menu_import_func(self, context):
-    self.layout.operator(ImportMistuba.bl_idname, text="Mitsuba (.xml)")
+    self.layout.operator(ImportMitsuba.bl_idname, text="Mitsuba (.xml)")
 
 def menu_yml_import_func(self, context):
     self.layout.operator(ImportYMLConfig.bl_idname, text="Custom Config (.yml)")
 
 
 classes = (
-    ImportMistuba,
+    ImportMitsuba,
     ImportYMLConfig,
     ExportMitsuba,
     ExportMitsubaExtended

@@ -50,23 +50,23 @@ def create_scene_and_render_hdri():
     
     # Add a sun light
     bpy.ops.object.light_add(type='SUN', location=(0, 0, 10))
-    sun = bpy.context.active_object
+    sun = bpy.context.view_layer.objects.active
     sun.data.energy = 5.0
     
     # Add another light for fill
     bpy.ops.object.light_add(type='AREA', location=(5, -5, 5))
-    area = bpy.context.active_object
+    area = bpy.context.view_layer.objects.active
     area.data.energy = 100.0
     area.data.size = 5.0
     
     # Add a camera at the center
     bpy.ops.object.camera_add(location=(0, 0, 0))
-    camera = bpy.context.active_object
+    camera = bpy.context.view_layer.objects.active
     bpy.context.scene.camera = camera
     
     # Optional: Add some objects for reflection/environment
     bpy.ops.mesh.primitive_uv_sphere_add(radius=20, location=(0, 0, 0))
-    sphere = bpy.context.active_object
+    sphere = bpy.context.view_layer.objects.active
     
     # Create emission material for the sphere (sky dome)
     mat = bpy.data.materials.new(name="SkyMaterial")
