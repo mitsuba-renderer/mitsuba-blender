@@ -8,11 +8,15 @@ if "bpy" in locals():
         importlib.reload(importer_yml)
     if "exporter" in locals():
         importlib.reload(exporter)
+    if "hdri_converter" in locals():
+        importlib.reload(hdri_converter)
 
 import bpy
 from bpy.props import (
         StringProperty,
         BoolProperty,
+        IntProperty,
+        EnumProperty,
     )
 from bpy_extras.io_utils import (
         ImportHelper,
@@ -25,10 +29,11 @@ from . import bl_utils
 from . import importer
 from . import importer_yml
 from . import exporter
+from . import hdri_converter
 
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
-class ImportMistuba(bpy.types.Operator, ImportHelper):
+class ImportMitsuba(bpy.types.Operator, ImportHelper):
     """Import a Mitsuba scene"""
     bl_idname = "import_scene.mitsuba"
     bl_label = "Mitsuba Import"
@@ -227,6 +232,58 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    # HDRI Baking Settings
+    hdri_resolution: EnumProperty(
+        name="Resolution",
+        description="HDRI resolution (must be 2:1 aspect ratio)",
+        items=[
+            ('2048', "2K (2048x1024)", "2K resolution"),
+            ('4096', "4K (4096x2048)", "4K resolution (Standard)"),
+            ('8192', "8K (8192x4096)", "8K resolution (High Quality)"),
+            ('16384', "16K (16384x8192)", "16K resolution (Ultra Quality)"),
+        ],
+        default='4096'
+    )
+
+    hdri_output_format: EnumProperty(
+        name="Format",
+        description="Output file format for HDRI",
+        items=[
+            ('HDR', "Radiance HDR (.hdr)", "Radiance HDR format"),
+            ('OPEN_EXR', "OpenEXR (.exr)", "OpenEXR format"),
+        ],
+        default='OPEN_EXR'
+    )
+
+    hdri_samples: IntProperty(
+        name="Samples",
+        description="Number of render samples",
+        default=256,
+        min=1,
+        max=8192
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        
+        layout.prop(self, "use_selection")
+        layout.prop(self, "split_files")
+        layout.prop(self, "export_ids")
+        layout.prop(self, "ignore_background")
+        
+        layout.prop(self, "axis_forward")
+        layout.prop(self, "axis_up")
+        
+        scene = context.scene
+        realsky_enabled = hasattr(scene, 'sky_settings') and scene.sky_settings.enabled
+        
+        if realsky_enabled:
+            box = layout.box()
+            box.label(text="HDRI Baking Settings:")
+            box.prop(self, "hdri_resolution")
+            box.prop(self, "hdri_output_format")
+            box.prop(self, "hdri_samples")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -235,6 +292,77 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
         self.converter = exporter.SceneConverter(include_auxiliary_output=True)
 
     def execute(self, context):
+        import os
+        scene = context.scene
+        
+        # Check if environment is already an envmap
+        is_envmap = False
+        if scene.world and scene.world.use_nodes and scene.world.node_tree:
+            output_node_id = 'World Output'
+            if output_node_id in scene.world.node_tree.nodes:
+                output_node = scene.world.node_tree.nodes[output_node_id]
+                if output_node.inputs["Surface"].is_linked:
+                    surface_node = output_node.inputs["Surface"].links[0].from_node
+                    if surface_node.type in ['BACKGROUND', 'EMISSION']:
+                        socket = surface_node.inputs["Color"]
+                        if socket.is_linked:
+                            color_node = socket.links[0].from_node
+                            if color_node.type == 'TEX_ENVIRONMENT':
+                                is_envmap = True
+
+        realsky_enabled = hasattr(scene, 'sky_settings') and scene.sky_settings.enabled
+        hidden_objects = []
+        original_camera = scene.camera
+        
+        # bake the sky texture into an envmap if RealSky is enabled
+        #TODO: add option to bake for any non-envmap/non-rgb background, not just RealSky (e.g. procedural sky texture nodes)
+        #TODO: add option to skip HDRI baking and do not export background
+        if not is_envmap and realsky_enabled:
+            realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+            for obj in scene.objects:
+                if obj.name not in realsky_names and not obj.hide_render:
+                    obj.hide_render = True
+                    hidden_objects.append(obj)
+            
+            # import tempfile
+            # hdri_filepath = os.path.join(tempfile.gettempdir(), "baked_envmap.exr")
+            hdri_filepath = os.path.join(os.path.dirname(self.filepath), "baked_envmap.exr")
+
+            bpy.ops.render.convert_to_hdri(
+                filepath=hdri_filepath, 
+                output_format=self.hdri_output_format,
+                resolution=self.hdri_resolution,
+                samples=self.hdri_samples,
+                clip_end=800000 if realsky_enabled else 1000
+            )
+            
+            for obj in hidden_objects:
+                obj.hide_render = False
+                
+            if realsky_enabled:
+                realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+                for obj in scene.objects:
+                    if obj.name in realsky_names:
+                        obj.hide_render = True
+                
+            scene.camera = original_camera
+            
+            if not scene.world.use_nodes:
+                scene.world.use_nodes = True
+            tree = scene.world.node_tree
+            tree.nodes.clear()
+            
+            bg_node = tree.nodes.new(type='ShaderNodeBackground')
+            env_node = tree.nodes.new(type='ShaderNodeTexEnvironment')
+            out_node = tree.nodes.new(type='ShaderNodeOutputWorld')
+            
+            env_node.image = bpy.data.images.load(hdri_filepath)
+            
+            tree.links.new(env_node.outputs['Color'], bg_node.inputs['Color'])
+            tree.links.new(bg_node.outputs['Background'], out_node.inputs['Surface'])
+            
+            scene.view_settings.exposure = -6
+
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
 	            to_forward=self.axis_forward,
@@ -265,6 +393,13 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
 
         window_manager.progress_end()
 
+        #NOTE: what's the point of this if using baked envmap?
+        if not is_envmap and realsky_enabled:
+            realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+            for obj in scene.objects:
+                if obj.name in realsky_names:
+                    obj.hide_render = False
+
         self.report({'INFO'}, "Scene exported successfully!")
 
         # Reset the exporter
@@ -281,14 +416,14 @@ def menu_custom_export_func(self, context):
     self.layout.operator(ExportMitsubaExtended.bl_idname, text="Mitsuba (.xml) with Aux Data (.yml)")
 
 def menu_import_func(self, context):
-    self.layout.operator(ImportMistuba.bl_idname, text="Mitsuba (.xml)")
+    self.layout.operator(ImportMitsuba.bl_idname, text="Mitsuba (.xml)")
 
 def menu_yml_import_func(self, context):
     self.layout.operator(ImportYMLConfig.bl_idname, text="Custom Config (.yml)")
 
 
 classes = (
-    ImportMistuba,
+    ImportMitsuba,
     ImportYMLConfig,
     ExportMitsuba,
     ExportMitsubaExtended
@@ -303,7 +438,13 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_import_func)
     bpy.types.TOPBAR_MT_file_import.append(menu_yml_import_func)
 
+    # Register HDRI converter
+    hdri_converter.register()
+
 def unregister():
+    # Unregister HDRI converter
+    hdri_converter.unregister()
+
     for cls in classes:
         bpy.utils.unregister_class(cls)
 

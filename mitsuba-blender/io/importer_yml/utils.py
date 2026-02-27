@@ -2,6 +2,7 @@
 
 import bpy
 import os
+import math
 
 
 def resolve_relative_filepaths(data, base_dir):
@@ -34,20 +35,36 @@ def load_config(path="scene_config.yml"):
     return config_data
 
 
+def reset_viewport_settings(scene):
+    """Reset viewport settings to default values."""
+    for window in bpy.context.window_manager.windows:
+        for area in window.screen.areas:
+            if area.type == 'VIEW_3D':
+                for space in area.spaces:
+                    if space.type == 'VIEW_3D':
+                        space.clip_end = 1000.0
+                        
+    if hasattr(scene, 'sky_settings'):
+        scene.sky_settings.enabled = False
+
+
 def setup_render(scene, cfg):
     """Set up render settings based on configuration."""
-    scene.render.resolution_x = cfg["render"]["resolution_x"]
-    scene.render.resolution_y = cfg["render"]["resolution_y"]
+    if cfg["render"]:
+        render_cfg = cfg["render"]
+        scene.render.resolution_x = render_cfg.get("resolution_x", 1920)
+        scene.render.resolution_y = render_cfg.get("resolution_y", 1080)
+        #TODO: add samples 
 
 
 def setup_cameras(scene, cfg):
     """Set up camera based on configuration."""
     for cam_cfg in cfg.get("camera", []):
         bpy.ops.object.camera_add()
-        cam = bpy.context.active_object
+        cam = bpy.context.view_layer.objects.active
 
         cam.location = cam_cfg["location"]
-        cam.rotation_euler = cam_cfg["rotation_euler"]
+        cam.rotation_euler = cam_cfg["rotation"]
         if "name" in cam_cfg:
             cam.name = cam_cfg["name"]
             cam.data.name = cam_cfg["name"]
@@ -58,10 +75,153 @@ def setup_cameras(scene, cfg):
 
 
 def setup_background(scene, config):
-    """Set up environment background based on configuration."""
-    if "background" in config and "envmap" in config["background"]:
-        bg_cfg = config["background"]
+    def setup_viewport_for_clouds(clouds_settings, view_3d_area, cloud_type):
+        if view_3d_area: # Trick the add-on into running as if we clicked inside the 3D Viewport
+            with bpy.context.temp_override(area=view_3d_area):
+                if cloud_type == "cirrus":
+                    clouds_settings.cirrus = True
+                elif cloud_type == "cirrocumulus":
+                    clouds_settings.cirrocumulus = True
+                elif cloud_type == "altostratus":
+                    clouds_settings.altostratus = True
+                elif cloud_type == "cumulus":
+                    clouds_settings.cumulus = True
+        else: # Fallback in case there is no UI open
+            if cloud_type == "cirrus":
+                clouds_settings.cirrus = True
+            elif cloud_type == "cirrocumulus":
+                clouds_settings.cirrocumulus = True
+            elif cloud_type == "altostratus":
+                clouds_settings.altostratus = True
+            elif cloud_type == "cumulus":
+                clouds_settings.cumulus = True
 
+    """Set up environment background based on configuration."""
+    if "background" not in config:
+        return
+    bg_cfg = config["background"]
+    if "dynamic_lighting" in config["background"]:
+        # Ensure Real Sky addon is enabled if possible
+        if not hasattr(bpy.context.scene, "sky_settings"):
+            try:
+                bpy.ops.preferences.addon_enable(module="real-sky-main")
+            except Exception:
+                try:
+                    bpy.ops.preferences.addon_enable(module="real-sky")
+                except Exception:
+                    print("Warning: Real Sky addon not found or could not be enabled. Dynamic lighting setup may fail.")
+
+        # Cleanup
+        # Remove old Real Sky worlds to prevent append collisions
+        for w in bpy.data.worlds:
+            if "Real Sky" in w.name:
+                bpy.data.worlds.remove(w)
+                
+        # Remove old Sun objects globally to prevent naming collisions
+        for obj in bpy.data.objects:
+            if obj.name.startswith("Sun") and obj.type == 'LIGHT':
+                bpy.data.objects.remove(obj, do_unlink=True)
+                
+        for light in bpy.data.lights:
+            if light.name.startswith("Sun"):
+                bpy.data.lights.remove(light)
+        
+        bpy.context.scene.sky_settings.enabled = True
+        sky_settings = bpy.context.scene.sky_settings
+
+        lighting_cfg = bg_cfg["dynamic_lighting"]
+
+        # sun settings
+        sun_cfg = lighting_cfg.get("sun", {})
+        sky_settings.direction = math.radians(sun_cfg.get("north_direction", 0))
+        sky_settings.time = sun_cfg.get("time", 12.0)
+        sky_settings.month = sun_cfg.get("month", 1)
+        sky_settings.day31 = sun_cfg.get("day", 1)
+        sky_settings.latitude = math.radians(sun_cfg.get("latitude", 45.0)) # 45 degrees in radians
+        
+        # sky settings
+        sky_cfg = lighting_cfg.get("sky", {})
+        sky_settings.sky_method = sky_cfg.get("sky_method", "Real Sky")
+        sky_settings.altitude = sky_cfg.get("altitude", 1.0)
+        sky_settings.turbidity = sky_cfg.get("turbidity", 22.0) # percent
+        sky_settings.albedo = sky_cfg.get("albedo", 30.0) # percent
+
+        # clouds settings
+        if "clouds" in lighting_cfg:
+            # need to use cycles render engine for dynamic clouds to work
+            clouds_settings = bpy.context.scene.clouds_settings
+            cloud_cfg = lighting_cfg["clouds"]
+            scene.render.engine = 'CYCLES'
+
+            # Find an open 3D Viewport in the UI
+            view_3d_area = None
+            for window in bpy.context.window_manager.windows:
+                for area in window.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        view_3d_area = area
+                        break
+                if view_3d_area:
+                    break
+
+            if "cirrus" in cloud_cfg and cloud_cfg["cirrus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cirrus")
+                clouds_settings.cirrus_direction = math.radians(cloud_cfg["cirrus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cirrus_location = cloud_cfg["cirrus"].get("location", 0.0)
+                clouds_settings.cirrus_coverage = cloud_cfg["cirrus"].get("coverage", 50) # percent
+                clouds_settings.cirrus_density = cloud_cfg["cirrus"].get("density", 100) # percent
+
+                        
+            if "cirrocumulus" in cloud_cfg and cloud_cfg["cirrocumulus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cirrocumulus")
+                clouds_settings.cirrocumulus_direction = math.radians(cloud_cfg["cirrocumulus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cirrocumulus_location = cloud_cfg["cirrocumulus"].get("location", 0.0)
+                clouds_settings.cirrocumulus_coverage = cloud_cfg["cirrocumulus"].get("coverage", 50) # percent
+                clouds_settings.cirrocumulus_density = cloud_cfg["cirrocumulus"].get("density", 100) # percent
+
+            if "altostratus" in cloud_cfg and cloud_cfg["altostratus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "altostratus")
+                if "method" in cloud_cfg["altostratus"]:
+                    if cloud_cfg["altostratus"]["method"] == "Volume":
+                        clouds_settings.altostratus_mist = cloud_cfg["altostratus"].get("mist", True)
+                    elif cloud_cfg["altostratus"]["method"] == "Billboard":
+                        clouds_settings.altostratus_billboard_res = cloud_cfg["altostratus"].get("billboard_res", "Low")
+                    else:
+                        raise ValueError(f"Unknown altostratus method {cloud_cfg['altostratus']['method']}, expected one of 'Volume', 'Billboard'.")
+                clouds_settings.altostratus_direction = math.radians(cloud_cfg["altostratus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.altostratus_location = cloud_cfg["altostratus"].get("location", 0.0)
+                clouds_settings.altostratus_coverage = cloud_cfg["altostratus"].get("coverage", 50) # percent
+                clouds_settings.altostratus_density = cloud_cfg["altostratus"].get("density", 50) # percent
+
+            if "cumulus" in cloud_cfg and cloud_cfg["cumulus"]["use"]:
+                setup_viewport_for_clouds(clouds_settings, view_3d_area, "cumulus")
+                if "method" in cloud_cfg["cumulus"]:
+                    if cloud_cfg["cumulus"]["method"] == "Volume":
+                        clouds_settings.cumulus_mist = cloud_cfg["cumulus"].get("mist", True)
+                    elif cloud_cfg["cumulus"]["method"] == "Billboard":
+                        clouds_settings.cumulus_billboard_res = cloud_cfg["cumulus"].get("billboard_res", "Low")
+                    else:
+                        raise ValueError(f"Unknown cumulus method {cloud_cfg['cumulus']['method']}, expected one of 'Volume', 'Billboard'.")
+                clouds_settings.cumulus_direction = math.radians(cloud_cfg["cumulus"].get("wind_direction", 0.0)) # wind, degrees
+                clouds_settings.cumulus_location = cloud_cfg["cumulus"].get("location", 0.0)
+                clouds_settings.cumulus_coverage = cloud_cfg["cumulus"].get("coverage", 50) # percent
+                clouds_settings.cumulus_density = cloud_cfg["cumulus"].get("density", 50) # percent
+
+        # Make clouds visible in viewpoint
+        for window in bpy.context.window_manager.windows:
+            for area in window.screen.areas:
+                if area.type == 'VIEW_3D':
+                    for space in area.spaces:
+                        if space.type == 'VIEW_3D':
+                            space.clip_end = 800000
+
+        # Extend the clipping distance for all cameras so the clouds render
+        for cam in bpy.data.cameras:
+            cam.clip_end = 800000
+
+        # Force a scene update
+        bpy.context.view_layer.update()
+
+    elif "envmap" in config["background"]:
         if not scene.world:
             scene.world = bpy.data.worlds.new("World")
         world = scene.world
@@ -74,13 +234,11 @@ def setup_background(scene, config):
         output = nodes.new(type="ShaderNodeOutputWorld")
         bg = nodes.new(type="ShaderNodeBackground")
 
-        if "envmap" in bg_cfg:
-            env = nodes.new(type="ShaderNodeTexEnvironment")
-            env.image = bpy.data.images.load(bg_cfg["envmap"]["filepath"])
-            links.new(env.outputs["Color"], bg.inputs["Color"])
+        env = nodes.new(type="ShaderNodeTexEnvironment")
+        env.image = bpy.data.images.load(bg_cfg["envmap"]["filepath"])
+        links.new(env.outputs["Color"], bg.inputs["Color"])
 
-        if "strength" in bg_cfg:
-            bg.inputs["Strength"].default_value = bg_cfg["strength"]
+        bg.inputs["Strength"].default_value = bg_cfg["envmap"].get("strength", 1.0)
         links.new(bg.outputs["Background"], output.inputs["Surface"])
 
 
@@ -128,11 +286,10 @@ def create_material(mat_cfg):
             tex_image = nodes.new(type="ShaderNodeTexImage")
             tex_image.location = (-400, 0)
             tex_image.image = bpy.data.images.load(mat_cfg["texture"]["filepath"])
+            tex_image.image.colorspace_settings.name = mat_cfg["texture"].get("colorspace", "sRGB") # default to sRGB
+
             links.new(tex_image.outputs["Color"], bsdf.inputs["Base Color"])
-            if "optimizable" in mat_cfg["texture"]:
-                mat["optimizable"] = mat_cfg["texture"]["optimizable"]
-            else:
-                mat["optimizable"] = False
+            mat["optimizable"] = mat_cfg["texture"].get("optimizable", False)
     else:
         raise ValueError(f"Unknown material configuration: {mat_cfg}")
 
@@ -142,35 +299,114 @@ def create_material(mat_cfg):
 def setup_objects(scene, cfg):
     """Add objects to the scene based on configuration."""
     for obj_cfg in cfg.get("objects", []):
+        common_defaults = {
+            "size": obj_cfg.get("size", 2.0),
+            "radius": obj_cfg.get("radius", 1.0),
+            "align": obj_cfg.get("align", 'WORLD'),
+            "location": obj_cfg.get("location", (0, 0, 0)),
+            "rotation": obj_cfg.get("rotation", (0, 0, 0)),
+            "scale": obj_cfg.get("scale", (1, 1, 1)),
+        }
         if obj_cfg["type"] == "PRIMITIVE":
-            if obj_cfg["shape"] == "CUBE":
-                bpy.ops.mesh.primitive_cube_add(
-                    size=obj_cfg.get("size", 1.0),
-                    location=obj_cfg.get("location", (0, 0, 0)),
-                    rotation=obj_cfg.get("rotation", (0, 0, 0)),
-                    # scale=obj_cfg.get("scale", (0, 0, 0)),
-                )
-            elif obj_cfg["shape"] == "SPHERE":
+            if obj_cfg["shape"] == "SPHERE":
                 bpy.ops.mesh.primitive_uv_sphere_add(
-                    radius=obj_cfg.get("radius", 1.0),
-                    location=obj_cfg.get("location", (0, 0, 0)),
-                    rotation=obj_cfg.get("rotation", (0, 0, 0)),
-                    # scale=obj_cfg.get("scale", (0, 0, 0)),
+                    segments=obj_cfg.get("segments", 32),
+                    ring_count=obj_cfg.get("ring_count", 16),
+                    radius=common_defaults["radius"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CIRCLE":
+                bpy.ops.mesh.primitive_circle_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius=common_defaults["radius"],
+                    fill_type=obj_cfg.get("fill_type", 'NOTHING'),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CONE":
+                bpy.ops.mesh.primitive_cone_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius1=obj_cfg.get("radius1", 1.0),
+                    radius2=obj_cfg.get("radius2", 0.0),
+                    depth=obj_cfg.get("depth", 2.0),
+                    end_fill_type=obj_cfg.get("end_fill_type", 'NGON'),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CYLINDER":
+                bpy.ops.mesh.primitive_cylinder_add(
+                    vertices=obj_cfg.get("vertices", 32),
+                    radius=common_defaults["radius"],
+                    depth=obj_cfg.get("depth", 2.0),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "CUBE":
+                bpy.ops.mesh.primitive_cube_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                )
+            elif obj_cfg["shape"] == "GRID":
+                bpy.ops.mesh.primitive_grid_add(
+                    x_subdivisions=obj_cfg.get("x_subdivisions", 10),
+                    y_subdivisions=obj_cfg.get("y_subdivisions", 10),
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "ICO_SPHERE":
+                bpy.ops.mesh.primitive_ico_sphere_add(
+                    subdivisions=obj_cfg.get("subdivisions", 2),
+                    radius=common_defaults["radius"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "MONKEY":
+                bpy.ops.mesh.primitive_monkey_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "PLANE":
+                bpy.ops.mesh.primitive_plane_add(
+                    size=common_defaults["size"],
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
+                    scale=common_defaults["scale"],
+                )
+            elif obj_cfg["shape"] == "TORUS":
+                bpy.ops.mesh.primitive_torus_add(
+                    major_segments=obj_cfg.get("major_segments", 48),
+                    minor_segments=obj_cfg.get("minor_segments", 12),
+                    major_radius=obj_cfg.get("major_radius", 1.0),
+                    minor_radius=obj_cfg.get("minor_radius", 0.25),
+                    abso_major_rad=obj_cfg.get("abso_major_rad", 1.25),
+                    abso_minor_rad=obj_cfg.get("abso_minor_rad", 0.75),
+                    mode=obj_cfg.get("mode", "MAJOR_MINOR"),
+                    align=common_defaults["align"],
+                    location=common_defaults["location"],
+                    rotation=common_defaults["rotation"],
                 )
             else:
-                raise ValueError(f"Unknown shape type {obj_cfg['shape']}, expected one of CUBE, SPHERE.")
-            #TODO: add other primitives: total available are
-            # primitive_circle_add()
-            # primitive_cone_add()
-            # primitive_cube_add() -- done
-            # primitive_cube_add_gizmo()
-            # primitive_cylinder_add()
-            # primitive_grid_add()
-            # primitive_ico_sphere_add()
-            # primitive_monkey_add()
-            # primitive_plane_add()
-            # primitive_torus_add()
-            # primitive_uv_sphere_add() -- done
+                raise ValueError(f"Unknown shape type {obj_cfg['shape']}, expected one of CUBE, SPHERE, CYLINDER, CONE, TORUS, PLANE, MONKEY, ICO_SPHERE, GRID, CIRCLE.")
 
         elif obj_cfg["type"] == "MESH":
             mesh_filepath = obj_cfg["filepath"]
@@ -187,13 +423,11 @@ def setup_objects(scene, cfg):
             else:
                 raise ValueError(f"Unknown file ending type {file_ending}, expected one of 'obj', 'stl', 'ply', 'fbx")
 
-        # Adjust pose and scaling for non-primitive objects
-        obj = bpy.context.active_object
+        # Adjust pose and scaling for non-primitive objects, e.g. meshes
+        obj = bpy.context.view_layer.objects.active
         if obj_cfg["type"] != "PRIMITIVE":
-            if "location" in obj_cfg:
-                obj.location = obj_cfg["location"]
-            if "rotation_euler" in obj_cfg:
-                obj.rotation_euler = obj_cfg["rotation_euler"]
+            obj.location = common_defaults["location"]
+            obj.rotation_euler = common_defaults["rotation"]
             # Scale: prefer explicit 3-element scale, else uniform `size` if provided
             if "scale" in obj_cfg:
                 obj.scale = obj_cfg["scale"]
@@ -210,7 +444,6 @@ def setup_objects(scene, cfg):
             obj.data.materials.clear()
             obj.data.materials.append(mat)
 
-
             # ensure UV map exists
             mesh = obj.data
             if not mesh.uv_layers:
@@ -219,7 +452,13 @@ def setup_objects(scene, cfg):
 
             # unwrap automatically bitmap
             bpy.context.view_layer.objects.active = obj
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.uv.smart_project()
-            bpy.ops.object.mode_set(mode='OBJECT')
+            obj.select_set(True)
+            
+            # Use view_layer update to ensure context is ready
+            bpy.context.view_layer.update()
+            
+            with bpy.context.temp_override(active_object=obj, selected_editable_objects=[obj], selected_objects=[obj]):
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.uv.smart_project()
+                bpy.ops.object.mode_set(mode='OBJECT')

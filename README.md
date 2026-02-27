@@ -27,15 +27,11 @@ Mac OS: `/Users/$USER/Library/Application Support/Blender/4.2/scripts/addons/`
 3. In Blender, go to **Edit** -> **Preferences** -> **Add-ons**, find the add-on and enable it.
 4. To point the add-on to the Mitsuba dependencies, click on *Install dependencies using pip* to download dependencies.
 
-If you'd instead like to install the package directly into Blender's add-ons directory instead of as in Step 2, you can zipping the `mitsuba-blender` directory (NOTE: again, the `mitsuba-blender` directory *inside* the project root, not the whole repo) and then installing the ZIP file as described in steps 2-3 of the Official Mitsuba-Blender Release below.  
-
-
-Official Mitsuba-Blender Release [does not contain our custom features]):
-1. Download the latest release from the [release section](https://github.com/mitsuba-renderer/mitsuba-blender/releases). (![Mitsuba Blender Nightly Release](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/nightly_release.yml/badge.svg)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/nightly_release.yml))
+If you'd like to install the package directly into Blender's add-ons directory instead of symlinking as in Step 2, you can zip the `mitsuba-blender` directory (NOTE: the `mitsuba-blender` directory *inside* the project root, not the whole repo) and then installing the ZIP file as described below:
 
 2. In Blender, go to **Edit** -> **Preferences** -> **Add-ons**. In top right of menu, select drop down arrow and **Install from disk**.
 3. Select the downloaded ZIP archive.
-4. Find the add-on using the search bar and enable it.
+4. Find the add-on by sccrolling or using the search bar and enable it.
 5. To point the add-on to the Mitsuba dependencies, either click on *Install dependencies using pip* to download the latest package, or check *Use custom Mitsuba path* and browse to your Mitsuba build directory.
 
 
@@ -53,10 +49,10 @@ Launch Blender from the console in order to see any logged error messages.
 ### Supported versions
 
 Blender version should be at least `2.93`. The addon has been extensively tested
-on LTS versions of blender (`3.6`, `4.2`). We recommend using 4.2 whenever
+on LTS versions of blender (`3.6`, `4.2`). **We recommend using 4.2** whenever
 possible.
 
-# New Custom Features
+# Blender-Mitsuba+ Custom Features
 ## Installation
 Follow the Mitsuba-Blender+ (Live Development Installation) instructions above.
 
@@ -104,6 +100,3 @@ On import into the Blender UI, this property is viewable and editable as a custo
 - For cameras: with the camera object selected, click on the  `Object` tab/icon in the right sidebar, scroll down to `Custom Properties` section
 
 If not explicitly defined as optimizable in the config, textures and cameras are left as not optimizable by default in the UI. To add the `optimizable` flag to a texture or camera without the field (e.g. user-added object to the scene), you can add the custom property yourself in the appropriate `Custom Properties` section: click `+ New`, edit the property to have type Boolean and name `optimizable`. This will be preserved upon export.
-
-## Misc
-Run Blender from command line (e.g. `/Applications/Blender.app/Contents/MacOS/blender` on MacOS) to see logging statements.
