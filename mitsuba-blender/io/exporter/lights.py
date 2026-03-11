@@ -43,9 +43,16 @@ def convert_area_light(b_light, export_ctx):
     emitter = {
         'type': 'area'
     }
+    
+    # Check for Real Sky scaling
+    scale_factor = 1.0
+    scene = export_ctx.deg.scene
+    if hasattr(scene, 'sky_settings') and scene.sky_settings.enabled:
+        scale_factor = 2**-6
+
     # Conversion factor used in Cycles, to convert to irradiance (don't ask me why)
     conv_fac = 1.0 / (area * 4.0)
-    emitter['radiance'] = export_ctx.spectrum(conv_fac * b_light.data.energy * b_light.data.color)
+    emitter['radiance'] = export_ctx.spectrum(conv_fac * b_light.data.energy * scale_factor * b_light.data.color)
     params['emitter'] = emitter
 
     #adding a null bsdf
@@ -56,8 +63,14 @@ def convert_area_light(b_light, export_ctx):
     return params
 
 def convert_point_light(b_light, export_ctx):
+    # Check for Real Sky scaling
+    scale_factor = 1.0
+    scene = export_ctx.deg.scene
+    if hasattr(scene, 'sky_settings') and scene.sky_settings.enabled:
+        scale_factor = 2**-6
+
     #normalize by the solid angle of a sphere
-    energy = b_light.data.energy / (4*np.pi)
+    energy = (b_light.data.energy * scale_factor) / (4*np.pi)
     intensity = export_ctx.spectrum(energy * b_light.data.color)
 
     #get the world position. b_light.location is only local
@@ -77,7 +90,13 @@ def convert_sun_light(b_light, export_ctx):
     params = {
         'type': 'directional'
     }
-    irradiance = b_light.data.energy * b_light.data.color
+    # Check for Real Sky scaling
+    scale_factor = 1.0
+    scene = export_ctx.deg.scene
+    if hasattr(scene, 'sky_settings') and scene.sky_settings.enabled:
+        scale_factor = 2**-6
+
+    irradiance = (b_light.data.energy * scale_factor) * b_light.data.color
     params['irradiance'] = export_ctx.spectrum(irradiance)
     init_mat = Matrix.Rotation(np.pi, 4, 'X')
     #change default position, apply transform and change coordinates
@@ -90,7 +109,14 @@ def convert_spot_light(b_light, export_ctx):
     }
     if b_light.data.shadow_soft_size:
         export_ctx.log("Light '%s' has a non-zero soft shadow radius. It will be ignored." % b_light.name_full, 'WARN')
-    intensity = b_light.data.energy * b_light.data.color / (4.0 * np.pi)
+
+    # Check for Real Sky scaling
+    scale_factor = 1.0
+    scene = export_ctx.deg.scene
+    if hasattr(scene, 'sky_settings') and scene.sky_settings.enabled:
+        scale_factor = 2**-6
+
+    intensity = (b_light.data.energy * scale_factor) * b_light.data.color / (4.0 * np.pi)
     params['intensity'] = export_ctx.spectrum(intensity)
     alpha = b_light.data.spot_size / 2.0
     params['cutoff_angle'] = alpha * 180 / np.pi

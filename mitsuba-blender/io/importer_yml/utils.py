@@ -50,12 +50,17 @@ def reset_viewport_settings(scene):
 
 def setup_render(scene, cfg):
     """Set up render settings based on configuration."""
-    if cfg["render"]:
+    if "render" in cfg and cfg["render"]:
         render_cfg = cfg["render"]
         scene.render.resolution_x = render_cfg.get("resolution_x", 1920)
         scene.render.resolution_y = render_cfg.get("resolution_y", 1080)
         #TODO: add samples 
 
+def setup_fog(scene, cfg):
+    """Set up fog based on configuration. Fog will not be added until export as it is a mitsuba-only function."""
+    if "fog" in cfg and cfg["fog"]:
+        fog_cfg = cfg["fog"]
+        scene['fog_target_visibility'] = fog_cfg.get("target_visibility", 0.2)
 
 def setup_cameras(scene, cfg):
     """Set up camera based on configuration."""
@@ -143,7 +148,7 @@ def setup_background(scene, config):
         sky_cfg = lighting_cfg.get("sky", {})
         sky_settings.sky_method = sky_cfg.get("sky_method", "Real Sky")
         sky_settings.altitude = sky_cfg.get("altitude", 1.0)
-        sky_settings.turbidity = sky_cfg.get("turbidity", 22.0) # percent
+        sky_settings.turbidity = sky_cfg.get("turbidity", 22) # percent
         sky_settings.albedo = sky_cfg.get("albedo", 30.0) # percent
 
         # clouds settings
@@ -162,7 +167,6 @@ def setup_background(scene, config):
                         break
                 if view_3d_area:
                     break
-
             if "cirrus" in cloud_cfg and cloud_cfg["cirrus"]["use"]:
                 setup_viewport_for_clouds(clouds_settings, view_3d_area, "cirrus")
                 clouds_settings.cirrus_direction = math.radians(cloud_cfg["cirrus"].get("wind_direction", 0.0)) # wind, degrees

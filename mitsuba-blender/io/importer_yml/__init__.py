@@ -15,4 +15,5 @@ def build_new_scene(init_scene, config_path="scene_config.yml"):
     utils.setup_lights(init_scene, cfg)
     utils.setup_background(init_scene, cfg)
     utils.setup_objects(init_scene, cfg)
+    utils.setup_fog(init_scene, cfg)
     return

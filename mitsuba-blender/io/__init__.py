@@ -318,14 +318,13 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
         #TODO: add option to bake for any non-envmap/non-rgb background, not just RealSky (e.g. procedural sky texture nodes)
         #TODO: add option to skip HDRI baking and do not export background
         if not is_envmap and realsky_enabled:
-            realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+            # Hide all non-RealSky objects for baking. Unhide them and hide the RealSky objects again after baking.
+            realsky_names = ["cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
             for obj in scene.objects:
                 if obj.name not in realsky_names and not obj.hide_render:
                     obj.hide_render = True
                     hidden_objects.append(obj)
             
-            # import tempfile
-            # hdri_filepath = os.path.join(tempfile.gettempdir(), "baked_envmap.exr")
             hdri_filepath = os.path.join(os.path.dirname(self.filepath), "baked_envmap.exr")
 
             bpy.ops.render.convert_to_hdri(
@@ -339,11 +338,9 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
             for obj in hidden_objects:
                 obj.hide_render = False
                 
-            if realsky_enabled:
-                realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
-                for obj in scene.objects:
-                    if obj.name in realsky_names:
-                        obj.hide_render = True
+            for obj in scene.objects:
+                if obj.name in realsky_names or obj.name == "HDRI_Camera":
+                    obj.hide_render = True
                 
             scene.camera = original_camera
             
@@ -381,6 +378,7 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
         window_manager = context.window_manager
 
         deps_graph = context.evaluated_depsgraph_get()
+        deps_graph.update()
 
         total_progress = len(deps_graph.object_instances)
         window_manager.progress_begin(0, total_progress)
@@ -395,7 +393,7 @@ class ExportMitsubaExtended(bpy.types.Operator, ExportHelper):
 
         #NOTE: what's the point of this if using baked envmap?
         if not is_envmap and realsky_enabled:
-            realsky_names = ["Sun", "cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
+            realsky_names = ["cirrus", "cirrocumulus", "altostratus", "altostratus_mist", "altostratus_billboard", "cumulus", "cumulus_mist", "cumulus_billboard"]
             for obj in scene.objects:
                 if obj.name in realsky_names:
                     obj.hide_render = False

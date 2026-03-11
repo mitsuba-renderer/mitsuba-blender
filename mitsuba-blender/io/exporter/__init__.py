@@ -1,4 +1,6 @@
 import os
+import math
+import re
 from collections import defaultdict
 
 if "bpy" in locals():
@@ -22,6 +24,86 @@ from . import geometry
 from . import lights
 from . import camera
 
+def apply_fog_dome(input_xml, output_xml, target_visibility=0.2):
+    import mitsuba
+    print(f"Evaluating scene geometry: {input_xml} ...")
+    
+    # Determine scene bounds
+    scene = mitsuba.load_file(input_xml)
+    bbox = scene.bbox()
+    
+    # scene.bbox() only includes meshes. We must manually expand it to include 
+    # all camera positions so they are never left outside the fog sphere.
+    for sensor in scene.sensors():
+        transform = sensor.world_transform()
+        
+        # Handle both static Transform4f and AnimatedTransform objects
+        if hasattr(transform, 'eval'):
+            transform = transform.eval(0.0)
+            
+        cam_pos = transform.translation()
+        bbox.expand(cam_pos)
+
+    # Calculate fog dome based on bbox with safety margin to ensure all geometry is fully enclosed
+    center = (bbox.max + bbox.min) / 2.0
+    dx = bbox.max.x - center.x
+    dy = bbox.max.y - center.y
+    dz = bbox.max.z - center.z
+    radius = math.sqrt(dx**2 + dy**2 + dz**2) * 1.05 
+    
+    # Calculate scale-invariant density using Beer-Lambert law
+    fog_scale = -math.log(target_visibility) / radius
+    
+    print(f"Calculated Bounding Sphere Center: ({center.x:.2f}, {center.y:.2f}, {center.z:.2f})")
+    print(f"Calculated Bounding Sphere Radius: {radius:.2f}")
+
+    # Inject fog into the XML scene description
+    with open(input_xml, 'r') as file:
+        xml_content = file.read()
+
+    # Swap the integrator to volpath
+    xml_content = re.sub(
+        r'<integrator\s+type="[^"]+"', 
+        '<integrator type="volpath"', 
+        xml_content, 
+        count=1
+    )
+
+    # Inject <ref id="fog"/> into every sensor block
+    ref_tag = '\n        <ref id="fog"/>\n    ' # finds the closing </sensor> tag and prepends the reference.
+    xml_content = re.sub(r'(</sensor>)', rf'{ref_tag}\1', xml_content)
+
+    fog_xml = f"""
+<medium type="homogeneous" id="fog">
+        <rgb name="sigma_t" value="1.0, 1.0, 1.0"/>
+        <rgb name="albedo" value="0.9, 0.9, 0.9"/>
+        <float name="scale" value="{fog_scale:.6f}"/>
+        <phase type="hg">
+            <float name="g" value="0.5"/>
+        </phase>
+    </medium>
+
+    <shape type="sphere">
+        <point name="center" x="{center.x:.6f}" y="{center.y:.6f}" z="{center.z:.6f}"/>
+        <float name="radius" value="{radius:.6f}"/>
+        <ref name="interior" id="fog"/>
+        <bsdf type="null"/>
+    </shape>
+"""
+    
+    # Append the fog XML right before the closing scene tag
+    if "</scene>" in xml_content:
+        xml_content = xml_content.replace("</scene>", fog_xml + "</scene>")
+    else:
+        raise ValueError("Could not find closing </scene> tag in the input XML.")
+
+    # Save output
+    with open(output_xml, 'w') as file:
+        file.write(xml_content)
+        
+    print(f"Successfully generated fog-enabled scene: {output_xml}")
+
+
 class SceneConverter:
     '''
     Converts a blender scene to a Mitsuba-compatible dict.
@@ -44,6 +126,7 @@ class SceneConverter:
         # Ideally, this should only be created if we want to write a scene.
         # For now we need it to save meshes and packed textures.
         # TODO: get rid of all writing to disk when creating the dict
+        self.output_path = name
         if not self.render:
             self.xml_writer = WriteXML(name, self.export_ctx.subfolders,
                                        split_files=split_files)
@@ -123,6 +206,12 @@ class SceneConverter:
 
     def dict_to_xml(self):
         self.xml_writer.process(self.export_ctx.scene_data)
+        
+        # Apply fog if configured
+        b_scene = self.export_ctx.deg.scene
+        if b_scene.get('fog_target_visibility') is not None:
+            target_vis = b_scene['fog_target_visibility']
+            apply_fog_dome(self.output_path, self.output_path, target_vis)
 
     def aux_dict_to_yml(self):
         import yaml
