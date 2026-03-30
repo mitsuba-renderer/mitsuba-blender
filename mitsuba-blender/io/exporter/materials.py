@@ -33,11 +33,7 @@ def convert_float_texture_node(export_ctx, socket):
             raise NotImplementedError( "Node type %s is not supported. Only texture nodes are supported for float inputs" % node.type)
 
     else:
-        #roughness values in blender are remapped with a square root
-        if 'Roughness' in socket.name:
-            params = pow(socket.default_value, 2)
-        else:
-            params = socket.default_value
+        params = socket.default_value
 
     return params
 
@@ -105,6 +101,10 @@ def convert_glossy_materials_cycles(export_ctx, current_node):
 
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
 
+    # In blender, glossy BDSF uses sqrt roughness since 2.80 (https://developer.blender.org/docs/release_notes/2.80/cycles/)
+    # But in roughconductor takes alpha directly, so the value needs to be squared to be accurate
+    roughness = pow(roughness, 2)
+
     if roughness > 0:
         params.update({
             'type': 'roughconductor',
@@ -135,6 +135,10 @@ def convert_glass_materials_cycles(export_ctx, current_node):
     ior = current_node.inputs['IOR'].default_value
 
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
+
+    # In blender, glossy BDSF uses sqrt roughness since 2.80 (https://developer.blender.org/docs/release_notes/2.80/cycles/)
+    # But in roughconductor takes alpha directly, so the value needs to be squared to be accurate
+    roughness = pow(roughness, 2)
 
     if roughness and current_node.distribution != 'SHARP':
         params.update({
