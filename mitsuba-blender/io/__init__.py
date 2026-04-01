@@ -104,8 +104,8 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = True
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self):
+        super().__init__()
         self.reset()
 
     def reset(self):
