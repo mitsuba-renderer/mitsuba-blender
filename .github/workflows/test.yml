@@ -7,7 +7,7 @@ name: Test suite
 on:
   push:
     branches:
-      - master
+      - * # master
   pull_request:
     branches: [ master ]
   workflow_call:
@@ -24,11 +24,11 @@ jobs:
         environment:
         - {
           os: "ubuntu-latest",
-          mitsuba-version: "3.7.1"
+          mitsuba-version: "3.8.0"
         }
         - {
           os: "windows-latest",
-          mitsuba-version: "3.7.1"
+          mitsuba-version: "3.8.0"
         }
         blender:
         - {
