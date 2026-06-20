@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import bpy
 
 import os
 
@@ -18,6 +19,15 @@ class ResourceResolver:
         absolute_dir = self.get_absolute_resource_path(relative_dir)
         os.makedirs(absolute_dir, exist_ok=True)
         return absolute_dir
+    
+    def get_out_path(self):
+        return os.path.join(self.root, 'out')
+    
+    def get_renders_path(self):
+        return os.path.join(self.root, 'renders')
+    
+    def get_scenes_path(self):
+        return os.path.join(self.root, 'scenes')
 
 @pytest.fixture
 def resource_resolver():
@@ -157,3 +167,183 @@ class MitsubaRenderTester:
 @pytest.fixture
 def mitsuba_scene_ztest(mitsuba_scene_renderer):
     return MitsubaRenderTester(mitsuba_scene_renderer)
+
+
+###############################
+##  BlenderExporter fixture  ##
+###############################
+
+roughness = 'Roughness'
+color = 'Color'
+strength = 'Strength'
+distrib = 'distribution'
+node_name = 'name'
+beckmann = 'BECKMANN'
+'''
+Describe the properties of every shader node supported by the Blender Exporter fixture
+'''
+blender_materials = {
+            'glass': {
+                node_name: 'ShaderNodeBsdfGlass',
+                color: (0, 0, 1, 1),
+                distrib: beckmann,
+            },
+            'glass_r0.5': {
+                node_name: 'ShaderNodeBsdfGlass',
+                color: (0, 0, 1, 1),
+                roughness: 0.5,
+                distrib: beckmann,
+            },
+            'glass_r1': {
+                node_name: 'ShaderNodeBsdfGlass',
+                color: (0, 0, 1, 1),
+                roughness: 1,
+                distrib: beckmann,
+            },
+            'diffuse': {
+                node_name: 'ShaderNodeBsdfDiffuse',
+                color: (1, 0, 0, 1),
+            },
+            'diffuse_r0.5': {
+                node_name: 'ShaderNodeBsdfDiffuse',
+                color: (1, 0, 0, 1),
+                roughness: 0.5
+            },
+            'diffuse_r1': {
+                node_name: 'ShaderNodeBsdfDiffuse',
+                color: (1, 0, 0, 1),
+                roughness: 1
+            },
+            'emission': {
+                node_name: 'ShaderNodeEmission',
+                color: (0.390444, 1, 0.358339, 1), 
+            },
+            'emission_str5': {
+                node_name: 'ShaderNodeEmission',
+                color: (0.390444, 1, 0.358339, 1), 
+                strength: 5.0,
+            },
+            'emission_str10': {
+                node_name: 'ShaderNodeEmission',
+                color: (0.390444, 1, 0.358339, 1), 
+                strength: 10.0,
+            },
+            'glossy_r0': {
+                node_name: 'ShaderNodeBsdfGlossy',
+                color: (0.5, 0.5, 0.5, 1),
+                roughness: 0,
+                distrib: beckmann
+            },
+            'glossy_r0.5': {
+                node_name: 'ShaderNodeBsdfGlossy',
+                color: (0.5, 0.5, 0.5, 1),
+                roughness: 0.5,
+                distrib: beckmann,
+            },
+            'glossy_r1': {
+                node_name: 'ShaderNodeBsdfGlossy',
+                color: (0.5, 0.5, 0.5, 1),
+                roughness: 1,
+                distrib: beckmann
+            },
+        }
+
+class BlenderExporter:
+    def __init__(self, resource_resolver: ResourceResolver):
+        self.resolver = resource_resolver
+    
+    def setup_blender(self, scene, max_bounce=5, samples=64, resolution=(1280, 720)):
+        '''
+        Open a scene in Blender and setup the world, scene and cycle parameters expected by the tests
+
+        Parameters
+        ----------
+        scene : str
+            The name of the scene to open, must be saved in the folder tests/res/scenes/blender
+        
+        max_bounce : int, opt
+            Maximum number of ray bounces, default is 5
+
+        samples : int, opt
+            Number of sample per pixel, default is 64
+
+        resolution : (int, int), opt
+            Resolution of the renders, default is (1280, 720)
+        '''
+        # Open test scene in blender
+        ref_bl_scene = f'{self.resolver.get_scenes_path()}/blender/{scene}'
+        bpy.ops.wm.open_mainfile(filepath=ref_bl_scene)
+
+        # Set cycle parameters
+        bpy.context.scene.render.engine = 'CYCLES'
+        bpy.context.scene.cycles.device = 'CPU'
+        bpy.context.scene.cycles.max_bounces = max_bounce
+        bpy.context.scene.cycles.samples = samples
+        bpy.context.scene.cycles.use_denoising = False
+        bpy.context.scene.render.resolution_x = resolution[0]
+        bpy.context.scene.render.resolution_y = resolution[1]
+        bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[0].default_value = (0, 0, 0, 1)
+
+    def set_material(self, name):
+        '''
+        Create a new material inside blender that is based on a shader node with the propreties 
+        described by the entry name in the dictionary blender_materials
+
+        Parameters
+        ----------
+        name : str
+            The name of the shader node to set
+        '''
+        # Get properties of material
+        if name not in blender_materials:
+            return False
+        
+        props = blender_materials[name]
+
+        # Create material and enable shader nodes 
+        mat = bpy.data.materials.new(name)
+        mat.use_nodes = True
+        mat.node_tree.nodes.clear()
+        
+        # Add nodes and link them
+        outputMat = mat.node_tree.nodes.new("ShaderNodeOutputMaterial")
+        shader_node = mat.node_tree.nodes.new(props[node_name])
+        mat.node_tree.links.new(shader_node.outputs[0], outputMat.inputs[0])
+
+        # Perform specific scene modification if needed
+        if props[node_name] == 'ShaderNodeEmission':
+            bpy.data.objects['Light'].hide_render = True
+
+        # Set shader node properties accordingly
+        for p, v in props.items():
+            if p == node_name:
+                continue
+            elif p == distrib:
+                shader_node.distribution = v
+            else:
+                shader_node.inputs[p].default_value = v 
+
+        for obj in bpy.data.collections['objects'].objects:
+            obj.active_material = mat
+        return True
+    
+    def render_and_export(self, ref_render, ref_export):
+        '''
+        Renders the scene currently set inside blender with cycle and export said scene to mitsuba xml
+
+        Parameters
+        ----------
+        ref_renders : str
+            Path of the directory where to store cycle's render
+        
+        ref_export : str
+            Path of the directory where to store exported scene  
+        '''
+        bpy.context.scene.render.filepath = ref_render
+        bpy.context.scene.render.image_settings.color_mode = 'RGB'
+        assert bpy.ops.export_scene.mitsuba(filepath=ref_export) == {"FINISHED"}
+        assert bpy.ops.render.render(write_still=True) == {"FINISHED"}
+
+@pytest.fixture
+def blender_exporter(resource_resolver):
+    return BlenderExporter(resource_resolver)
