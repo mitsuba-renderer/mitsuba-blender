@@ -8,3 +8,4 @@ blender/
 blender-*.tar.xz
 .coverage.*
 blender*
+tests/res/
