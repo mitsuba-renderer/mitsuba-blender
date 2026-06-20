@@ -1,0 +1,61 @@
+<scene version="3.8.0">
+    <default name="spp" value="64"/>
+    <default name="resx" value="1280"/>
+    <default name="resy" value="720"/>
+
+    <!-- Camera and Rendering Parameters -->
+    <integrator type="path" name="elm__0">
+        <integer name="max_depth" value="5"/>
+    </integrator>
+
+    <sensor type="perspective" name="elm__2">
+        <string name="fov_axis" value="x"/>
+        <float name="fov" value="39.597755335771296"/>
+        <float name="principal_point_offset_x" value="0"/>
+        <float name="principal_point_offset_y" value="-0"/>
+        <float name="near_clip" value="0.10000000149011612"/>
+        <float name="far_clip" value="100"/>
+
+        <transform name="to_world">
+            <lookat origin="7.358891487121582, 4.9583091735839844, 6.9257907867431641" target="6.7073333263397217, 4.513037770986557, 6.3116203546524048" up="-0.32401347160339355, 0.89539563655853271, -0.30542084574699402"/>
+        </transform>
+
+        <sampler type="independent" name="sampler">
+            <integer name="sample_count" value="$spp"/>
+        </sampler>
+
+        <film type="hdrfilm" name="film">
+            <integer name="width" value="$resx"/>
+            <integer name="height" value="$resy"/>
+        </film>
+    </sensor>
+
+    <!-- Materials -->
+    <bsdf type="twosided" id="default-bsdf" name="default-bsdf">
+        <bsdf type="diffuse" name="bsdf"/>
+    </bsdf>
+
+    <bsdf type="twosided" id="mat-glossy_r0" name="mat-glossy_r0">
+        <bsdf type="conductor" name="bsdf">
+            <rgb name="specular_reflectance" value="0.5 0.5 0.5"/>
+        </bsdf>
+    </bsdf>
+
+    <!-- Emitters -->
+    <emitter type="point" name="elm__1">
+        <vector name="position" x="4.0762453079223633" y="3.7758214473724365" z="-1.0054539442062378"/>
+        <rgb name="intensity" value="79.577468872070312 79.577468872070312 79.577468872070312"/>
+    </emitter>
+
+    <!-- Shapes -->
+    <shape type="ply" name="elm__4">
+        <string name="filename" value="meshes/Plane.ply"/>
+        <boolean name="face_normals" value="true"/>
+        <ref name="bsdf" id="default-bsdf"/>
+    </shape>
+
+    <shape type="ply" name="elm__6">
+        <string name="filename" value="meshes/bunny.ply"/>
+        <ref name="bsdf" id="mat-glossy_r0"/>
+    </shape>
+</scene>
