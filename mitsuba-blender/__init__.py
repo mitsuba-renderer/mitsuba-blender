@@ -2,7 +2,7 @@ bl_info = {
     'name': 'Mitsuba-Blender',
     'author': 'Baptiste Nicolet, Dorian Ros, Rami Tabbara',
     'version': (0, 5, 0),
-    'blender': (2, 93, 0),
+    'blender': (4, 5, 0),
     'category': 'Render',
     'location': 'File menu, render engine menu',
     'description': 'Mitsuba integration for Blender',
@@ -39,6 +39,7 @@ def init_mitsuba(context):
             import importlib
             importlib.reload(mitsuba)
         mitsuba.set_variant('scalar_rgb')
+        from . import plugins
         return True
     except ModuleNotFoundError:
         return False
