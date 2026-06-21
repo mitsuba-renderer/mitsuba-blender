@@ -7,5 +7,5 @@ tests/**/out
 blender/
 blender-*.tar.xz
 .coverage.*
-blender*
+blender*4.5
 tests/res/
