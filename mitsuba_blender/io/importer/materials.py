@@ -327,42 +327,19 @@ def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
 ######################
 
 def write_mi_principled_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
-    if bpy.app.version >= (4, 0, 0):
-        specular_key = 'Specular IOR Level'
-        transmission_key = 'Transmission Weight'
-        sheen_key = 'Sheen Weight'
-        clearcoat_key = 'Coat Weight'
-        clearcoat_roughness_key = 'Coat Roughness'
-    else:
-        specular_key = 'Specular'
-        transmission_key = 'Transmission'
-        sheen_key = 'Sheen'
-        clearcoat_key = 'Clearcoat'
-        clearcoat_roughness_key = 'Clearcoat Roughness'
-
-
     bl_principled = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfPrincipled', 'BSDF')
     bl_principled_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_principled)
     write_mi_rgb_property(mi_context, mi_mat, 'base_color', bl_principled_wrap, 'Base Color', [0.8, 0.8, 0.8])
-    write_mi_float_property(mi_context, mi_mat, 'specular', bl_principled_wrap, specular_key, 0.5)
-    if bpy.app.version >= (4, 0, 0):
-        write_mi_rgb_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', [0.0, 0.0, 0.0])
-    else:
-        write_mi_float_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', 0.0)
-
-    write_mi_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, transmission_key, 0.0)
+    write_mi_float_property(mi_context, mi_mat, 'specular', bl_principled_wrap, 'Specular IOR Level', 0.5)
+    write_mi_rgb_property(mi_context, mi_mat, 'spec_tint', bl_principled_wrap, 'Specular Tint', [0.0, 0.0, 0.0])
+    write_mi_float_property(mi_context, mi_mat, 'spec_trans', bl_principled_wrap, 'Transmission Weight', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'metallic', bl_principled_wrap, 'Metallic', 0.0)
     write_mi_float_property(mi_context, mi_mat, 'anisotropic', bl_principled_wrap, 'Anisotropic', 0.0)
     write_mi_roughness_property(mi_context, mi_mat, 'roughness', bl_principled_wrap, 'Roughness', 0.4)
-    write_mi_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, sheen_key, 0.0)
-
-    if bpy.app.version >= (4, 0, 0):
-        write_mi_rgb_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', [0.5, 0.5, 0.5])
-    else:
-        write_mi_float_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', 0.5)
-
-    write_mi_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, clearcoat_key, 0.0)
-    write_mi_roughness_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, clearcoat_roughness_key, 0.03)
+    write_mi_float_property(mi_context, mi_mat, 'sheen', bl_principled_wrap, 'Sheen Weight', 0.0)
+    write_mi_rgb_property(mi_context, mi_mat, 'sheen_tint', bl_principled_wrap, 'Sheen Tint', [0.5, 0.5, 0.5])
+    write_mi_float_property(mi_context, mi_mat, 'clearcoat', bl_principled_wrap, 'Coat Weight', 0.0)
+    write_mi_roughness_property(mi_context, mi_mat, 'clearcoat_gloss', bl_principled_wrap, 'Coat Roughness', 0.03)
     # Write normal and bump maps
     write_mi_bump_and_normal_maps(mi_context, bl_principled_wrap, 'Normal', mi_bump=mi_bump, mi_normal=mi_normal)
     return True
@@ -409,10 +386,7 @@ def write_mi_twosided_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bu
 def write_mi_dielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
-    if bpy.app.version < (4, 0, 0):
-        bl_glass.distribution = 'SHARP'
-    else:
-        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
     write_mi_ior_property(mi_context, mi_mat, 'int_ior', bl_glass_wrap, 'IOR', 1.5046)
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
     # Write normal and bump maps
@@ -433,10 +407,7 @@ def write_mi_roughdielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id
 def write_mi_thindielectric_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glass = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlass', 'BSDF')
     bl_glass_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glass)
-    if bpy.app.version < (4, 0, 0):
-        bl_glass.distribution = 'SHARP'
-    else:
-        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glass_wrap, 'Roughness', 0.)
     bl_glass.inputs['IOR'].default_value = 1.0
     write_mi_rgb_property(mi_context, mi_mat, 'specular_transmittance', bl_glass_wrap, 'Color', [1.0, 1.0, 1.0])
     # Write normal and bump maps
@@ -462,10 +433,7 @@ def write_mi_blend_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=
 def write_mi_conductor_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=None, mi_normal=None):
     bl_glossy = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfGlossy', 'BSDF')
     bl_glossy_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_glossy)
-    if bpy.app.version < (4, 0, 0):
-        bl_glossy.distribution = 'SHARP'
-    else:
-        write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.0)
+    write_mi_roughness_property(mi_context, mi_mat, 'alpha', bl_glossy_wrap, 'Roughness', 0.0)
     reflectance = _eval_mi_bsdf_retro_reflection(mi_context, mi_mat, [1.0, 1.0, 1.0])
     write_mi_rgb_value(mi_context, reflectance, bl_glossy_wrap, 'Color')
     # Write normal and bump maps

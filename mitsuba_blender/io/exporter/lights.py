@@ -1,7 +1,6 @@
 from mathutils import Matrix
 import numpy as np
 from .export_context import Files
-import bpy
 
 def convert_area_light(b_light, export_ctx):
     params = {}
@@ -45,10 +44,7 @@ def convert_area_light(b_light, export_ctx):
         'type': 'area'
     }
     # Conversion factor used in Cycles
-    if bpy.app.version < (4, 0, 0):
-        conv_fac = 1.0 / (area * 4.0)
-    else:
-        conv_fac = 1.0 / (area * np.pi)
+    conv_fac = 1.0 / (area * np.pi)
     emitter['radiance'] = export_ctx.spectrum(conv_fac * b_light.data.energy * b_light.data.color)
     params['emitter'] = emitter
 

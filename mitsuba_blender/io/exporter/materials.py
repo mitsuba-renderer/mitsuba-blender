@@ -1,4 +1,3 @@
-import bpy
 import numpy as np
 from mathutils import Matrix
 from .export_context import Files
@@ -259,37 +258,18 @@ def convert_mix_materials_cycles(export_ctx, current_node):#TODO: test and fix t
 def convert_principled_materials_cycles(export_ctx, current_node):
     params = {}
 
-    if bpy.app.version >= (4, 0, 0):
-        specular_key = 'Specular IOR Level'
-        transmission_key = 'Transmission Weight'
-        sheen_key = 'Sheen Weight'
-        clearcoat_key = 'Coat Weight'
-        clearcoat_roughness_key = 'Coat Roughness'
-    else:
-        specular_key = 'Specular'
-        transmission_key = 'Transmission'
-        sheen_key = 'Sheen'
-        clearcoat_key = 'Clearcoat'
-        clearcoat_roughness_key = 'Clearcoat Roughness'
-
     base_color = convert_color_texture_node(export_ctx, current_node.inputs['Base Color'])
-    specular = current_node.inputs[specular_key].default_value
-    if bpy.app.version >= (4, 0, 0):
-        specular_tint = convert_color_texture_node(export_ctx, current_node.inputs['Specular Tint'])
-    else:
-        specular_tint = convert_float_texture_node(export_ctx, current_node.inputs['Specular Tint'])
-    specular_trans = convert_float_texture_node(export_ctx, current_node.inputs[transmission_key])
+    specular = current_node.inputs['Specular IOR Level'].default_value
+    specular_tint = convert_color_texture_node(export_ctx, current_node.inputs['Specular Tint'])
+    specular_trans = convert_float_texture_node(export_ctx, current_node.inputs['Transmission Weight'])
     ior = current_node.inputs['IOR'].default_value
     roughness = convert_float_texture_node(export_ctx, current_node.inputs['Roughness'])
     metallic = convert_float_texture_node(export_ctx, current_node.inputs['Metallic'])
     anisotropic = convert_float_texture_node(export_ctx, current_node.inputs['Anisotropic'])
-    sheen = convert_float_texture_node(export_ctx, current_node.inputs[sheen_key])
-    if bpy.app.version >= (4, 0, 0):
-        sheen_tint = convert_color_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
-    else:
-        sheen_tint = convert_float_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
-    clearcoat = convert_float_texture_node(export_ctx, current_node.inputs[clearcoat_key])
-    clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs[clearcoat_roughness_key])
+    sheen = convert_float_texture_node(export_ctx, current_node.inputs['Sheen Weight'])
+    sheen_tint = convert_color_texture_node(export_ctx, current_node.inputs['Sheen Tint'])
+    clearcoat = convert_float_texture_node(export_ctx, current_node.inputs['Coat Weight'])
+    clearcoat_roughness = convert_float_texture_node(export_ctx, current_node.inputs['Coat Roughness'])
 
     params.update({
         'type': 'principled',

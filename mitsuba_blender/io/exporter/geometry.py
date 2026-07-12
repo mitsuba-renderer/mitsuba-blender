@@ -1,6 +1,7 @@
 import os
 import bpy
 
+from ...compat import BLENDER_VERSION_STRING
 from .materials import export_material
 from .export_context import Files
 
@@ -24,11 +25,9 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     from mitsuba import load_dict, Point3i
     props = {
         'type': 'blender',
-        'version': ".".join(map(str,bpy.app.version))
+        'version': BLENDER_VERSION_STRING
     }
 
-    if bpy.app.version < (4, 0, 0):
-        b_mesh.calc_normals()
     # Compute the triangle tesselation
     b_mesh.calc_loop_triangles()
 
@@ -66,10 +65,7 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     if 'sharp_face' in b_mesh.attributes:
         props['sharp_face'] = b_mesh.attributes['sharp_face'].data[0].as_pointer()
 
-    if bpy.app.version >= (3, 6, 0):
-        props['polys'] = b_mesh.loop_triangle_polygons[0].as_pointer()
-    else:
-        props['polys'] = b_mesh.polygons[0].as_pointer()
+    props['polys'] = b_mesh.loop_triangle_polygons[0].as_pointer()
 
     if 'position' in b_mesh.attributes:
         # Blender 3.5+ layout
@@ -77,8 +73,7 @@ def convert_mesh(export_ctx, b_mesh, matrix_world, name, mat_nr):
     else:
         props['verts'] = b_mesh.vertices[0].as_pointer()
 
-    if bpy.app.version > (3, 0, 0):
-        props['normals'] = b_mesh.vertex_normals[0].as_pointer()
+    props['normals'] = b_mesh.vertex_normals[0].as_pointer()
 
     props['vert_count'] = len(b_mesh.vertices)
     # Apply coordinate change
