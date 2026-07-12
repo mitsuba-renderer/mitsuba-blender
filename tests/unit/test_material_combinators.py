@@ -362,3 +362,237 @@ def test_holdout_exports_null(fresh_scene, exporter, tmp_path):
 
     ctx = exporter(tmp_path).export_ctx
     assert ctx.data_get('mat-Hold') == {'type': 'null'}
+
+
+#######################
+##   Import  side    ##
+#######################
+
+def import_xml(tmp_path, xml_body):
+    xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(xml)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+
+def imported_material(name):
+    b_mat = bpy.data.materials[name]
+    surface = b_mat.node_tree.get_output_node('CYCLES').inputs['Surface']
+    assert surface.is_linked
+    return b_mat, surface.links[0].from_node
+
+
+def nodes_of_type(b_mat, bl_idname):
+    return [n for n in b_mat.node_tree.nodes if n.bl_idname == bl_idname]
+
+
+def test_import_twosided_single_child(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="twosided" id="mat-two">
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="0.2 0.4 0.6"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-two')
+    assert node.bl_idname == 'ShaderNodeBsdfDiffuse'
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.2, 0.4, 0.6, 1.0))
+    assert len(b_mat.node_tree.nodes) == 2
+
+
+def test_import_twosided_two_children(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="twosided" id="mat-frontback">
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="1 0 0"/>
+                </bsdf>
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="0 0 1"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-frontback')
+    assert node.bl_idname == 'ShaderNodeMixShader'
+    fac = node.inputs['Fac'].links[0].from_socket
+    assert fac.node.bl_idname == 'ShaderNodeNewGeometry'
+    assert fac.name == 'Backfacing'
+    front = node.inputs[1].links[0].from_node
+    back = node.inputs[2].links[0].from_node
+    assert tuple(front.inputs['Color'].default_value) == \
+        pytest.approx((1.0, 0.0, 0.0, 1.0))
+    assert tuple(back.inputs['Color'].default_value) == \
+        pytest.approx((0.0, 0.0, 1.0, 1.0))
+
+
+def test_import_twosided_legacy_child(mi_addon, fresh_scene, tmp_path):
+    # The principled importer still lives in the legacy module; the child
+    # must be bridged through it without leaving scaffolding behind
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="twosided" id="mat-legacy">
+                <bsdf type="principled">
+                    <rgb name="base_color" value="0.8 0.4 0.2"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-legacy')
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    assert tuple(node.inputs['Base Color'].default_value) == \
+        pytest.approx((0.8, 0.4, 0.2, 1.0))
+    assert nodes_of_type(b_mat, 'NodeReroute') == []
+
+
+def test_import_blendbsdf(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="blendbsdf" id="mat-blend">
+                <float name="weight" value="0.3"/>
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="1 0 0"/>
+                </bsdf>
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="0 0 1"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-blend')
+    assert node.bl_idname == 'ShaderNodeMixShader'
+    assert node.inputs['Fac'].default_value == pytest.approx(0.3)
+    first = node.inputs[1].links[0].from_node
+    second = node.inputs[2].links[0].from_node
+    assert tuple(first.inputs['Color'].default_value) == \
+        pytest.approx((1.0, 0.0, 0.0, 1.0))
+    assert tuple(second.inputs['Color'].default_value) == \
+        pytest.approx((0.0, 0.0, 1.0, 1.0))
+
+
+def test_import_mask_black_diffuse(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="mask" id="mat-glass">
+                <float name="opacity" value="0.3"/>
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="0 0 0"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-glass')
+    assert node.bl_idname == 'ShaderNodeBsdfTransparent'
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.7, 0.7, 0.7, 1.0))
+    assert len(b_mat.node_tree.nodes) == 2
+
+
+def test_import_mask_general(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="mask" id="mat-masked">
+                <float name="opacity" value="0.4"/>
+                <bsdf type="diffuse">
+                    <rgb name="reflectance" value="0.2 0.4 0.6"/>
+                </bsdf>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-masked')
+    assert node.bl_idname == 'ShaderNodeMixShader'
+    assert node.inputs['Fac'].default_value == pytest.approx(0.4)
+    assert node.inputs[1].links[0].from_node.bl_idname == \
+        'ShaderNodeBsdfTransparent'
+    diffuse = node.inputs[2].links[0].from_node
+    assert tuple(diffuse.inputs['Color'].default_value) == \
+        pytest.approx((0.2, 0.4, 0.6, 1.0))
+
+
+def test_import_null(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="null" id="mat-invisible"/>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-invisible')
+    assert node.bl_idname == 'ShaderNodeBsdfTransparent'
+    assert len(b_mat.node_tree.nodes) == 2
+
+
+####################
+##   Roundtrips   ##
+####################
+
+def roundtrip(exporter, tmp_path):
+    converter = exporter(tmp_path)
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+    bpy.ops.wm.read_homefile()
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(tmp_path / 'scene.xml')) == {'FINISHED'}
+
+
+def test_roundtrip_mix(mi_addon, fresh_scene, exporter, tmp_path):
+    b_mat = make_material('Blend')
+    mix = b_mat.node_tree.nodes.new('ShaderNodeMixShader')
+    mix.inputs['Fac'].default_value = 0.3
+    first = add_diffuse(b_mat, color=(1.0, 0.0, 0.0, 1.0))
+    second = add_diffuse(b_mat, color=(0.0, 0.0, 1.0, 1.0))
+    b_mat.node_tree.links.new(first.outputs['BSDF'], mix.inputs[1])
+    b_mat.node_tree.links.new(second.outputs['BSDF'], mix.inputs[2])
+    link_surface(b_mat, mix.outputs['Shader'])
+    assign_material(b_mat)
+
+    roundtrip(exporter, tmp_path)
+    _, node = imported_material('mat-Blend')
+    assert node.bl_idname == 'ShaderNodeMixShader'
+    assert node.inputs['Fac'].default_value == pytest.approx(0.3)
+    first = node.inputs[1].links[0].from_node
+    second = node.inputs[2].links[0].from_node
+    assert tuple(first.inputs['Color'].default_value) == \
+        pytest.approx((1.0, 0.0, 0.0, 1.0))
+    assert tuple(second.inputs['Color'].default_value) == \
+        pytest.approx((0.0, 0.0, 1.0, 1.0))
+
+
+def test_roundtrip_mask(mi_addon, fresh_scene, exporter, tmp_path):
+    b_mat = make_material('Masked')
+    mix = b_mat.node_tree.nodes.new('ShaderNodeMixShader')
+    mix.inputs['Fac'].default_value = 0.7
+    transparent = b_mat.node_tree.nodes.new('ShaderNodeBsdfTransparent')
+    b_mat.node_tree.links.new(transparent.outputs['BSDF'], mix.inputs[1])
+    diffuse = add_diffuse(b_mat)
+    b_mat.node_tree.links.new(diffuse.outputs['BSDF'], mix.inputs[2])
+    link_surface(b_mat, mix.outputs['Shader'])
+    assign_material(b_mat)
+
+    roundtrip(exporter, tmp_path)
+    _, node = imported_material('mat-Masked')
+    assert node.bl_idname == 'ShaderNodeMixShader'
+    assert node.inputs['Fac'].default_value == pytest.approx(0.7)
+    assert node.inputs[1].links[0].from_node.bl_idname == \
+        'ShaderNodeBsdfTransparent'
+    diffuse = node.inputs[2].links[0].from_node
+    assert tuple(diffuse.inputs['Color'].default_value) == \
+        pytest.approx((0.2, 0.4, 0.6, 1.0))
+
+
+def test_roundtrip_emission(mi_addon, fresh_scene, exporter, tmp_path):
+    b_mat = make_material('Glow')
+    link_surface(b_mat, add_emission(b_mat).outputs['Emission'])
+    assign_material(b_mat)
+
+    roundtrip(exporter, tmp_path)
+    # An emitter-only material is exported as the shared black BSDF plus an
+    # area emitter on the shape, so the original material name is lost
+    b_mat, node = imported_material('empty-emitter-bsdf')
+    assert node.bl_idname == 'ShaderNodeAddShader'
+    emission = nodes_of_type(b_mat, 'ShaderNodeEmission')
+    assert len(emission) == 1
+    assert emission[0].inputs['Strength'].default_value == pytest.approx(2.0)
+    assert tuple(emission[0].inputs['Color'].default_value) == \
+        pytest.approx((1.0, 0.5, 0.25, 1.0))
