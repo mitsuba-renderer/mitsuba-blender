@@ -2,70 +2,141 @@
 
 # Mitsuba Blender Add-on
 
+[![Test suite](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml/badge.svg)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/test.yml)
 [![Nightly Release](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/nightly_release.yml/badge.svg)](https://github.com/mitsuba-renderer/mitsuba-blender/actions/workflows/nightly_release.yml)
 
-This add-on integrates the Mitsuba renderer into Blender.
+This add-on integrates the [Mitsuba](https://github.com/mitsuba-renderer/mitsuba3)
+renderer into Blender.
 
-## Main Features
+## Main features
 
-* **Mitsuba scene import**: Import Mitsuba XML scenes in Blender to edit and preview them. Materials are converted to Cycles shader node trees.
+* **Render engine**: Select *Mitsuba* as the render engine and press F12 to
+  render the current scene with Mitsuba, with progress reporting, cancel
+  support and AOV passes.
 
-* **Mitsuba scene export**: Export a Blender scene to a Mitsuba XML scene for rendering.
+* **Mitsuba scene export**: Export a Blender scene to a Mitsuba XML scene for
+  rendering. Cycles shader node trees are translated to Mitsuba BSDFs,
+  textures and emitters.
 
-More in-depth information about the features of the add-on are available on the [wiki](https://github.com/mitsuba-renderer/mitsuba-blender/wiki).
+* **Mitsuba scene import**: Import Mitsuba XML scenes in Blender to edit and
+  preview them. Materials are converted to Cycles shader node trees.
 
 ## Installation
 
-- Download the latest release from the [release section](https://github.com/mitsuba-renderer/mitsuba-blender/releases).
-- In Blender, go to **Edit** -> **Preferences** -> **Add-ons** -> **Install**.
-- Select the downloaded ZIP archive.
-- Find the add-on using the search bar and enable it.
-- To point the add-on to the Mitsuba dependencies, either click on *Install dependencies using pip* to download the latest package, or check *Use custom Mitsuba path* and browse to your Mitsuba build directory.
+The add-on is packaged as a Blender **extension** and requires **Blender 4.2
+LTS or newer**.
 
-## Common issues
+- Download the zip matching your platform from the
+  [release section](https://github.com/mitsuba-renderer/mitsuba-blender/releases)
+  (a rolling *Nightly Release* tracks the master branch).
+- In Blender, go to **Edit** -> **Preferences** -> **Get Extensions**, click
+  the dropdown arrow in the top-right corner and choose **Install from
+  Disk...**, then select the downloaded zip. Alternatively, drag and drop the
+  zip into the Blender window.
 
-:warning: For versions of blender prior to 3.5, you may encounter the error message `Failed to load Mitsuba package` after installing the dependencies via pip. In order to fix that, you need to run blender with the `--python-use-system-env` flag in order for it to correctly pick up the dependencies. In order to do so, find the path to the blender executable, and in a command prompt run:
-```
-<path_to_blender> --python-use-system-env
-```
+The release zips bundle the matching `mitsuba` and `drjit` wheels, so no
+further setup is needed. Release builds are available for Linux (x86-64),
+Windows (x86-64) and macOS (Apple Silicon); on other platforms, install the
+`mitsuba` package into Blender's Python yourself and install the extension
+built from source (see below).
 
-You can refer to the [Installation & Update Guide](https://github.com/mitsuba-renderer/mitsuba-blender/wiki/Installation-&-Update-Guide) on the wiki for more detailed instructions.
+To use a self-compiled Mitsuba instead of the bundled one, set *Custom
+Mitsuba path* in the add-on preferences to the `python` directory of your
+build (it must be compiled against Blender's Python version) and restart
+Blender.
 
-### Supported versions
+## Supported versions
 
-Blender version should be at least `2.93`. The addon has been extensively tested
-on LTS versions of blender (`4.2`, `4.5`). We recommend using those whenever
-possible.
+- **Blender**: 4.2 LTS and newer. The test suite runs against the 4.2 and
+  4.5 LTS releases on every change, and weekly against Blender's daily
+  development build.
+- **Mitsuba**: 3.9.0 (bundled with the release zips).
 
-## Running the unit tests
+## Feature coverage
 
-The unit tests require a local Blender installation.
+Geometry is converted through `mitsuba.Mesh` in both directions: any
+mesh-backed Mitsuba shape (`obj`, `ply`, `serialized`, ...) imports as a
+Blender mesh, and analytic `sphere`, `rectangle`, `cube` and `disk` shapes map
+to Blender primitives. Repeated meshes, collection instances and particle
+instances export as Mitsuba `shapegroup`/`instance` pairs. Cameras
+(perspective, orthographic, depth of field, lens shift), all Blender light
+types and world backgrounds (constant and environment maps) convert in both
+directions with matching radiometric units.
 
-The repository includes a script to locally download Blender for the unit tests:
+### Material export
+
+| Blender node | Mitsuba plugin |
+|---|---|
+| Principled BSDF | `principled` (+ `mask` for alpha, `area` emitter for emission) |
+| Diffuse BSDF | `diffuse` |
+| Glossy BSDF | `conductor` / `roughconductor` |
+| Glass BSDF | `dielectric` / `thindielectric` / `roughdielectric` |
+| Refraction BSDF | `dielectric` / `roughdielectric` (with a warning) |
+| Transparent BSDF | `null` / `mask` |
+| Translucent BSDF | `principledthin` |
+| Emission | `area` emitter |
+| Mix Shader | `blendbsdf` / `mask` |
+| Add Shader | BSDF + emitter, or summed emitters |
+| Holdout | `null` (with a warning) |
+| Image Texture | `bitmap` |
+| Checker Texture | `checkerboard` |
+| Environment Texture | `envmap` (world background) |
+| Color Attribute | `mesh_attribute` |
+| Normal Map / Bump | `normalmap` / `bumpmap` |
+| Mapping / Texture Coordinate | `to_uv` transform |
+
+Value-only subgraphs feeding the nodes above are folded into constants: Math,
+Vector Math, Mix, RGB, Value, Invert, Gamma, Brightness/Contrast, Map Range,
+Clamp, Separate/Combine XYZ/Color and RGB to BW. Anything outside this subset
+produces a warning and a best-effort fallback instead of a failed export.
+
+### Material import
+
+`principled`, `diffuse`, `conductor`, `roughconductor`, `dielectric`,
+`thindielectric`, `roughdielectric`, `plastic`, `roughplastic`, `twosided`,
+`blendbsdf`, `mask`, `null`, `normalmap`, `bumpmap`, and the `bitmap`,
+`checkerboard`, `scale` and `mesh_attribute` textures. Unsupported plugins
+import as an error-colored placeholder material, and the import never aborts:
+it reports the number of warnings at the end.
+
+## Development setup
+
+Clone the repository and symlink (or copy) the `mitsuba_blender` directory
+into Blender's `user_default` extension repository, e.g. on Linux:
+
 ```bash
-python3 scripts/blender_downloader.py 4.4 -o blender
-```
-Alternatively, the following steps can also be carries out using an already installed version of Blender. Next, we define environment variables for both the main executable and the Blender's Python interpreter. If Blender was downloaded locally, simply use:
-```bash
-BLENDER_PYTHON=blender/4.4/python/bin/python3.11
-BLENDER=blender/blender
+ln -s $(pwd)/mitsuba_blender ~/.config/blender/4.2/extensions/user_default/
 ```
 
-Locally install the required Python modules into Blender's Python environment:
+Then enable *Mitsuba Blender* in the extensions preferences. With no bundled
+wheels in the source tree, Mitsuba must be available in Blender's Python:
+
 ```bash
-$BLENDER_PYTHON -m ensurepip
-$BLENDER_PYTHON -m pip install -U pip
-$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
-$BLENDER_PYTHON -m pip install mitsuba
+/path/to/blender/4.2/python/bin/python3.11 -m pip install mitsuba==3.9.0
 ```
 
-To run the tests using Blender's Python, use:
+### Running the tests
+
+The test suite runs with pytest inside headless Blender:
 
 ```bash
-$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba_blender
+/path/to/blender/4.2/python/bin/python3.11 -m pip install pytest
+export BLENDER=/path/to/blender/blender
+python3 tests/run.py            # fast tests
+python3 tests/run.py --all      # includes slow and packaging tests
 ```
 
-If you prefer using a custom Mitsuba version, specify a path to the Mitsuba build directory:
-```bash
-$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py --mitsuba /some/path/mitsuba3/build -- -v --cov=mitsuba_blender
-``` 
+Set `MITSUBA_PYTHON=/path/to/mitsuba3/build/python` to run the suite against
+a local Mitsuba build instead of the wheel. See `tests/README.md` for the
+full harness documentation.
+
+## Release process
+
+- CI (`.github/workflows/test.yml`) runs `tests/run.py --all` on every push
+  and pull request and uploads the per-platform extension zips (built by
+  `release/build_extension.py`, which bundles the Mitsuba wheels) as an
+  artifact.
+- Every commit on master updates the *Nightly Release*.
+- Pushing a `v*` tag creates a draft release with the same zips. Bump
+  `version` in `mitsuba_blender/blender_manifest.toml` first; the Mitsuba
+  version is pinned in `release/build_extension.py` and in the CI workflow.
