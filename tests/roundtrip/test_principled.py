@@ -108,6 +108,34 @@ def test_roundtrip_reflective_through_registries(mi_addon, fresh_scene,
         assert value == pytest.approx(expected, abs=1e-5), socket_name
 
 
+def test_roundtrip_reflective_xml(mi_addon, fresh_scene, exporter,
+                                  tmp_path):
+    """Reflective materials pass through XML unchanged: the registry
+    importers unwrap twosided and use identity roughness mappings."""
+    node = principled_node()
+    node.inputs['Base Color'].default_value = (0.6, 0.3, 0.1, 1.0)
+    node.inputs['Roughness'].default_value = 0.3
+    node.inputs['Metallic'].default_value = 0.6
+    node.inputs['Coat Weight'].default_value = 0.5
+    node.inputs['Coat Roughness'].default_value = 0.1
+
+    converter = exporter(tmp_path)
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+    bpy.ops.wm.read_homefile()
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(tmp_path / 'scene.xml')) == {'FINISHED'}
+
+    node = surface_node(bpy.data.materials['mat-Material'])
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    assert tuple(node.inputs['Base Color'].default_value) == \
+        pytest.approx((0.6, 0.3, 0.1, 1.0))
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.3)
+    assert node.inputs['Metallic'].default_value == pytest.approx(0.6)
+    assert node.inputs['Coat Weight'].default_value == pytest.approx(0.5)
+    assert node.inputs['Coat Roughness'].default_value == \
+        pytest.approx(0.1)
+
+
 def test_roundtrip_emission(mi_addon, fresh_scene, exporter, tmp_path):
     node = principled_node()
     node.inputs['Emission Strength'].default_value = 3.0
