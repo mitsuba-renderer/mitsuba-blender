@@ -92,12 +92,12 @@ jobs:
       if: steps.cache-blender.outputs.cache-hit != 'true'
       run: python scripts/blender_downloader.py 4.2 -o blender
 
-    - name: Build the extension
-      run: ./blender/blender --command extension build --source-dir mitsuba_blender --output-dir .
+    - name: Build the extension with bundled wheels
+      run: python release/build_extension.py --blender blender/blender --output-dir dist
 
-    - name: Upload the extension zip
+    - name: Upload the extension zips
       uses: actions/upload-artifact@v4
       with:
         name: extension-zips
-        path: mitsuba_blender-*.zip
+        path: dist/*.zip
         if-no-files-found: error

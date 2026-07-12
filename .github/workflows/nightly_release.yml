@@ -1,35 +1,34 @@
-# This workflow runs on every commit on the master branch. It runs the test suite
-# and packages the add-on. It then updates the "nightly release" in the release section
-# of the repository.
+# Runs on every commit on the master branch. It runs the test suite, builds
+# the extension zips, and updates the rolling "nightly" release.
 name: Nightly Release
 
-# Triggers the workflow on pushes on the master branch
 on:
   push:
     branches: [master]
 
-# Workflow steps
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
 
-  package:
-    name: "Package Release"
+  release:
+    name: "Publish nightly release"
     needs: [tests]
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Git checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v2
-
-    - name: Create package
-      run: python release/package.py
+    - name: Download the extension zips
+      uses: actions/download-artifact@v4
+      with:
+        name: extension-zips
+        path: dist
 
     - name: Advance `latest` tag
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           try {
@@ -55,7 +54,7 @@ jobs:
         prerelease: true
         allowUpdates: true
         replacesArtifacts: true
-        artifacts: "mitsuba_blender.zip"
+        artifacts: "dist/*.zip"
         artifactErrorsFailBuild: true
         tag: "latest"
         bodyFile: "release/nightly_release_body.md"

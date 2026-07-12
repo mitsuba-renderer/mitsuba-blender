@@ -1,43 +1,38 @@
-# This workflow runs on every pushed version tags. It runs the tests and
-# packages the release. It then creates a new entry in the release section
-# of the repo.
+# Runs on every pushed version tag. It runs the test suite, builds the
+# extension zips, and creates a new draft entry in the release section.
 name: Release
 
-# Triggers the workflow on tags with a specific format
 on:
   push:
     tags:
       - v*
 
-# Workflow steps
 jobs:
   tests:
     uses: ./.github/workflows/test.yml
-  
-  package:
-    name: "Package Release"
+
+  release:
+    name: "Publish draft release"
     needs: [tests]
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Git checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Query Git Tag
-      id: git-tag
-      run: echo ::set-output name=tag::${GITHUB_REF#refs/*/}
-
-    - name: Setup Python
-      uses: "actions/setup-python@v2"
-
-    - name: Create package
-      run: python release/package.py
+    - name: Download the extension zips
+      uses: actions/download-artifact@v4
+      with:
+        name: extension-zips
+        path: dist
 
     - name: Create GitHub draft release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "mitsuba_blender.zip"
+        artifacts: "dist/*.zip"
         artifactErrorsFailBuild: true
         bodyFile: "release/release_body_template.md"
         draft: true
-        name: "Mitsuba-Blender ${{ steps.git-tag.outputs.tag }}"
+        name: "Mitsuba-Blender ${{ github.ref_name }}"

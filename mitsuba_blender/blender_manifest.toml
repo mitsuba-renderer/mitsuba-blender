@@ -11,8 +11,9 @@ tags = ["Render", "Import-Export"]
 blender_version_min = "4.2.0"
 license = ["SPDX:BSD-3-Clause"]
 
-# CI fills this list with the mitsuba/drjit wheels for release builds. For
-# local development, mitsuba comes from Blender's site-packages instead.
+# release/build_extension.py fills this list with the mitsuba/drjit wheels
+# for release builds. For local development, mitsuba comes from Blender's
+# site-packages instead.
 wheels = []
 
 [build]
