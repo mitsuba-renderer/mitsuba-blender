@@ -76,6 +76,24 @@ def test_unknown_film_does_not_abort(mi_addon, fresh_scene, tmp_path):
     assert bpy.context.scene.camera is not None
 
 
+def test_failed_parse_preserves_scene(mi_addon, fresh_scene, tmp_path):
+    # A malformed XML file must not destroy the user's scene: the file is
+    # parsed before any destructive scene change happens.
+    scene_file = tmp_path / 'broken.xml'
+    scene_file.write_text('<scene version="3.0.0">\n<shape')
+
+    names_before = {obj.name for obj in bpy.data.objects}
+    assert 'Cube' in names_before
+
+    try:
+        result = bpy.ops.import_scene.mitsuba(filepath=str(scene_file))
+    except RuntimeError:
+        result = {'CANCELLED'}
+    assert result == {'CANCELLED'}
+    assert {obj.name for obj in bpy.data.objects} == names_before
+    assert bpy.data.meshes
+
+
 def test_clean_scene_has_no_warnings(mi_addon, fresh_scene, tmp_path):
     from bl_ext.user_default.mitsuba_blender.io import importer, bl_utils
     from bpy_extras.io_utils import axis_conversion

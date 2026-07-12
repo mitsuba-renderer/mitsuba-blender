@@ -61,6 +61,15 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
             to_up=self.axis_up,
         ).to_4x4()
 
+        # Parse the XML before any destructive scene change so a malformed
+        # file cannot destroy the user's scene
+        try:
+            mi_state = importer.parse_mitsuba_scene(self.filepath, self.merge_shapes, self.merge_plugins)
+        except Exception as e:
+            print(e)
+            self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")
+            return {'CANCELLED'}
+
         if self.override_scene:
             # Clear the current scene
             scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
@@ -70,7 +79,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins, self.import_render_settings)
+            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins, self.import_render_settings, mi_state=mi_state)
         except Exception as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")

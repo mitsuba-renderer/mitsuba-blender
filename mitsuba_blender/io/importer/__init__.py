@@ -210,8 +210,21 @@ def convert_mi_scene(mi_context):
 ##    Main loading     ##
 #########################
 
+def parse_mitsuba_scene(filepath, merge_shapes, merge_plugins):
+    ''' Parse a Mitsuba XML file and resolve all references. Raises on
+    malformed input, so callers can parse before touching the Blender scene.
+    '''
+    import mitsuba as mi
+    config = mi.parser.ParserConfig(mi.variant())
+    config.merge_meshes = merge_shapes
+    config.merge_equivalent = merge_plugins
+    mi_state = mi.parser.parse_file(config, filepath)
+    # Resolve all references and merge equivalent plugins if enabled
+    mi.parser.transform_all(config, mi_state)
+    return mi_state
+
 def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
-                       import_render_settings=False):
+                       import_render_settings=False, mi_state=None):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
 
     Params
@@ -225,6 +238,8 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     merge_plugins: Whether to merge identical plugins (e.g. materials) into a single one
     import_render_settings: Whether to apply the scene's integrator, sampler,
         reconstruction filter and film settings to the Mitsuba render properties
+    mi_state: Parser state from parse_mitsuba_scene; the file is parsed here
+        when omitted
 
     Returns
     -------
@@ -232,14 +247,8 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     '''
     #TODO: progress bar
     start_time = time.time()
-    # Load the Mitsuba XML and extract the objects' properties
-    import mitsuba as mi
-    config = mi.parser.ParserConfig(mi.variant())
-    config.merge_meshes = merge_shapes
-    config.merge_equivalent = merge_plugins
-    mi_state = mi.parser.parse_file(config, filepath)
-    # Resolve all references and merge equivalent plugins if enabled
-    mi.parser.transform_all(config, mi_state)
+    if mi_state is None:
+        mi_state = parse_mitsuba_scene(filepath, merge_shapes, merge_plugins)
     mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_state, global_mat,
                                                   import_render_settings)
 
