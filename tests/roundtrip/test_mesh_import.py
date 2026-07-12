@@ -185,3 +185,26 @@ def test_merge_shapes_import(mi_addon, fresh_scene, tmp_path):
     assert meshes
     assert all(len(o.data.vertices) > 0 for o in meshes)
     assert sum(len(o.data.vertices) for o in meshes) == 8
+
+
+def test_sphere_center_radius_and_to_world(mi_addon, fresh_scene, tmp_path):
+    # Mitsuba composes to_world with center/radius; the importer treated
+    # them as mutually exclusive
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text('''<scene version="3.0.0">
+        <shape type="sphere">
+            <point name="center" x="1" y="2" z="3"/>
+            <float name="radius" value="2.0"/>
+            <transform name="to_world"><translate x="10"/></transform>
+        </shape>
+    </scene>''')
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+    meshes = imported_meshes()
+    assert len(meshes) == 1
+    obj = meshes[0]
+    # Mitsuba-space center (11, 2, 3) maps to Blender space (11, -3, 2)
+    assert np.allclose(obj.matrix_world.to_translation(), (11.0, -3.0, 2.0),
+                       atol=1e-5)
+    assert np.allclose(obj.dimensions, (4.0, 4.0, 4.0), atol=1e-2)

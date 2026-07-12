@@ -135,15 +135,12 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
-    if 'to_world' in mi_shape:
-        world_matrix = mi_context.mi_space_to_bl_space(
-            mi_transform_to_bl_transform(mi_shape.get('to_world', None)))
-        radius = 1.0
-    else:
-        # NOTE: We transform only the position vector to Blender space as the mesh is already correctly oriented.
-        world_matrix = Matrix.Translation(mi_context.mi_space_to_bl_space(
-            Vector(mi_shape.get('center', [0.0, 0.0, 0.0]))))
-        radius = mi_shape.get('radius', 1.0)
+    # Mitsuba composes to_world with the center/radius parameters
+    to_world = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
+    center = Vector(list(mi_shape.get('center', [0.0, 0.0, 0.0])))
+    radius = mi_shape.get('radius', 1.0)
+    world_matrix = mi_context.mi_space_to_bl_space(
+        to_world @ Matrix.Translation(center))
 
     bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16,
                               radius=radius, calc_uvs=True)
