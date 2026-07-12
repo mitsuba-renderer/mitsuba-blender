@@ -15,7 +15,7 @@ that launches Blender, runs pytest in it, and propagates the result.
 - Blender's bundled Python must have `mitsuba` and `pytest` installed:
 
   ```sh
-  /path/to/blender-4.2.22-linux-x64/4.2/python/bin/python3.11 -m pip install mitsuba==3.8.0 pytest
+  /path/to/blender-4.2.22-linux-x64/4.2/python/bin/python3.11 -m pip install mitsuba==3.9.0 pytest
   ```
 
 ## Running
@@ -49,8 +49,8 @@ CI runs the full set (`--all`).
 - `_bootstrap.py`: runs inside Blender; invokes `pytest.main()` and reports
   the exit code back to `run.py`.
 - `conftest.py`: shared fixtures:
-  - `mi_addon` (session): symlinks the in-repo addon into Blender's addon
-    path and enables it.
+  - `mi_addon` (session): symlinks the in-repo extension into Blender's
+    `user_default` extension repository and enables it.
   - `fresh_scene`: resets Blender to the factory startup scene.
   - `render_dict`: renders a Mitsuba scene dict, returns a numpy array.
   - `compare_images`: mean/RMSE image comparison with tolerances.

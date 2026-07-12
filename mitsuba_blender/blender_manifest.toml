@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "mitsuba_blender"
+version = "0.5.0"
+name = "Mitsuba Blender"
+tagline = "Mitsuba renderer integration with scene import and export"
+maintainer = "Baptiste Nicolet, Dorian Ros, Rami Tabbara"
+type = "add-on"
+website = "https://github.com/mitsuba-renderer/mitsuba-blender"
+tags = ["Render", "Import-Export"]
+blender_version_min = "4.2.0"
+license = ["SPDX:BSD-3-Clause"]
+
+# CI fills this list with the mitsuba/drjit wheels for release builds. For
+# local development, mitsuba comes from Blender's site-packages instead.
+wheels = []
+
+[build]
+paths_exclude_pattern = ["__pycache__/", ".*"]

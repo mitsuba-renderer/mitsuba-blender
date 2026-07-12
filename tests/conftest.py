@@ -7,7 +7,8 @@ import bpy
 import numpy as np
 import pytest
 
-ADDON_NAME = 'mitsuba_blender'
+ADDON_ID = 'mitsuba_blender'
+ADDON_MODULE = f'bl_ext.user_default.{ADDON_ID}'
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # Legacy tests predate this harness and need scripts/run_tests.py; hide them
@@ -30,10 +31,11 @@ def pytest_configure(config):
 
 @pytest.fixture(scope='session')
 def mi_addon():
-    """Registers the in-repo addon inside Blender for the whole session."""
-    src = os.path.join(REPO_ROOT, ADDON_NAME)
-    addons_dir = bpy.utils.user_resource('SCRIPTS', path='addons', create=True)
-    link = os.path.join(addons_dir, ADDON_NAME)
+    """Registers the in-repo extension inside Blender for the whole session."""
+    src = os.path.join(REPO_ROOT, ADDON_ID)
+    repo_dir = os.path.join(bpy.utils.user_resource('EXTENSIONS'), 'user_default')
+    os.makedirs(repo_dir, exist_ok=True)
+    link = os.path.join(repo_dir, ADDON_ID)
 
     if os.path.lexists(link):
         os.remove(link)
@@ -42,18 +44,18 @@ def mi_addon():
         _winapi.CreateJunction(src, link)
     else:
         os.symlink(src, link, target_is_directory=True)
-    bpy.utils.refresh_script_paths()
+    bpy.ops.extensions.repo_refresh_all()
 
     try:
-        if bpy.ops.preferences.addon_enable(module=ADDON_NAME) != {'FINISHED'}:
-            pytest.fail(f'Cannot enable the {ADDON_NAME} addon')
-        prefs = bpy.context.preferences.addons[ADDON_NAME].preferences
-        if not prefs.is_mitsuba_initialized:
-            pytest.fail('Addon failed to initialize Mitsuba: '
-                        f'{prefs.mitsuba_dependencies_status_message}')
-        yield ADDON_NAME
-        if ADDON_NAME in bpy.context.preferences.addons:
-            bpy.ops.preferences.addon_disable(module=ADDON_NAME)
+        if bpy.ops.preferences.addon_enable(module=ADDON_MODULE) != {'FINISHED'}:
+            pytest.fail(f'Cannot enable the {ADDON_MODULE} extension')
+        addon_module = sys.modules[ADDON_MODULE]
+        if addon_module.mitsuba_version is None:
+            pytest.fail('Extension failed to initialize Mitsuba: '
+                        f'{addon_module.init_error}')
+        yield ADDON_MODULE
+        if ADDON_MODULE in bpy.context.preferences.addons:
+            bpy.ops.preferences.addon_disable(module=ADDON_MODULE)
     finally:
         if os.path.lexists(link):
             os.remove(link)

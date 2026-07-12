@@ -5,48 +5,55 @@ import os
 import bpy
 import pytest
 
+ADDON_ID = 'mitsuba_blender'
+ADDON_MODULE = f'bl_ext.user_default.{ADDON_ID}'
+
 class SetupPlugin:
     def __init__(self, custom_mitsuba_path: str | None = None):
-        mi_addon_root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        self.mi_addon_dir = os.path.join(mi_addon_root_dir, 'mitsuba_blender')
-        self.bl_addon_dir  = bpy.utils.user_resource('SCRIPTS', path='addons', create=True)
-        bpy.utils.refresh_script_paths()
-        self.bl_mi_addon_dir = os.path.join(self.bl_addon_dir, 'mitsuba_blender')
+        repo_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        self.mi_addon_dir = os.path.join(repo_root, ADDON_ID)
+        self.bl_repo_dir = os.path.join(
+            bpy.utils.user_resource('EXTENSIONS'), 'user_default')
+        self.bl_mi_addon_dir = os.path.join(self.bl_repo_dir, ADDON_ID)
         self.custom_mitsuba_path = custom_mitsuba_path
 
     def pytest_configure(self, config):
+        os.makedirs(self.bl_repo_dir, exist_ok=True)
         if os.path.lexists(self.bl_mi_addon_dir):
             os.remove(self.bl_mi_addon_dir)
 
-        # Create a symlink from the addon to the Blender script folder
+        # Create a symlink from the addon to the Blender extensions folder
         if sys.platform == 'win32':
             import _winapi
             _winapi.CreateJunction(str(self.mi_addon_dir), str(self.bl_mi_addon_dir))
         else:
             os.symlink(self.mi_addon_dir, self.bl_mi_addon_dir, target_is_directory=True)
-
-        if bpy.ops.preferences.addon_enable(module='mitsuba_blender') != {'FINISHED'}:
-            raise RuntimeError('Cannot enable mitsuba-blender addon')
+        bpy.ops.extensions.repo_refresh_all()
 
         if self.custom_mitsuba_path:
-            bpy.context.preferences.addons['mitsuba_blender'].preferences.using_mitsuba_custom_path = True
-            bpy.context.preferences.addons['mitsuba_blender'].preferences.mitsuba_custom_path = self.custom_mitsuba_path
+            python_path = os.path.join(self.custom_mitsuba_path, 'python')
+            if python_path not in sys.path:
+                sys.path.insert(0, python_path)
 
-        if not bpy.context.preferences.addons['mitsuba_blender'].preferences.is_mitsuba_initialized:
-            status = bpy.context.preferences.addons['mitsuba_blender'].preferences.mitsuba_dependencies_status_message
-            raise RuntimeError(f'Failed to initialize Mitsuba library: {status}')
+        if bpy.ops.preferences.addon_enable(module=ADDON_MODULE) != {'FINISHED'}:
+            raise RuntimeError('Cannot enable the mitsuba_blender extension')
+
+        addon_module = sys.modules[ADDON_MODULE]
+        if addon_module.mitsuba_version is None:
+            raise RuntimeError(
+                f'Failed to initialize Mitsuba library: {addon_module.init_error}')
 
     def pytest_unconfigure(self):
         # The session fixture in tests/conftest.py may already have disabled
         # the addon and removed the symlink.
-        if 'mitsuba_blender' in bpy.context.preferences.addons:
-            bpy.ops.preferences.addon_disable(module='mitsuba_blender')
+        if ADDON_MODULE in bpy.context.preferences.addons:
+            bpy.ops.preferences.addon_disable(module=ADDON_MODULE)
         if os.path.lexists(self.bl_mi_addon_dir):
             os.remove(self.bl_mi_addon_dir)
 
     def pytest_runtest_setup(self, item):
         bpy.ops.wm.read_homefile(use_empty=True)
-        if 'mitsuba_blender' not in bpy.context.preferences.addons:
+        if ADDON_MODULE not in bpy.context.preferences.addons:
             raise RuntimeError("Plugin was disabled by test reset")
 
 if __name__ == '__main__':
