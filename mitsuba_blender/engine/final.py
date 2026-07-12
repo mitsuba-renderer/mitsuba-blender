@@ -109,29 +109,47 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         if canceled:
             self.report({'WARNING'}, 'Render canceled')
 
-        render_results = sensor.film().bitmap().split()
+        self._write_render_result(sensor.film())
 
-        for result in render_results:
-            buf_name = result[0].replace("<root>", "Combined")
-            if buf_name == 'Combined':
+    def _write_render_result(self, film):
+        '''Split the film into its image and AOV components and write them
+        to the render result. Pixel values are passed through unchanged:
+        Blender expects linear data in its render passes.'''
+        results = [(name, _pass_channels(bitmap), np.atleast_3d(bitmap))
+                   for name, bitmap in film.bitmap().split()]
+
+        # All passes must be declared before begin_result
+        for name, channels, pixels in results:
+            if name == '<root>':
                 # The root image goes to the built-in Combined pass
                 continue
-            channel_count = result[1].channel_count() if result[1].channel_count() != 2 else 3
-
-            self.add_pass(buf_name, channel_count, ''.join([f.name.split('.')[-1] for f in result[1].struct_()]))
+            self.add_pass(name, len(channels), ''.join(channels))
 
         blender_result = self.begin_result(0, 0, self.size_x, self.size_y)
+        layer = blender_result.layers[0]
 
-        for result in render_results:
-            render_pixels = np.array(result[1])
-            if result[1].channel_count() == 2:
-                # Add a dummy third channel
-                render_pixels = np.dstack((render_pixels, np.zeros((*render_pixels.shape[:2], 1))))
-            # Here we write the pixel values to the RenderResult
-            buf_name = result[0].replace("<root>", "Combined")
-            if buf_name == 'Combined' and render_pixels.shape[2] == 3:
-                # Blender's Combined pass is always RGBA
-                render_pixels = np.dstack((render_pixels, np.ones((*render_pixels.shape[:2], 1))))
-            layer = blender_result.layers[0].passes[buf_name]
-            layer.rect = np.flip(render_pixels, 0).reshape((self.size_x*self.size_y, -1))
+        for name, channels, pixels in results:
+            if pixels.shape[2] < len(channels):
+                # Zero padding for channel counts Blender does not support
+                padding = np.zeros((*pixels.shape[:2],
+                                    len(channels) - pixels.shape[2]))
+                pixels = np.dstack((pixels, padding))
+            if name == '<root>':
+                name = 'Combined'
+                if pixels.shape[2] == 3:
+                    # Blender's Combined pass is always RGBA
+                    alpha = np.ones((*pixels.shape[:2], 1))
+                    pixels = np.dstack((pixels, alpha))
+            layer.passes[name].rect = \
+                np.flip(pixels, 0).reshape((self.size_x * self.size_y, -1))
         self.end_result(blender_result)
+
+
+def _pass_channels(bitmap):
+    '''The per-channel identifiers to declare for a film component.
+    Two-channel outputs (e.g. UV coordinates) are padded to three since
+    Blender only supports 1, 3 or 4 channels per pass.'''
+    channels = [f.name.split('.')[-1] for f in bitmap.struct_()]
+    if len(channels) == 2:
+        channels.append(next(c for c in 'AZWQ' if c not in channels))
+    return channels
