@@ -18,8 +18,10 @@ from pathlib import Path
 
 MITSUBA_VERSION = '3.9.0'
 
-# Blender 4.2 LTS and the current 4.x releases bundle Python 3.11.
-PYTHON_VERSION = '3.11'
+# Blender bundles Python 3.11 up to release 5.0 and Python 3.13 from 5.1
+# on. Wheels for both are listed in the manifest; at install time Blender
+# deploys the ones whose tag matches its own Python.
+PYTHON_VERSIONS = ['3.11', '3.13']
 
 # Blender extension platforms and the matching pip platform tags. Mitsuba
 # ships no macos-x64 wheels, so that platform is not part of the release.
@@ -33,15 +35,16 @@ PLATFORMS = {
 def download_wheels(wheels_dir):
     wheels_dir.mkdir(parents=True, exist_ok=True)
     for platform_tag in PLATFORMS.values():
-        subprocess.check_call([
-            sys.executable, '-m', 'pip', 'download',
-            f'mitsuba=={MITSUBA_VERSION}',
-            '--dest', str(wheels_dir),
-            '--only-binary=:all:',
-            '--implementation', 'cp',
-            '--python-version', PYTHON_VERSION,
-            '--platform', platform_tag,
-        ])
+        for python_version in PYTHON_VERSIONS:
+            subprocess.check_call([
+                sys.executable, '-m', 'pip', 'download',
+                f'mitsuba=={MITSUBA_VERSION}',
+                '--dest', str(wheels_dir),
+                '--only-binary=:all:',
+                '--implementation', 'cp',
+                '--python-version', python_version,
+                '--platform', platform_tag,
+            ])
     return [path.name for path in wheels_dir.glob('*.whl')]
 
 

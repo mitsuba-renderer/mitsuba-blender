@@ -35,10 +35,12 @@ LTS or newer**.
   zip into the Blender window.
 
 The release zips bundle the matching `mitsuba` and `drjit` wheels, so no
-further setup is needed. Release builds are available for Linux (x86-64),
-Windows (x86-64) and macOS (Apple Silicon); on other platforms, install the
-`mitsuba` package into Blender's Python yourself and install the extension
-built from source (see below).
+further setup is needed. Wheels are included for Python 3.11 (Blender 4.2
+through 5.0) and Python 3.13 (Blender 5.1 and newer); Blender deploys the
+ones matching its bundled Python. Release builds are available for Linux
+(x86-64), Windows (x86-64) and macOS (Apple Silicon); on other platforms,
+install the `mitsuba` package into Blender's Python yourself and install the
+extension built from source (see below).
 
 To use a self-compiled Mitsuba instead of the bundled one, set *Custom
 Mitsuba path* in the add-on preferences to the `python` directory of your
@@ -140,3 +142,9 @@ full harness documentation.
 - Pushing a `v*` tag creates a draft release with the same zips. Bump
   `version` in `mitsuba_blender/blender_manifest.toml` first; the Mitsuba
   version is pinned in `release/build_extension.py` and in the CI workflow.
+- Each zip bundles mitsuba/drjit wheels for every Python version shipped by
+  a supported Blender release (`PYTHON_VERSIONS` in
+  `release/build_extension.py`, currently 3.11 and 3.13). When a new Blender
+  series moves to another Python version, add it there, provided Mitsuba
+  publishes wheels for it; otherwise cap `blender_version_max` in the
+  manifest until wheels exist.
