@@ -188,12 +188,14 @@ def _wrap_emitter(builder, bsdf_socket, mi_emitter):
     from mitsuba import Properties
     radiance, strength = [1.0, 1.0, 1.0], 1.0
     if 'radiance' in mi_emitter:
-        if mi_emitter.type('radiance') in (Properties.Type.Color,
-                                           Properties.Type.Float):
+        prop_type = mi_emitter.type('radiance')
+        if prop_type in (Properties.Type.Color, Properties.Type.Float):
             from ....io.importer import mi_spectra_utils
+            value = mi_emitter['radiance']
+            value = list(value) if prop_type == Properties.Type.Color \
+                else [float(value)] * 3
             radiance, strength = \
-                mi_spectra_utils.convert_mi_srgb_emitter_spectrum(
-                    mi_emitter.get_emissive_texture('radiance'), radiance)
+                mi_spectra_utils.get_color_strength_from_radiance(value)
         else:
             builder.mi_context.log(
                 f'Emitter radiance of type "{mi_emitter.type("radiance")}" '

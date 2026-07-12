@@ -31,8 +31,8 @@ def _color_and_strength(mi_context, mi_props, name, default):
     if name in mi_props:
         prop_type = mi_props.type(name)
         if prop_type == Properties.Type.Color:
-            return mi_spectra_utils.convert_mi_srgb_emitter_spectrum(
-                mi_props.get_emissive_texture(name), default)
+            return mi_spectra_utils.get_color_strength_from_radiance(
+                list(mi_props[name]))
         if prop_type == Properties.Type.Float:
             return mi_spectra_utils.get_color_strength_from_radiance(
                 [float(mi_props[name])] * 3)

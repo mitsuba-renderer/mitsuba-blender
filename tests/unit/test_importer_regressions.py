@@ -143,3 +143,31 @@ def test_area_emitter_rectangle_becomes_light(mi_addon, fresh_scene,
     # A Mitsuba rectangle spans [-1, 1]: power = radiance * pi * area
     assert abs(data.energy - 2.0 * math.pi * 4.0) < 1e-3
     assert not _mesh_materials()
+
+
+def test_import_emissive_under_spectral_variant(mi_addon, fresh_scene,
+                                                tmp_path):
+    # Splitting radiance into color/strength went through
+    # get_emissive_texture, which instantiates a plugin from the current
+    # variant; under a spectral variant that is not an
+    # SRGBReflectanceSpectrum and a bare AssertionError broke the import
+    import mitsuba as mi
+    import pytest
+    if 'scalar_spectral' not in mi.variants():
+        pytest.skip('scalar_spectral variant not available')
+    variant_before = mi.variant()
+    mi.set_variant('scalar_spectral')
+    try:
+        _import_xml(tmp_path, '''
+            <shape type="cube">
+                <emitter type="area"><rgb name="radiance" value="2 2 2"/></emitter>
+                <bsdf type="diffuse"/>
+            </shape>''')
+
+        mats = _mesh_materials()
+        assert len(mats) == 1
+        emission_nodes = _find_nodes(mats[0], 'ShaderNodeEmission')
+        assert len(emission_nodes) == 1
+        assert emission_nodes[0].inputs['Strength'].default_value == 2.0
+    finally:
+        mi.set_variant(variant_before)
