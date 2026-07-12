@@ -174,9 +174,15 @@ def apply_mi_hdrfilm_properties(mi_context, mi_props):
     render_dims = (mi_props.get('width', 768), mi_props.get('height', 576))
     mi_context.bl_scene.render.resolution_x = render_dims[0]
     mi_context.bl_scene.render.resolution_y = render_dims[1]
-    mi_context.bl_scene.render.image_settings.file_format = mi_fileformat_to_bl_fileformat(mi_context, mi_props.get('file_format', 'openexr'))
-    mi_context.bl_scene.render.image_settings.color_mode = mi_pixelformat_to_bl_pixelformat(mi_context, mi_props.get('pixel_format', 'rgba'))
-    mi_context.bl_scene.render.image_settings.color_depth = mi_componentformat_to_bl_componentformat(mi_context, mi_props.get('component_format', 'float16'))
+    file_format = mi_fileformat_to_bl_fileformat(mi_context, mi_props.get('file_format', 'openexr'))
+    if file_format is not None:
+        mi_context.bl_scene.render.image_settings.file_format = file_format
+    color_mode = mi_pixelformat_to_bl_pixelformat(mi_context, mi_props.get('pixel_format', 'rgba'))
+    if color_mode is not None:
+        mi_context.bl_scene.render.image_settings.color_mode = color_mode
+    color_depth = mi_componentformat_to_bl_componentformat(mi_context, mi_props.get('component_format', 'float16'))
+    if color_depth is not None:
+        mi_context.bl_scene.render.image_settings.color_depth = color_depth
 
     crop_keys = ['crop_offset_x', 'crop_offset_y', 'crop_width', 'crop_height']
     if any(key in mi_props for key in crop_keys):

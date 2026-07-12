@@ -63,15 +63,18 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins)
-        except (RuntimeError, NotImplementedError) as e:
+            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins)
+        except Exception as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")
             return {'CANCELLED'}
 
         bpy.context.window.scene = scene
 
-        self.report({'INFO'}, "Scene imported successfully.")
+        if warnings:
+            self.report({'WARNING'}, f"Scene imported with {len(warnings)} warnings (see console).")
+        else:
+            self.report({'INFO'}, "Scene imported successfully.")
 
         return {'FINISHED'}
 

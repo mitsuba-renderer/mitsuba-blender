@@ -22,12 +22,13 @@ def convert_mi_film(mi_context, node_id):
     if not renderer.apply_mi_film_properties(mi_context, mi_props):
         return None
 
-    film_id = get_references_by_type(mi_context, mi_props, [ObjectType.ReconstructionFilter])
-    if len(film_id) > 1:
-        raise ValueError(f'Tried to import a film with multiple reconstruction filters. Mitsuba supports only one reconstruction filter per film.')
-    elif len(film_id) == 1:
-        convert_mi_node(mi_context, film_id[0])
-    return True # ????
+    rfilter_ids = get_references_by_type(mi_context, mi_props, [ObjectType.ReconstructionFilter])
+    if len(rfilter_ids) > 1:
+        mi_context.log('Film has multiple reconstruction filters. Mitsuba '
+                       'supports only one per film; using the first.', 'ERROR')
+    if rfilter_ids:
+        convert_mi_node(mi_context, rfilter_ids[0])
+    return True
 
 def convert_mi_rfilter(mi_context, node_id):
     mi_props = mi_context.mi_state.nodes[node_id].props
@@ -119,7 +120,9 @@ def convert_mi_shape(mi_context, node_id):
 
     mi_emitters = get_references_by_type(mi_context, mi_props, [ObjectType.Emitter])
     if len(mi_emitters) > 1:
-        raise ValueError(f'Tried to import a shape with multiple emitters. Mitsuba supports only one emitter per shape.')
+        mi_context.log(f'Shape "{shape_name}" has multiple emitters. Mitsuba '
+                       'supports only one per shape; using the first.', 'ERROR')
+        mi_emitters = mi_emitters[:1]
 
     # A supported shape that only carries an area emitter (no BSDF or a
     # null one) is a light source and comes back as a real Blender light
@@ -137,7 +140,13 @@ def convert_mi_shape(mi_context, node_id):
             return bl_obj
 
     # Convert the shape
-    bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
+    result = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
+    if result is None:
+        # An empty placeholder mesh keeps the object in the scene so the
+        # user can see what failed to import.
+        from mathutils import Matrix
+        result = bpy.data.meshes.new(shape_name), Matrix()
+    bl_shape, world_matrix = result
     bl_obj = bpy.data.objects.new(shape_name, bl_shape)
     bl_obj.matrix_world = world_matrix
 
@@ -197,7 +206,7 @@ def convert_mi_scene(mi_context):
 
 def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
-    
+
     Params
     ------
     bl_context: Blender context
@@ -207,6 +216,10 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     global_mat: Axis conversion matrix
     merge_shapes: Whether to merge similar shapes (same material) into a single one
     merge_plugins: Whether to merge identical plugins (e.g. materials) into a single one
+
+    Returns
+    -------
+    The list of warnings collected during the import.
     '''
     #TODO: progress bar
     start_time = time.time()
@@ -236,4 +249,4 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     end_time = time.time()
     mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}s.', 'INFO')
 
-    return
+    return mi_context.warnings

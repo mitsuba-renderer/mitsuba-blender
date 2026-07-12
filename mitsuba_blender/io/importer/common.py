@@ -14,10 +14,14 @@ class MitsubaSceneImportContext:
         self.bl_material_cache = {} # Mapping of Mitsuba node IDs to Blender materials
         self.bl_texture_cache = {} # Mapping of Mitsuba node IDs to Blender textures
         self.processed_nodes = set()
+        self.warnings = [] # Messages of WARN or ERROR level, for the operator report
 
     def log(self, message, level='INFO'):
         '''
-        Log something using mitsuba's logging API
+        Log an importer message. WARN and ERROR messages are collected in
+        self.warnings so the import operator can report them. ERROR does
+        not route to Mitsuba's logger, which raises at that level: an
+        unsupported piece of content must never abort the whole import.
 
         Params
         ------
@@ -30,9 +34,13 @@ class MitsubaSceneImportContext:
             'DEBUG': LogLevel.Debug,
             'INFO': LogLevel.Info,
             'WARN': LogLevel.Warn,
-            'ERROR': LogLevel.Error,
             'TRACE': LogLevel.Trace
             }
+        if level in ('WARN', 'ERROR'):
+            self.warnings.append(message)
+        if level == 'ERROR':
+            print(f'ERROR: {message}')
+            return
         if level not in log_level:
             raise ValueError("Invalid logging level '%s'!" % level)
         Log(log_level[level], message)

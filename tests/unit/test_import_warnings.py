@@ -1,0 +1,93 @@
+"""The importer must never raise for unsupported content: it produces
+placeholders and collects warnings that the operator reports."""
+
+import bpy
+
+
+def _write_scene(tmp_path, xml_body):
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(f'<scene version="3.0.0">\n{xml_body}\n</scene>')
+    return scene_file
+
+
+UNKNOWN_SHAPE = '''
+    <shape type="frobnicator">
+        <float name="x" value="1.0"/>
+    </shape>'''
+
+
+def test_unknown_shape_yields_placeholder(mi_addon, fresh_scene, tmp_path):
+    scene_file = _write_scene(tmp_path, UNKNOWN_SHAPE)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+    # The failed shape is kept as an empty placeholder mesh object
+    meshes = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+    assert len(meshes) == 1
+    assert len(meshes[0].data.vertices) == 0
+
+
+def test_load_scene_collects_warnings(mi_addon, fresh_scene, tmp_path):
+    from bl_ext.user_default.mitsuba_blender.io import importer, bl_utils
+    from bpy_extras.io_utils import axis_conversion
+
+    scene_file = _write_scene(tmp_path, UNKNOWN_SHAPE)
+    axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
+    scene = bl_utils.init_empty_scene(bpy.context, name='warn-test')
+
+    warnings = importer.load_mitsuba_scene(
+        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
+        False, True)
+    assert any('frobnicator' in w for w in warnings)
+
+
+def test_missing_mesh_file_yields_placeholder(mi_addon, fresh_scene,
+                                              tmp_path):
+    scene_file = _write_scene(tmp_path, '''
+        <shape type="ply">
+            <string name="filename" value="does-not-exist.ply"/>
+        </shape>''')
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+    meshes = [obj for obj in bpy.context.scene.objects if obj.type == 'MESH']
+    assert len(meshes) == 1
+    assert len(meshes[0].data.vertices) == 0
+
+
+def test_multiple_rfilters_use_first(mi_addon, fresh_scene, tmp_path):
+    scene_file = _write_scene(tmp_path, '''
+        <sensor type="perspective">
+            <film type="hdrfilm">
+                <rfilter type="gaussian"/>
+                <rfilter type="box"/>
+            </film>
+        </sensor>''')
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+
+def test_unknown_film_does_not_abort(mi_addon, fresh_scene, tmp_path):
+    scene_file = _write_scene(tmp_path, '''
+        <sensor type="perspective">
+            <film type="specfilm"/>
+        </sensor>''')
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+    assert bpy.context.scene.camera is not None
+
+
+def test_clean_scene_has_no_warnings(mi_addon, fresh_scene, tmp_path):
+    from bl_ext.user_default.mitsuba_blender.io import importer, bl_utils
+    from bpy_extras.io_utils import axis_conversion
+
+    scene_file = _write_scene(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="diffuse"/>
+        </shape>''')
+    axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
+    scene = bl_utils.init_empty_scene(bpy.context, name='clean-test')
+
+    warnings = importer.load_mitsuba_scene(
+        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
+        False, True)
+    assert warnings == []
