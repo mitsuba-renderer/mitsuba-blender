@@ -395,10 +395,10 @@ def convert_normal_input(export_ctx, socket, bsdf):
     '''Wrap a converted BSDF dict in Mitsuba normalmap/bumpmap plugins
     according to what feeds the given Normal input socket. Never raises:
     unsupported input produces a warning and the unwrapped BSDF.'''
-    node, _ = trace_source(socket)
-    if node is None:
-        return bsdf
     try:
+        node, _ = trace_source(socket)
+        if node is None:
+            return bsdf
         if node.type == 'NORMAL_MAP':
             return _wrap_normalmap(export_ctx, node, bsdf)
         if node.type == 'BUMP':

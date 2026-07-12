@@ -483,3 +483,35 @@ def test_eval_color_folds_spectrum(ev, tree, probe, mi_addon):
     spectrum = ev.eval_color(export_ctx, probe.inputs['Color'])
     assert spectrum['type'] == 'rgb'
     assert spectrum['value'] == pytest.approx((0.8, 0.6, 0.4))
+
+
+def test_reroute_link_cycle_terminates(ev, tree, probe):
+    # Blender permits link cycles made purely of reroutes; resolving one
+    # must terminate instead of spinning forever
+    r1 = tree.nodes.new('NodeReroute')
+    r2 = tree.nodes.new('NodeReroute')
+    tree.links.new(r1.outputs[0], r2.inputs[0])
+    tree.links.new(r2.outputs[0], r1.inputs[0])
+    result = fold_float(ev, tree, probe, r2.outputs[0])
+    assert isinstance(result, (ev.Constant, ev.Unsupported))
+
+
+def test_muted_node_link_cycle_terminates(ev, tree, probe):
+    a = math_node(tree, 'ADD', 0.0, 0.0)
+    b = math_node(tree, 'ADD', 0.0, 0.0)
+    tree.links.new(a.outputs['Value'], b.inputs[0])
+    tree.links.new(b.outputs['Value'], a.inputs[0])
+    a.mute = True
+    b.mute = True
+    result = fold_float(ev, tree, probe, b.outputs['Value'])
+    assert isinstance(result, (ev.Constant, ev.Unsupported))
+
+
+def test_fold_link_cycle_terminates(ev, tree, probe):
+    # A cycle through foldable nodes must not recurse without bound
+    a = math_node(tree, 'ADD', 0.0, 0.0)
+    b = math_node(tree, 'ADD', 0.0, 0.0)
+    tree.links.new(a.outputs['Value'], b.inputs[0])
+    tree.links.new(b.outputs['Value'], a.inputs[0])
+    result = fold_float(ev, tree, probe, b.outputs['Value'])
+    assert isinstance(result, (ev.Constant, ev.Unsupported))

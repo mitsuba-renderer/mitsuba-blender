@@ -65,10 +65,17 @@ def texture_converter(*node_types):
 def trace_source(socket):
     '''Return the (node, output socket) pair feeding an input socket,
     skipping reroutes and muted nodes. Returns (None, None) when nothing is
-    effectively connected.'''
+    effectively connected; raises ConversionError when the links form a
+    cycle (Blender permits cycles made of reroutes or muted nodes).'''
+    visited = set()
     while socket.is_linked:
+        if socket.as_pointer() in visited:
+            raise ConversionError(f'the links feeding socket '
+                                  f'"{socket.name}" of node '
+                                  f'"{socket.node.name}" form a cycle')
+        visited.add(socket.as_pointer())
         link = socket.links[0]
-        if link.is_muted:
+        if link.is_muted or not link.is_valid:
             return None, None
         node, source = link.from_node, link.from_socket
         if node.type == 'REROUTE':
@@ -95,7 +102,10 @@ def socket_default(socket):
 
 def resolve(export_ctx, socket):
     '''Classify the input of a socket as Constant, Texture or Unsupported.'''
-    node, source = trace_source(socket)
+    try:
+        node, source = trace_source(socket)
+    except ConversionError as e:
+        return Unsupported(str(e))
     if node is None:
         return Constant(socket_default(socket))
     converter = _texture_converters.get(node.type)
@@ -207,11 +217,27 @@ def _fold_node(node, out_socket):
     return folder(node, out_socket)
 
 
+# Sockets whose _fold_input is currently on the call stack, to detect
+# link cycles that pass through foldable nodes
+_folding = set()
+
+
 def _fold_input(socket):
-    node, source = trace_source(socket)
+    try:
+        node, source = trace_source(socket)
+    except ConversionError as e:
+        raise _Unfoldable(str(e)) from None
     if node is None:
         return socket_default(socket)
-    return _convert(_fold_node(node, source), socket.type)
+    key = socket.as_pointer()
+    if key in _folding:
+        raise _Unfoldable(f'the links feeding socket "{socket.name}" of '
+                          f'node "{socket.node.name}" form a cycle')
+    _folding.add(key)
+    try:
+        return _convert(_fold_node(node, source), socket.type)
+    finally:
+        _folding.discard(key)
 
 
 def _input(node, key):
