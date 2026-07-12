@@ -6,7 +6,6 @@ rotation), and sunsky produces a placeholder with a warning.
 '''
 
 import math
-import os
 
 import bpy
 
@@ -49,10 +48,9 @@ def _convert_constant(mi_context, mi_props, background):
 
 def _convert_envmap(mi_context, mi_props, background):
     filename = mi_props.get('filename', '')
-    filepath = filename if os.path.isabs(filename) \
-        else os.path.join(mi_context.directory, filename)
-    if not os.path.isfile(filepath):
-        raise ValueError(f'cannot find the environment map "{filepath}"')
+    filepath = mi_context.resolve_scene_relative_path(filename)
+    if filepath is None:
+        raise ValueError(f'cannot find the environment map "{filename}"')
     bl_image = bpy.data.images.load(filepath, check_existing=True)
 
     background.inputs['Strength'].default_value = \

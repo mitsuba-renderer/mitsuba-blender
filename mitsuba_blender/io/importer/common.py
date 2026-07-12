@@ -3,11 +3,12 @@ import os
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
     def __init__(self, bl_scene, bl_collection, filepath, mi_state, axis_matrix,
-                 import_render_settings=False):
+                 import_render_settings=False, search_paths=()):
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
         self.filepath = filepath
         self.directory, _ = os.path.split(self.filepath)
+        self.search_paths = list(search_paths)
         self.mi_state = mi_state
         self.axis_matrix = axis_matrix
         self.import_render_settings = import_render_settings
@@ -49,9 +50,14 @@ class MitsubaSceneImportContext:
         return self.axis_matrix_inv @ matrix
 
     def resolve_scene_relative_path(self, path):
-        abs_path = os.path.join(self.directory, path)
-        if not os.path.exists(abs_path):
-            self.log(f'Cannot resolve scene relative path "{path}".', 'ERROR')
-            return None
-        return abs_path
+        '''Resolve a filename against the scene directory, then against
+        the <path> directories of the XML file. Returns None when the
+        file does not exist; the caller reports the failure.'''
+        if os.path.isabs(path):
+            return path if os.path.exists(path) else None
+        for directory in (self.directory, *self.search_paths):
+            abs_path = os.path.join(directory, path)
+            if os.path.exists(abs_path):
+                return abs_path
+        return None
 

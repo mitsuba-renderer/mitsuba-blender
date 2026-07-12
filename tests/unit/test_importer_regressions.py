@@ -14,6 +14,23 @@ def _write_png(path, size=4):
     bpy.data.images.remove(image)
 
 
+def _write_ply(path):
+    path.write_text('''ply
+format ascii 1.0
+element vertex 3
+property float x
+property float y
+property float z
+element face 1
+property list uchar int vertex_indices
+end_header
+0 0 0
+1 0 0
+0 1 0
+3 0 1 2
+''')
+
+
 def _import_xml(tmp_path, xml_body):
     xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
     scene_file = tmp_path / 'scene.xml'
@@ -143,6 +160,62 @@ def test_area_emitter_rectangle_becomes_light(mi_addon, fresh_scene,
     # A Mitsuba rectangle spans [-1, 1]: power = radiance * pi * area
     assert abs(data.energy - 2.0 * math.pi * 4.0) < 1e-3
     assert not _mesh_materials()
+
+
+def _path_tag_scene(tmp_path):
+    '''A scene whose shape, texture and envmap files live in a directory
+    that only a <path> tag makes visible.'''
+    assets = tmp_path / 'assets'
+    assets.mkdir()
+    _write_ply(assets / 'tri.ply')
+    _write_png(assets / 'tex.png')
+    return '''
+        <path value="assets"/>
+        <shape type="ply">
+            <string name="filename" value="tri.ply"/>
+            <bsdf type="diffuse">
+                <texture type="bitmap" name="reflectance">
+                    <string name="filename" value="tex.png"/>
+                </texture>
+            </bsdf>
+        </shape>
+        <emitter type="envmap">
+            <string name="filename" value="tex.png"/>
+        </emitter>'''
+
+
+def test_path_tag_does_not_leak_into_file_resolver(mi_addon, fresh_scene,
+                                                   tmp_path):
+    # parse_file prepends <path> directories to the session-global file
+    # resolver; without a save/restore they polluted later exports/renders
+    import mitsuba as mi
+    body = _path_tag_scene(tmp_path)
+    before = [str(p) for p in mi.file_resolver()]
+    _import_xml(tmp_path, body)
+    assert [str(p) for p in mi.file_resolver()] == before
+
+
+def test_path_tag_directories_resolve_filenames(mi_addon, fresh_scene,
+                                                tmp_path):
+    # Filenames were joined against the XML directory only, so files that
+    # relied on a <path> directory came back as empty placeholders,
+    # missing textures and an error-colored world
+    _import_xml(tmp_path, _path_tag_scene(tmp_path))
+
+    meshes = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+    assert len(meshes) == 1
+    assert len(meshes[0].data.vertices) == 3
+
+    mats = _mesh_materials()
+    assert len(mats) == 1
+    tex_nodes = _find_nodes(mats[0], 'ShaderNodeTexImage')
+    assert len(tex_nodes) == 1
+    assert tex_nodes[0].image is not None
+
+    world_nodes = [node for node in bpy.context.scene.world.node_tree.nodes
+                   if node.bl_idname == 'ShaderNodeTexEnvironment']
+    assert len(world_nodes) == 1
+    assert world_nodes[0].image is not None
 
 
 def test_import_emissive_under_spectral_variant(mi_addon, fresh_scene,

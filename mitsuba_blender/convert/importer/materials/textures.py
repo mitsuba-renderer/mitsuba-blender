@@ -124,8 +124,8 @@ def convert_bitmap(builder, mi_props):
                 'WARN')
         return None
     filename = mi_props['filename']
-    path = os.path.join(ctx.directory, filename)
-    if not os.path.exists(path):
+    path = ctx.resolve_scene_relative_path(filename)
+    if path is None:
         ctx.log(f'Cannot find the texture file "{filename}".', 'WARN')
         return None
     image = _load_image(ctx, path, bool(mi_props.get('raw', False)))

@@ -14,21 +14,15 @@ import bpy
 import numpy as np
 
 from . import sanitize_attribute_name
+from .. import saved_file_resolver
 
 
 @contextmanager
 def resolver_append(directory):
     '''Temporarily add a directory to Mitsuba's file resolver.'''
-    import mitsuba as mi
-    fr = mi.file_resolver()
-    paths = list(fr)
-    fr.prepend(directory)
-    try:
+    with saved_file_resolver() as fr:
+        fr.prepend(directory)
         yield
-    finally:
-        fr.clear()
-        for path in paths:
-            fr.append(path)
 
 
 class MeshData:

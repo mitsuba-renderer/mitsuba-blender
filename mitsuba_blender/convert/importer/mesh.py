@@ -36,9 +36,12 @@ def _shape_dict(mi_context, mi_props):
         if isinstance(value, Properties.ResolvedReference) or name == 'to_world':
             continue
         if name == 'filename':
-            value = mi_context.resolve_scene_relative_path(value)
-            if value is None:
+            resolved = mi_context.resolve_scene_relative_path(value)
+            if resolved is None:
+                mi_context.log(f'Cannot find the shape file "{value}".',
+                               'ERROR')
                 return None
+            value = resolved
         if isinstance(value, (bool, int, float, str)):
             shape_dict[name] = value
     return shape_dict
