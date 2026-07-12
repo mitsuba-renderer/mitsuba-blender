@@ -10,6 +10,7 @@ from mathutils import Euler, Matrix, Vector
 
 from .. import ConversionError
 from .materials import _eval
+from .materials.textures import convert_environment_texture
 
 # The color of Blender's default gray world background.
 DEFAULT_BACKGROUND = [0.05087608844041824] * 3
@@ -65,19 +66,12 @@ def _mapping_transform(export_ctx, vector_socket):
 
 
 def _convert_envmap(export_ctx, node, strength):
-    if node.image is None:
-        raise ConversionError('the environment texture has no image')
-    if node.projection != 'EQUIRECTANGULAR':
-        raise ConversionError(f'environment texture projection '
-                              f'{node.projection} is not supported')
+    params = convert_environment_texture(export_ctx, node)
     to_world = _mapping_transform(export_ctx, node.inputs['Vector'])
-    return {
-        'type': 'envmap',
-        'filename': export_ctx.export_texture(node.image),
-        'scale': strength,
-        'to_world': export_ctx.transform_matrix(
-            to_world @ ENVMAP_COORDINATE_MAT),
-    }
+    params['scale'] = strength
+    params['to_world'] = export_ctx.transform_matrix(
+        to_world @ ENVMAP_COORDINATE_MAT)
+    return params
 
 
 def _constant_color(result):

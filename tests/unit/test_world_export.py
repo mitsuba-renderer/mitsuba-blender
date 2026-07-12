@@ -220,3 +220,46 @@ def test_export_world_adds_entry(fresh_scene, export_ctx, world):
     export_ctx.export_ids = True
     world.export_world(export_ctx, b_world)
     assert export_ctx.data_get('World')['type'] == 'constant'
+
+
+def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
+                                      tmp_path):
+    # Render mode hands the pixels to Mitsuba in memory; values above 1
+    # must survive and no files may be written
+    b_world = make_env_world(tmp_path)
+    image = bpy.data.images['env']
+    pixels = np.full(len(image.pixels), 5.0, dtype=np.float32)
+    image.pixels.foreach_set(pixels)
+
+    export_ctx.render = True
+    params = world.convert_world(export_ctx, b_world)
+    assert params['type'] == 'envmap'
+    assert 'filename' not in params
+    assert np.max(np.array(params['bitmap'])) == pytest.approx(5.0)
+    assert not os.path.isdir(os.path.join(str(tmp_path), 'textures'))
+
+    import mitsuba as mi
+    assert mi.load_dict(params) is not None
+
+
+def test_envmap_export_leaves_image_datablock_alone(fresh_scene, export_ctx,
+                                                    world, tmp_path):
+    # A TIFF source is converted through a temporary copy; the user's
+    # Image datablock must keep its format
+    source = bpy.data.images.new('tif-src', 8, 4)
+    source.filepath_raw = str(tmp_path / 'source.tif')
+    source.file_format = 'TIFF'
+    source.save()
+    image = bpy.data.images.load(str(tmp_path / 'source.tif'))
+    assert image.file_format == 'TIFF'
+
+    b_world = make_world(name='EnvWorld')
+    tree = b_world.node_tree
+    environment = tree.nodes.new('ShaderNodeTexEnvironment')
+    environment.image = image
+    tree.links.new(environment.outputs['Color'],
+                   tree.nodes['Background'].inputs['Color'])
+
+    params = world.convert_world(export_ctx, b_world)
+    assert image.file_format == 'TIFF'
+    assert os.path.isfile(os.path.join(str(tmp_path), params['filename']))

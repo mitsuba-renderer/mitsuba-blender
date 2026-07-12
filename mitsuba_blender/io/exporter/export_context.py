@@ -1,26 +1,6 @@
 from collections import OrderedDict
-import os
 
 from mathutils import Matrix
-
-texture_exts = {
-    'BMP': '.bmp',
-    'HDR': '.hdr',
-    'JPEG': '.jpg',
-    'JPEG2000': '.jpg',
-    'PNG': '.png',
-    'OPEN_EXR': '.exr',
-    'OPEN_EXR_MULTILAYER': '.exr',
-    'TARGA': '.tga',
-    'TARGA_RAW': '.tga',
-}
-
-convert_format = {
-    'CINEON': 'EXR',
-    'DPX': 'EXR',
-    'TIFF': 'PNG',
-    'IRIS': 'PNG'
-}
 
 class ExportedMaterialsCache:
     '''
@@ -142,35 +122,6 @@ class ExportContext:
         if level not in log_level:
             raise ValueError("Invalid logging level '%s'!" % level)
         Log(log_level[level], message)
-
-    def export_texture(self, image):
-        """
-        Return the path to a texture.
-        Ensure the image is on disk and of a correct type
-
-        image : The Blender Image object
-        """
-        # TODO: don't save packed images but convert them to a mitsuba texture, and let the XML writer save
-        textures_folder = os.path.join(self.directory, self.subfolders['texture'])
-        if image.file_format in convert_format:
-            msg = "Image format of '%s' is not supported. Converting it to %s." % (image.name, convert_format[image.file_format])
-            self.log(msg, 'WARN')
-            image.file_format = convert_format[image.file_format]
-        original_name = os.path.basename(image.filepath)
-        if original_name != '' and image.name.startswith(original_name): # Try to remove extensions from names of packed files to avoid stuff like 'Image.png.001.png'
-            base_name, _ = os.path.splitext(original_name)
-            name = image.name.replace(original_name, base_name, 1) # Remove the extension
-            name += texture_exts[image.file_format]
-        else:
-            name = "%s%s" % (image.name, texture_exts[image.file_format])
-        target_path = os.path.join(textures_folder, name)
-        if not os.path.isdir(textures_folder):
-            os.makedirs(textures_folder)
-        old_filepath = image.filepath
-        image.filepath_raw = target_path
-        image.save()
-        image.filepath_raw = old_filepath
-        return f"{self.subfolders['texture']}/{name}"
 
     def spectrum(self, value, mode='rgb'):
         '''
