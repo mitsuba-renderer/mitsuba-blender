@@ -118,6 +118,21 @@ def convert_mi_shape(mi_context, node_id):
     if len(mi_emitters) > 1:
         raise ValueError(f'Tried to import a shape with multiple emitters. Mitsuba supports only one emitter per shape.')
 
+    # A supported shape that only carries an area emitter (no BSDF or a
+    # null one) is a light source and comes back as a real Blender light
+    mi_mats = get_references_by_type(mi_context, mi_props, [ObjectType.BSDF])
+    if mi_emitters and lights.can_convert_area_emitter(mi_props) \
+            and (not mi_mats or (len(mi_mats) == 1 and
+                 mi_context.mi_state.nodes[mi_mats[0]].props.plugin_name() == 'null')):
+        em_props = mi_context.mi_state.nodes[mi_emitters[0]].props
+        result = lights.mi_area_emitter_to_bl_light(mi_context, em_props, mi_props)
+        if result is not None:
+            bl_light, world_matrix = result
+            bl_obj = bpy.data.objects.new(shape_name, bl_light)
+            bl_obj.matrix_world = world_matrix
+            mi_context.bl_collection.objects.link(bl_obj)
+            return bl_obj
+
     # Convert the shape
     bl_shape, world_matrix = shapes.mi_shape_to_bl_shape(mi_context, mi_props)
     bl_obj = bpy.data.objects.new(shape_name, bl_shape)
@@ -125,7 +140,6 @@ def convert_mi_shape(mi_context, node_id):
 
     # Add a material
     bl_shape.materials.clear()
-    mi_mats = get_references_by_type(mi_context, mi_props, [ObjectType.BSDF])
     em_id = mi_emitters[0] if mi_emitters else None
     bl_mat = None
     if len(mi_mats) > 1:

@@ -274,3 +274,47 @@ def test_import_spot_defaults(fresh_scene, import_lights, make_mi_context):
     expected_blend = import_lights.spot_blend(
         math.radians(40), math.radians(15))
     assert bl_light.spot_blend == pytest.approx(expected_blend, rel=1e-4)
+
+
+def test_area_light_scene_roundtrip(mi_addon, fresh_scene, tmp_path):
+    """A Blender area light survives a full XML export-import cycle as a
+    real light, not an emissive mesh."""
+    import sys
+
+    import mitsuba as mi
+
+    bpy.data.objects.remove(bpy.data.objects['Light'])
+    light = bpy.data.lights.new('Area', 'AREA')
+    light.shape = 'RECTANGLE'
+    light.size = 2.0
+    light.size_y = 3.0
+    light.energy = 60.0
+    obj = bpy.data.objects.new('Area', light)
+    obj.location = (1.0, 2.0, 3.0)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.update()
+
+    mi.set_variant('scalar_rgb')
+    bpy.context.scene.render.engine = 'MITSUBA'
+    converter = sys.modules[mi_addon].io.exporter.SceneConverter(render=False)
+    converter.export_ctx.directory = str(tmp_path)
+    converter.export_ctx.axis_mat = AXIS_MAT.copy()
+    converter.scene_to_dict(bpy.context.evaluated_depsgraph_get())
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+
+    bpy.ops.wm.read_homefile()
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(tmp_path / 'scene.xml')) == {'FINISHED'}
+
+    bl_lights = [o for o in bpy.data.objects if o.type == 'LIGHT']
+    assert len(bl_lights) == 1
+    imported = bl_lights[0]
+    data = imported.data
+    assert data.type == 'AREA'
+    assert data.shape == 'RECTANGLE'
+    assert data.energy == pytest.approx(60.0, rel=1e-4)
+    scale = imported.matrix_world.to_scale()
+    assert data.size * scale.x == pytest.approx(2.0, rel=1e-4)
+    assert data.size_y * scale.y == pytest.approx(3.0, rel=1e-4)
+    assert list(imported.matrix_world.to_translation()) == \
+        pytest.approx([1.0, 2.0, 3.0], abs=1e-5)

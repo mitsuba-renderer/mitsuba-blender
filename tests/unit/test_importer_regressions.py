@@ -82,9 +82,10 @@ def test_mask_opacity_not_mutated(mi_addon, fresh_scene, tmp_path):
 
 
 def test_emitter_shape_without_bsdf(mi_addon, fresh_scene, tmp_path):
-    # A shape with an emitter but no BSDF used to lose its emitter
+    # A shape with an emitter but no BSDF used to lose its emitter. The
+    # cube cannot become a Blender light, so it keeps an emissive material.
     _import_xml(tmp_path, '''
-        <shape type="rectangle">
+        <shape type="cube">
             <emitter type="area"><rgb name="radiance" value="2 2 2"/></emitter>
         </shape>''')
 
@@ -93,3 +94,22 @@ def test_emitter_shape_without_bsdf(mi_addon, fresh_scene, tmp_path):
     emission_nodes = _find_nodes(mats[0], 'ShaderNodeEmission')
     assert len(emission_nodes) == 1
     assert emission_nodes[0].inputs['Strength'].default_value == 2.0
+
+
+def test_area_emitter_rectangle_becomes_light(mi_addon, fresh_scene,
+                                              tmp_path):
+    import math
+
+    _import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <emitter type="area"><rgb name="radiance" value="2 2 2"/></emitter>
+        </shape>''')
+
+    bl_lights = [obj for obj in bpy.data.objects if obj.type == 'LIGHT']
+    assert len(bl_lights) == 1
+    data = bl_lights[0].data
+    assert data.type == 'AREA'
+    assert data.shape == 'RECTANGLE'
+    # A Mitsuba rectangle spans [-1, 1]: power = radiance * pi * area
+    assert abs(data.energy - 2.0 * math.pi * 4.0) < 1e-3
+    assert not _mesh_materials()
