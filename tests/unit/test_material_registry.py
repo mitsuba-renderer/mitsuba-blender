@@ -133,11 +133,11 @@ def test_converter_error_boundary(fresh_scene, exporter, tmp_path, registry):
 
 
 def test_has_converter(fresh_scene, registry):
-    b_mat = make_diffuse_material('Glass')
+    b_mat = make_diffuse_material('Sheen')
     tree = b_mat.node_tree
     tree.nodes.remove(tree.nodes['Diffuse BSDF'])
-    glass = tree.nodes.new('ShaderNodeBsdfGlass')
-    tree.links.new(glass.outputs['BSDF'],
+    sheen = tree.nodes.new('ShaderNodeBsdfSheen')
+    tree.links.new(sheen.outputs['BSDF'],
                    tree.nodes['Material Output'].inputs['Surface'])
     assert not registry.has_converter(b_mat)
 
