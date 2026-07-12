@@ -71,30 +71,6 @@ def test_importer_path_integrator(resource_resolver, mitsuba_scene_parser, xml_s
 
     # assert len(mi_integrator.unqueried()) == 0
 
-@pytest.mark.parametrize("xml_scene", ["scenes/integrator_moment.xml"])
-def test_importer_moment_integrator(resource_resolver, mitsuba_scene_parser, xml_scene):
-    scene_file = resource_resolver.get_absolute_resource_path(xml_scene)
-    mitsuba_scene_parser.load_xml(scene_file)
-    
-    mi_integrator = mitsuba_scene_parser.get_props_by_name('moment')
-    assert mi_integrator
-
-    mi_child_integrator = mitsuba_scene_parser.get_props_by_name('path')
-    assert mi_child_integrator
-    
-    assert bpy.ops.import_scene.mitsuba(filepath=scene_file) == {'FINISHED'}
-
-    bl_scene = bpy.context.scene
-    assert bl_scene.mitsuba.active_integrator == 'moment'
-    assert bl_scene.mitsuba.available_integrators.moment.integrators.count == 1
-    bl_child_integrator = bl_scene.mitsuba.available_integrators.moment.integrators.collection[0]
-    assert bl_child_integrator.active_integrator == 'path'
-    assert bl_child_integrator.available_integrators.path.max_depth == mi_child_integrator.get('max_depth')
-    assert bl_child_integrator.available_integrators.path.rr_depth == mi_child_integrator.get('rr_depth')
-    assert bl_child_integrator.available_integrators.path.hide_emitters == mi_child_integrator.get('hide_emitters')
-    
-    # assert len(mi_integrator.unqueried()) == 0
-
 @pytest.mark.parametrize("xml_scene", ["scenes/sampler_independent.xml"])
 def test_importer_independent_sampler(resource_resolver, mitsuba_scene_parser, xml_scene):
     scene_file = resource_resolver.get_absolute_resource_path(xml_scene)

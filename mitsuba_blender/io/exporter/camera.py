@@ -38,7 +38,7 @@ def export_camera(camera_instance, b_scene, export_ctx):
     params['to_world'] = export_ctx.transform_matrix(b_camera.matrix_world @ init_rot)
 
     if b_scene.render.engine == 'MITSUBA':
-        sampler = getattr(b_camera.data.mitsuba.samplers, b_camera.data.mitsuba.active_sampler).to_dict()
+        sampler = b_camera.data.mitsuba.sampler_to_dict()
     else:
         sampler = {'type' : 'independent'}
         sampler['sample_count'] = b_scene.cycles.samples
@@ -54,7 +54,7 @@ def export_camera(camera_instance, b_scene, export_ctx):
 
 
     if b_scene.render.engine == 'MITSUBA':
-        film['rfilter'] = getattr(b_camera.data.mitsuba.rfilters, b_camera.data.mitsuba.active_rfilter).to_dict()
+        film['rfilter'] = b_camera.data.mitsuba.rfilter_to_dict()
     elif b_scene.render.engine == 'CYCLES':
         if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':
             film['rfilter'] = {

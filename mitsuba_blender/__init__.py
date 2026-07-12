@@ -63,17 +63,23 @@ def _init_mitsuba():
 def register():
     register_class(MitsubaPreferences)
     if _init_mitsuba():
-        from . import io, engine
-        io.register()
+        from . import properties, engine, ui, io
+        properties.register()
         engine.register()
+        ui.register()
+        io.register()
         print(f'mitsuba_blender registered (with mitsuba v{mitsuba_version})')
     else:
         print(f'mitsuba_blender: could not load mitsuba: {init_error}')
 
 
 def unregister():
+    global mitsuba_version
     if mitsuba_version is not None:
-        from . import io, engine
-        engine.unregister()
+        from . import properties, engine, ui, io
         io.unregister()
+        ui.unregister()
+        engine.unregister()
+        properties.unregister()
+        mitsuba_version = None
     unregister_class(MitsubaPreferences)

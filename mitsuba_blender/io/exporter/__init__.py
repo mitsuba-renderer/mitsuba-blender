@@ -41,7 +41,7 @@ class SceneConverter:
 
         b_scene = depsgraph.scene #TODO: what if there are multiple scenes?
         if b_scene.render.engine == 'MITSUBA':
-            integrator = getattr(b_scene.mitsuba.available_integrators,b_scene.mitsuba.active_integrator).to_dict()
+            integrator = b_scene.mitsuba.integrator_to_dict()
         else:
             integrator = {
                 'type':'path',
