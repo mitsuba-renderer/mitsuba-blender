@@ -145,17 +145,24 @@ def convert_mi_shape(mi_context, node_id):
     # Add a material
     bl_shape.materials.clear()
     mi_mats = get_references_by_type(mi_context, mi_props, [ObjectType.BSDF])
-    if len(mi_mats) == 0:
-        mi_context.log(f'Shape "{shape_name}" does not have a material. Using default diffuse.', 'WARN')
-    elif len(mi_mats) > 1:
+    em_id = mi_emitters[0] if mi_emitters else None
+    bl_mat = None
+    if len(mi_mats) > 1:
         mi_context.log(f'Shape "{shape_name}" has multiple materials. Only one is supported.', 'ERROR')
-    else:
-        # Make sure the material is converted
-        if mi_emitters:
-            em_id = mi_emitters[0]
-        else:
-            em_id = None
+    elif len(mi_mats) == 1:
         bl_mat = convert_mi_bsdf(mi_context, mi_mats[0], emitter_id=em_id)
+    elif em_id is not None:
+        # An emissive shape without a BSDF still needs a Blender material
+        # to hold its emission shader.
+        from mitsuba import Properties
+        mi_null = Properties('null')
+        mi_null.set_id(f'{shape_name}-emitter')
+        em_props = mi_context.mi_state.nodes[em_id].props
+        bl_mat = materials.mi_material_to_bl_material(mi_context, mi_null, mi_emitter=em_props)
+    else:
+        mi_context.log(f'Shape "{shape_name}" does not have a material. Using default diffuse.', 'WARN')
+
+    if bl_mat is not None:
         bl_shape.materials.append(bl_mat)
         bl_obj.active_material_index = 0
 

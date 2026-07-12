@@ -1,0 +1,95 @@
+"""Regression tests for importer crashes inherited from PR #137."""
+
+import bpy
+
+
+def _import_xml(tmp_path, xml_body):
+    xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(xml)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == {'FINISHED'}
+
+
+def _mesh_materials():
+    return [obj.active_material for obj in bpy.data.objects
+            if obj.type == 'MESH' and obj.active_material is not None]
+
+
+def _find_nodes(bl_mat, bl_idname):
+    return [node for node in bl_mat.node_tree.nodes if node.bl_idname == bl_idname]
+
+
+def test_area_emitter_float_radiance(mi_addon, fresh_scene, tmp_path):
+    # A non-Color radiance used to leave 'radiance'/'strength' unbound
+    _import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <emitter type="area"><float name="radiance" value="5.0"/></emitter>
+            <bsdf type="diffuse"/>
+        </shape>''')
+
+    mats = _mesh_materials()
+    assert len(mats) == 1
+    emission_nodes = _find_nodes(mats[0], 'ShaderNodeEmission')
+    assert len(emission_nodes) == 1
+    assert emission_nodes[0].inputs['Strength'].default_value == 5.0
+    assert tuple(emission_nodes[0].inputs['Color'].default_value)[:3] == (1.0, 1.0, 1.0)
+
+
+def test_mask_with_default_diffuse_child(mi_addon, fresh_scene, tmp_path):
+    # The mask fast path called get_texture('reflectance') on a diffuse
+    # child without an explicit reflectance, which crashes
+    _import_xml(tmp_path, '''
+        <bsdf type="mask" id="mat-masked">
+            <float name="opacity" value="0.5"/>
+            <bsdf type="diffuse"/>
+        </bsdf>
+        <shape type="rectangle">
+            <ref id="mat-masked"/>
+        </shape>''')
+
+    mats = _mesh_materials()
+    assert len(mats) == 1
+    # The default 0.5 reflectance is not black, so the material is a mix
+    # of a transparent and a diffuse BSDF
+    assert len(_find_nodes(mats[0], 'ShaderNodeMixShader')) == 1
+    assert len(_find_nodes(mats[0], 'ShaderNodeBsdfTransparent')) == 1
+
+
+def test_mask_opacity_not_mutated(mi_addon, fresh_scene, tmp_path):
+    # Inverting the opacity in place mutated the parser state, so a second
+    # conversion of the same material saw an already-inverted value. The
+    # emissive shape bypasses the material cache and triggers a reconversion.
+    _import_xml(tmp_path, '''
+        <bsdf type="mask" id="mat-masked">
+            <rgb name="opacity" value="0.3 0.3 0.3"/>
+            <bsdf type="diffuse"><rgb name="reflectance" value="0 0 0"/></bsdf>
+        </bsdf>
+        <shape type="rectangle">
+            <ref id="mat-masked"/>
+        </shape>
+        <shape type="rectangle">
+            <ref id="mat-masked"/>
+            <emitter type="area"><rgb name="radiance" value="1 1 1"/></emitter>
+        </shape>''')
+
+    mats = _mesh_materials()
+    assert len(mats) == 2
+    for mat in mats:
+        transparent_nodes = _find_nodes(mat, 'ShaderNodeBsdfTransparent')
+        assert len(transparent_nodes) == 1
+        color = tuple(transparent_nodes[0].inputs['Color'].default_value)[:3]
+        assert all(abs(c - 0.7) < 1e-5 for c in color)
+
+
+def test_emitter_shape_without_bsdf(mi_addon, fresh_scene, tmp_path):
+    # A shape with an emitter but no BSDF used to lose its emitter
+    _import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <emitter type="area"><rgb name="radiance" value="2 2 2"/></emitter>
+        </shape>''')
+
+    mats = _mesh_materials()
+    assert len(mats) == 1
+    emission_nodes = _find_nodes(mats[0], 'ShaderNodeEmission')
+    assert len(emission_nodes) == 1
+    assert emission_nodes[0].inputs['Strength'].default_value == 2.0

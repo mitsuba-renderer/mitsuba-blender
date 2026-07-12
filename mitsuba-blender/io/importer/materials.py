@@ -321,8 +321,12 @@ def write_mi_emitter_bsdf(mi_context, bl_mat_wrap, out_socket_id, mi_emitter):
     bl_add_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_add)
 
     bl_emissive = bl_add_wrap.ensure_node_type(['Shader'], 'ShaderNodeEmission', 'Emission')
-    if mi_emitter.type('radiance') == Properties.Type.Color:
-        radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get_emissive_texture('radiance'), [1.0, 1.0, 1.0])
+    radiance, strength = [1.0, 1.0, 1.0], 1.0
+    if 'radiance' in mi_emitter:
+        if mi_emitter.type('radiance') in (Properties.Type.Color, Properties.Type.Float):
+            radiance, strength = mi_spectra_utils.convert_mi_srgb_emitter_spectrum(mi_emitter.get_emissive_texture('radiance'), radiance)
+        else:
+            mi_context.log(f'Emitter radiance of type "{mi_emitter.type("radiance")}" is not supported. Using default.', 'WARN')
 
     bl_emissive.inputs['Color'].default_value = bl_shader_utils.rgb_to_rgba(radiance)
     bl_emissive.inputs['Strength'].default_value = strength
@@ -501,7 +505,11 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
         return False
 
     mi_child_mat = mi_context.mi_state.nodes[mi_child_ids[0]].props
-    if mi_child_mat.plugin_name() == 'diffuse' and mi_child_mat.get_texture('reflectance').max() == 0:
+    is_black_diffuse = (mi_child_mat.plugin_name() == 'diffuse'
+                        and 'reflectance' in mi_child_mat
+                        and mi_child_mat.type('reflectance') == Properties.Type.Color
+                        and mi_child_mat.get_texture('reflectance').max() == 0)
+    if is_black_diffuse:
         # This can simply be a transparent material.
         bl_transparent = bl_mat_wrap.ensure_node_type([out_socket_id], 'ShaderNodeBsdfTransparent', 'BSDF')
         bl_transparent_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat_wrap.bl_mat, out_node=bl_transparent)
@@ -509,8 +517,8 @@ def write_mi_mask_bsdf(mi_context, mi_mat, bl_mat_wrap, out_socket_id, mi_bump=N
         if 'opacity' in mi_mat:
             mi_prop_type = mi_mat.type('opacity')
             if mi_prop_type == Properties.Type.Color:
-                mi_mat['opacity'] = 1 - mi_mat['opacity']
-                write_mi_rgb_spectrum(mi_context, mi_mat.get_texture('opacity'), bl_transparent_wrap, 'Color')
+                col = [1.0 - c for c in mi_mat['opacity']]
+                write_mi_rgb_value(mi_context, col, bl_transparent_wrap, 'Color')
             elif mi_prop_type == Properties.Type.Float:
                 col_val = 1 - mi_mat.get('opacity')
                 col = [col_val] * 3
