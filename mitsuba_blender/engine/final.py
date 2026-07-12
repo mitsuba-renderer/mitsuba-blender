@@ -1,8 +1,78 @@
 import tempfile
+import threading
 
 import bpy
 import numpy as np
 from ..io.exporter import SceneConverter
+
+
+def _make_progress_appender():
+    '''Create a Mitsuba log appender that records the latest render
+    progress fraction. Mitsuba reports progress through its logging API.'''
+    import mitsuba as mi
+
+    class ProgressAppender(mi.Appender):
+        def __init__(self):
+            super().__init__()
+            self.fraction = 0.0
+
+        def append(self, level, text):
+            pass
+
+        def log_progress(self, progress, name, formatted, eta, ptr=None):
+            self.fraction = progress
+
+    return ProgressAppender()
+
+
+def run_render(integrator, scene, sensor, test_break, update_progress,
+               poll_interval=0.1):
+    '''Render a scene on a worker thread while the calling thread polls
+    test_break and forwards render progress to update_progress.
+
+    Returns True when the render was canceled. Mitsuba stops at the next
+    block or iteration boundary after Integrator.cancel(), so the film
+    then holds the partial image accumulated up to that point.
+    '''
+    import mitsuba as mi
+
+    logger = mi.logger()
+    appender = _make_progress_appender()
+    old_level = logger.log_level()
+    if old_level > mi.LogLevel.Info:
+        # Progress records only reach appenders at Info level and below
+        logger.set_log_level(mi.LogLevel.Info)
+    logger.add_appender(appender)
+
+    errors = []
+
+    def work():
+        try:
+            integrator.render(scene, sensor)
+        except Exception as e:
+            errors.append(e)
+
+    worker = threading.Thread(target=work, name='mitsuba-render')
+    canceled = False
+    try:
+        worker.start()
+        while worker.is_alive():
+            worker.join(poll_interval)
+            if not canceled and test_break():
+                integrator.cancel()
+                canceled = True
+            update_progress(appender.fraction)
+    finally:
+        if worker.is_alive():
+            integrator.cancel()
+        worker.join()
+        logger.remove_appender(appender)
+        logger.set_log_level(old_level)
+
+    if errors:
+        raise errors[0]
+    return canceled
+
 
 class MitsubaRenderEngine(bpy.types.RenderEngine):
 
@@ -33,7 +103,12 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
             mts_scene = self.converter.dict_to_scene()
 
         sensor = mts_scene.sensors()[0]
-        mts_scene.integrator().render(mts_scene, sensor)
+        self.update_stats('', 'Rendering with Mitsuba')
+        canceled = run_render(mts_scene.integrator(), mts_scene, sensor,
+                              self.test_break, self.update_progress)
+        if canceled:
+            self.report({'WARNING'}, 'Render canceled')
+
         render_results = sensor.film().bitmap().split()
 
         for result in render_results:
