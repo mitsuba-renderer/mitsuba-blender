@@ -30,7 +30,7 @@ class SceneConverter:
         self.export_ctx = export_context.ExportContext()
         self.render = render
 
-    def scene_to_dict(self, depsgraph, window_manager, use_selection=False, ignore_background=True):
+    def scene_to_dict(self, depsgraph, window_manager=None, use_selection=False, ignore_background=True):
         """
         Convert a Blender scene to a Mitsuba-compatible dict.
 
@@ -39,8 +39,9 @@ class SceneConverter:
 
         depsgraph : bpy.types.Depsgraph
             The evaluated dependency graph of the scene to export.
-        window_manager : bpy.types.WindowManager
-            The window manager to update the progress bar.
+        window_manager : bpy.types.WindowManager, optional
+            The window manager to update the progress bar. No progress is
+            reported when omitted.
         use_selection : bool, optional
             Only export selected objects. Defaults to False.
         ignore_background : bool, optional
@@ -77,7 +78,8 @@ class SceneConverter:
         progress_counter = 0
         # Main export loop
         for object_instance in depsgraph.object_instances:
-            window_manager.progress_update(progress_counter)
+            if window_manager is not None:
+                window_manager.progress_update(progress_counter)
             progress_counter += 1
 
             if use_selection:
