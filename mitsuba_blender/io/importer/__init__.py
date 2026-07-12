@@ -3,11 +3,11 @@ import time
 import bpy
 
 from . import common
+from ...convert.importer import camera
 from ...convert.importer import lights
 from ...convert.importer import materials
 from ...convert.importer import mesh as shapes
 from ...convert.importer import world
-from . import sensors
 from . import renderer
 from .mi_props_utils import get_references_by_type
 
@@ -93,7 +93,10 @@ def convert_mi_sensor(mi_context, node_id):
     mi_props = mi_context.mi_state.nodes[node_id].props
     camera_name = mi_props.id() if mi_props.id() else f'Camera_{node_id}'
     # Convert the camera
-    bl_camera, world_matrix = sensors.mi_sensor_to_bl_camera(mi_context, mi_props)
+    result = camera.mi_sensor_to_bl_camera(mi_context, mi_props)
+    if result is None:
+        return None
+    bl_camera, world_matrix = result
 
     bl_obj = bpy.data.objects.new(camera_name, bl_camera)
     bl_obj.matrix_world = world_matrix
