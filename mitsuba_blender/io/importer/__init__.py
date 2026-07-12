@@ -4,10 +4,10 @@ import bpy
 
 from . import common
 from . import materials
+from ...convert.importer import lights
 from ...convert.importer import mesh as shapes
-from . import emitters
+from ...convert.importer import world
 from . import sensors
-from . import world
 from . import textures
 from . import renderer
 from .mi_props_utils import get_references_by_type
@@ -55,7 +55,10 @@ def convert_mi_emitter(mi_context, node_id):
         mi_context.bl_scene.world = bl_data
     else:
         em_name = mi_props.id() if mi_props.id() else f'Emitter_{node_id}'
-        bl_data, world_matrix = emitters.mi_emitter_to_bl_light(mi_context, mi_props)
+        result = lights.mi_emitter_to_bl_light(mi_context, mi_props)
+        if result is None:
+            return None
+        bl_data, world_matrix = result
         bl_obj = bpy.data.objects.new(em_name, bl_data)
         bl_obj.matrix_world = world_matrix
 
