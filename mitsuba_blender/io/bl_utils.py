@@ -1,7 +1,7 @@
 
 import bpy
 
-def init_empty_scene(bl_context, name='Scene'):
+def init_empty_scene(name='Scene'):
     ''' Create an empty Blender scene with a specific name.
 
     If a scene already exists with the same name, it will be
@@ -9,7 +9,6 @@ def init_empty_scene(bl_context, name='Scene'):
 
     Params
     ------
-    bl_context : Blender context
     name : str, optional
         Name of the newly created scene
 

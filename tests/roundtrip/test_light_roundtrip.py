@@ -68,7 +68,7 @@ def make_mi_context(mi_addon, tmp_path):
 
     def _make(state):
         return common.MitsubaSceneImportContext(
-            bpy.context, bpy.context.scene, bpy.context.collection,
+            bpy.context.scene, bpy.context.collection,
             str(tmp_path / 'scene.xml'), state, AXIS_MAT.copy())
 
     return _make

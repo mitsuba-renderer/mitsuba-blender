@@ -191,7 +191,7 @@ def convert_mi_shape(mi_context, node_id):
     mi_context.bl_collection.objects.link(bl_obj)
     return bl_obj
 
-def convert_mi_node(mi_context, node_id, extra_id=None):
+def convert_mi_node(mi_context, node_id):
     from mitsuba import ObjectType
 
     #TODO: generate convenient default object names
@@ -246,13 +246,12 @@ def parse_mitsuba_scene(filepath, merge_shapes, merge_plugins):
     mi.parser.transform_all(config, mi_state)
     return mi_state
 
-def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
+def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
                        import_render_settings=False, mi_state=None):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
 
     Params
     ------
-    bl_context: Blender context
     bl_scene: Blender scene
     bl_collection: Blender collection
     filepath: Path to the Mitsuba XML scene file
@@ -272,7 +271,7 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     start_time = time.time()
     if mi_state is None:
         mi_state = parse_mitsuba_scene(filepath, merge_shapes, merge_plugins)
-    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_state, global_mat,
+    mi_context = common.MitsubaSceneImportContext(bl_scene, bl_collection, filepath, mi_state, global_mat,
                                                   import_render_settings)
 
     # Select the Mitsuba variant used for rendering

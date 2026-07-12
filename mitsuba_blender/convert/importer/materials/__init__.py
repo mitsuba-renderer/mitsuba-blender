@@ -41,10 +41,6 @@ def texture_converter(*plugin_names):
     return decorator
 
 
-def has_converter(plugin_name):
-    return plugin_name in _material_converters
-
-
 ERROR_COLOR = (1.0, 0.0, 0.3, 1.0)
 
 

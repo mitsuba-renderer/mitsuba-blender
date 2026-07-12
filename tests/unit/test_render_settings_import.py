@@ -112,10 +112,10 @@ def test_top_level_sampler_via_ref(mi_addon, fresh_scene, tmp_path):
     </scene>''')
 
     axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
-    scene = bl_utils.init_empty_scene(bpy.context, name='sampler-ref-test')
+    scene = bl_utils.init_empty_scene(name='sampler-ref-test')
     warnings = importer.load_mitsuba_scene(
-        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
-        False, True, import_render_settings=True)
+        scene, scene.collection, str(scene_file), axis_mat, False, True,
+        import_render_settings=True)
 
     assert warnings == []
     camera = scene.camera.data.mitsuba

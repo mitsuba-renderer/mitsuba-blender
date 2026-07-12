@@ -72,7 +72,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
 
         if self.override_scene:
             # Clear the current scene
-            scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
+            scene = bl_utils.init_empty_scene(name=bpy.context.scene.name)
         else:
             # Create a new scene for Mitsuba objects; Blender uniquifies
             # the name, keeping earlier imports intact
@@ -80,7 +80,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins, self.import_render_settings, mi_state=mi_state)
+            warnings = importer.load_mitsuba_scene(scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins, self.import_render_settings, mi_state=mi_state)
         except Exception as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")

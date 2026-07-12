@@ -2,9 +2,8 @@ import os
 
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
-    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_state, axis_matrix,
+    def __init__(self, bl_scene, bl_collection, filepath, mi_state, axis_matrix,
                  import_render_settings=False):
-        self.bl_context = bl_context
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
         self.filepath = filepath

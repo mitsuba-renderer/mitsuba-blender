@@ -33,11 +33,10 @@ def test_load_scene_collects_warnings(mi_addon, fresh_scene, tmp_path):
 
     scene_file = _write_scene(tmp_path, UNKNOWN_SHAPE)
     axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
-    scene = bl_utils.init_empty_scene(bpy.context, name='warn-test')
+    scene = bl_utils.init_empty_scene(name='warn-test')
 
     warnings = importer.load_mitsuba_scene(
-        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
-        False, True)
+        scene, scene.collection, str(scene_file), axis_mat, False, True)
     assert any('frobnicator' in w for w in warnings)
 
 
@@ -94,11 +93,10 @@ def test_converter_exception_does_not_abort(mi_addon, fresh_scene, tmp_path,
             <bsdf type="diffuse"/>
         </shape>''')
     axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
-    scene = bl_utils.init_empty_scene(bpy.context, name='guard-test')
+    scene = bl_utils.init_empty_scene(name='guard-test')
 
     warnings = importer.load_mitsuba_scene(
-        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
-        False, True)
+        scene, scene.collection, str(scene_file), axis_mat, False, True)
     assert any('boom' in w for w in warnings)
 
 
@@ -129,11 +127,10 @@ def test_clean_scene_has_no_warnings(mi_addon, fresh_scene, tmp_path):
             <bsdf type="diffuse"/>
         </shape>''')
     axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
-    scene = bl_utils.init_empty_scene(bpy.context, name='clean-test')
+    scene = bl_utils.init_empty_scene(name='clean-test')
 
     warnings = importer.load_mitsuba_scene(
-        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
-        False, True)
+        scene, scene.collection, str(scene_file), axis_mat, False, True)
     assert warnings == []
 
 
