@@ -1,10 +1,5 @@
 import math
 
-if "bpy" in locals():
-    import importlib
-    if "bl_transform_utils" in locals():
-        importlib.reload(bl_transform_utils)
-
 import bpy
 from mathutils import Matrix
 

@@ -1,16 +1,3 @@
-if "bpy" in locals():
-    import importlib
-    if "export_context" in locals():
-        importlib.reload(export_context)
-    if "materials" in locals():
-        importlib.reload(materials)
-    if "geometry" in locals():
-        importlib.reload(geometry)
-    if "lights" in locals():
-        importlib.reload(lights)
-    if "camera" in locals():
-        importlib.reload(camera)
-
 import bpy
 
 from . import export_context

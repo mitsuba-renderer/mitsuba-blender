@@ -1,26 +1,5 @@
 import time
 
-if "bpy" in locals():
-    import importlib
-    if "common" in locals():
-        importlib.reload(common)
-    if "materials" in locals():
-        importlib.reload(materials)
-    if "shapes" in locals():
-        importlib.reload(shapes)
-    if "cameras" in locals():
-        importlib.reload(sensors)
-    if "emitters" in locals():
-        importlib.reload(emitters)
-    if "world" in locals():
-        importlib.reload(world)
-    if "textures" in locals():
-        importlib.reload(textures)
-    if "renderer" in locals():
-        importlib.reload(renderer)
-    if "mi_props_utils" in locals():
-        importlib.reload(mi_props_utils)
-
 import bpy
 
 from . import common

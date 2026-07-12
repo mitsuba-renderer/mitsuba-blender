@@ -1,12 +1,3 @@
-if "bpy" in locals():
-    import importlib
-    if "bl_material_utils" in locals():
-        importlib.reload(bl_shader_utils)
-    if "mi_spectra_utils" in locals():
-        importlib.reload(mi_spectra_utils)
-    if "bl_image_utils" in locals():
-        importlib.reload(bl_image_utils)
-
 import bpy
 
 from mathutils import Color

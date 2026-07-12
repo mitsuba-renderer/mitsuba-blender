@@ -1,8 +1,3 @@
-if "bpy" in locals():
-    import importlib
-    if "mi_props_utils" in locals():
-        importlib.reload(mi_props_utils)
-
 import bpy
 
 from .mi_props_utils import get_references_by_type

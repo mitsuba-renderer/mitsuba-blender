@@ -1,14 +1,5 @@
 import time
 
-if "bpy" in locals():
-    import importlib
-    if "bl_transform_utils" in locals():
-        importlib.reload(bl_transform_utils)
-    if "bl_import_ply" in locals():
-        importlib.reload(bl_import_ply)
-    if "bl_import_obj" in locals():
-        importlib.reload(bl_import_obj)
-
 import bpy
 import bmesh
 from mathutils import Matrix, Vector

@@ -1,12 +1,3 @@
-if "bpy" in locals():
-    import importlib
-    if "bl_utils" in locals():
-        importlib.reload(bl_utils)
-    if "importer" in locals():
-        importlib.reload(importer)
-    if "exporter" in locals():
-        importlib.reload(exporter)
-
 import os
 
 import bpy

@@ -1,16 +1,5 @@
 import math
 
-if "bpy" in locals():
-    import importlib
-    if "bl_material_utils" in locals():
-        importlib.reload(bl_shader_utils)
-    if "mi_spectra_utils" in locals():
-        importlib.reload(mi_spectra_utils)
-    if "mi_props_utils" in locals():
-        importlib.reload(mi_props_utils)
-    if "textures" in locals():
-        importlib.reload(textures)
-
 import bpy
 
 from . import bl_shader_utils

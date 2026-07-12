@@ -1,10 +1,5 @@
 import os
 
-if "bpy" in locals():
-    import importlib
-    if "bl_image_utils" in locals():
-        importlib.reload(bl_image_utils)
-
 import bpy
 
 from . import bl_image_utils
