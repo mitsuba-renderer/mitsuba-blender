@@ -198,7 +198,15 @@ def convert_mi_node(mi_context, node_id, extra_id=None):
     }
     # TODO: maybe delay sensor instantiation ?
     if mi_node.type in converters:
-        converters[mi_node.type](mi_context, node_id)
+        # An unsupported or broken piece of content must never abort the
+        # whole import
+        try:
+            converters[mi_node.type](mi_context, node_id)
+        except Exception as e:
+            mi_props = mi_node.props
+            mi_context.log(f'Failed to convert Mitsuba object '
+                           f'"{mi_props.id() or mi_props.plugin_name()}": '
+                           f'{e}.', 'ERROR')
 
 def convert_mi_scene(mi_context):
     from mitsuba import Properties

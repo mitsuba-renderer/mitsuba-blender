@@ -101,11 +101,13 @@ def _perspective_to_bl_camera(mi_context, mi_sensor):
 
 def _thinlens_to_bl_camera(mi_context, mi_sensor):
     bl_camera, world_matrix = _perspective_to_bl_camera(mi_context, mi_sensor)
-    bl_camera.dof.use_dof = True
     bl_camera.dof.focus_distance = mi_sensor.get('focus_distance', 0.0)
     aperture_radius = mi_sensor.get('aperture_radius', 0.1)
-    bl_camera.dof.aperture_fstop = aperture_radius_to_fstop(
-        aperture_radius, bl_camera.lens)
+    # A zero aperture radius is a pinhole camera
+    if aperture_radius > 0.0:
+        bl_camera.dof.use_dof = True
+        bl_camera.dof.aperture_fstop = aperture_radius_to_fstop(
+            aperture_radius, bl_camera.lens)
     return bl_camera, world_matrix
 
 

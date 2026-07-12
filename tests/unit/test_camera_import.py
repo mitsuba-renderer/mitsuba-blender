@@ -100,6 +100,20 @@ def test_thinlens(mi_addon, fresh_scene, tmp_path):
                                                            rel=1e-5)
 
 
+def test_thinlens_zero_aperture(mi_addon, fresh_scene, tmp_path):
+    # A zero aperture radius is a pinhole; it used to abort the whole
+    # import with a ZeroDivisionError in the f-stop conversion
+    camera = _import_sensor_xml(tmp_path, f'''
+        <sensor type="thinlens">
+            <float name="fov" value="40.0"/>
+            <float name="aperture_radius" value="0.0"/>
+            {FILM}
+        </sensor>''')
+
+    assert camera is not None
+    assert not camera.data.dof.use_dof
+
+
 def test_orthographic(mi_addon, fresh_scene, tmp_path):
     camera = _import_sensor_xml(tmp_path, f'''
         <sensor type="orthographic">

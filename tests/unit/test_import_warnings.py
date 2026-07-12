@@ -76,6 +76,32 @@ def test_unknown_film_does_not_abort(mi_addon, fresh_scene, tmp_path):
     assert bpy.context.scene.camera is not None
 
 
+def test_converter_exception_does_not_abort(mi_addon, fresh_scene, tmp_path,
+                                            monkeypatch):
+    # Shape and sensor converters run under the same never-crash contract
+    # as materials: an exception must degrade to a warning
+    import sys
+    importer = sys.modules[mi_addon].io.importer
+    from bl_ext.user_default.mitsuba_blender.io import bl_utils
+    from bpy_extras.io_utils import axis_conversion
+
+    def boom(mi_context, node_id):
+        raise RuntimeError('boom')
+    monkeypatch.setattr(importer, 'convert_mi_shape', boom)
+
+    scene_file = _write_scene(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="diffuse"/>
+        </shape>''')
+    axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
+    scene = bl_utils.init_empty_scene(bpy.context, name='guard-test')
+
+    warnings = importer.load_mitsuba_scene(
+        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
+        False, True)
+    assert any('boom' in w for w in warnings)
+
+
 def test_failed_parse_preserves_scene(mi_addon, fresh_scene, tmp_path):
     # A malformed XML file must not destroy the user's scene: the file is
     # parsed before any destructive scene change happens.
