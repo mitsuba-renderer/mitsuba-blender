@@ -44,9 +44,11 @@ _SAVE_FORMATS = {
 _DATA_COLORSPACES = {'Non-Color', 'Raw', 'Linear', 'Linear Rec.709'}
 
 
-def image_to_bitmap(image):
-    '''Convert a Blender image into an in-memory mi.Bitmap holding the same
-    linear pixel values that Cycles sees.'''
+def image_to_bitmap(export_ctx, image):
+    '''Convert a Blender image into an in-memory mi.Bitmap. Byte buffers in
+    a color space keep their sRGB encoding, which is recorded on the bitmap
+    so that Mitsuba linearizes the values like Cycles does; float buffers
+    and data color spaces are scene-linear already.'''
     import mitsuba as mi
     import numpy as np
 
@@ -57,7 +59,15 @@ def image_to_bitmap(image):
     image.pixels.foreach_get(pixels)
     pixels = pixels.reshape(height, width, image.channels)
     # Blender stores rows bottom-up, Mitsuba expects them top-down
-    return mi.Bitmap(np.ascontiguousarray(pixels[::-1]))
+    bitmap = mi.Bitmap(np.ascontiguousarray(pixels[::-1]))
+    colorspace = image.colorspace_settings.name
+    if not image.is_float and colorspace not in _DATA_COLORSPACES:
+        if colorspace != 'sRGB':
+            export_ctx.log(f'Color space "{colorspace}" of image '
+                           f'"{image.name}" is not supported; treating the '
+                           'pixel data as sRGB.', 'WARN')
+        bitmap.set_srgb_gamma(True)
+    return bitmap
 
 
 def _unique_name(cache, name):
@@ -94,6 +104,7 @@ def export_image(export_ctx, image):
         if os.path.abspath(source) != os.path.abspath(target):
             shutil.copy2(source, target)
     else:
+        import numpy as np
         file_format = image.file_format
         if file_format not in _SAVE_FORMATS:
             file_format = 'OPEN_EXR' if image.is_float else 'PNG'
@@ -103,6 +114,11 @@ def export_image(export_ctx, image):
         name = _unique_name(cache, f'{base}{ext}')
         copy = image.copy()
         try:
+            # Copying does not reliably duplicate the pixel buffer of
+            # generated or edited images, so transfer it explicitly
+            pixels = np.empty(len(image.pixels), dtype=np.float32)
+            image.pixels.foreach_get(pixels)
+            copy.pixels.foreach_set(pixels)
             copy.filepath_raw = os.path.join(folder, name)
             copy.file_format = file_format
             copy.save()
@@ -224,9 +240,9 @@ def convert_image_texture(export_ctx, node, out_socket):
     params = {'type': 'bitmap'}
     colorspace = image.colorspace_settings.name
     if export_ctx.render:
-        params['bitmap'] = image_to_bitmap(image)
-        # Blender pixel buffers are already converted to linear values
-        params['raw'] = True
+        bitmap = image_to_bitmap(export_ctx, image)
+        params['bitmap'] = bitmap
+        params['raw'] = not bitmap.srgb_gamma()
     else:
         params['filename'] = export_image(export_ctx, image)
         if colorspace in _DATA_COLORSPACES:
@@ -342,6 +358,8 @@ def _wrap_normalmap(export_ctx, node, bsdf):
                        'use a Non-Color space; interpreting it as raw '
                        'data.', 'WARN')
         texture['raw'] = True
+        if 'bitmap' in texture:
+            texture['bitmap'].set_srgb_gamma(False)
     return {
         'type': 'normalmap',
         'normalmap': texture,
@@ -410,7 +428,8 @@ def convert_environment_texture(export_ctx, node):
                               f'texture node "{node.name}" is not supported')
     params = {'type': 'envmap'}
     if export_ctx.render:
-        params['bitmap'] = image_to_bitmap(image)
+        # The envmap plugin linearizes according to the bitmap's gamma flag
+        params['bitmap'] = image_to_bitmap(export_ctx, image)
     else:
         params['filename'] = export_image(export_ctx, image)
         colorspace = image.colorspace_settings.name

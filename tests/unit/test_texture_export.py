@@ -67,9 +67,10 @@ def export_ctx(mi_addon, tmp_path):
 
 def make_image(name='Tex', size=2, colorspace='sRGB'):
     image = bpy.data.images.new(name, size, size, alpha=True)
+    # Changing the color space reloads generated images, so set it first
+    image.colorspace_settings.name = colorspace
     values = np.linspace(0.0, 1.0, size * size * 4, dtype=np.float32)
     image.pixels.foreach_set(values)
-    image.colorspace_settings.name = colorspace
     return image
 
 
@@ -177,10 +178,17 @@ def test_unsaved_image_written_without_side_effects(fresh_scene, exporter,
     converter = exporter(tmp_path)
     params = reflectance_of(converter, 'mat-Textured')
     assert params['filename'] == 'textures/Generated.png'
-    assert (tmp_path / 'textures' / 'Generated.png').exists()
     # The datablock was not redirected to the exported file
     assert image.filepath_raw == ''
     assert len(bpy.data.images) == image_count
+
+    # The written file holds the pixel buffer (byte-quantized)
+    loaded = bpy.data.images.load(str(tmp_path / 'textures/Generated.png'))
+    pixels = np.zeros(2 * 2 * 4, dtype=np.float32)
+    loaded.pixels.foreach_get(pixels)
+    original = np.zeros(2 * 2 * 4, dtype=np.float32)
+    image.pixels.foreach_get(original)
+    assert np.allclose(pixels, original, atol=1.0 / 255.0)
 
 
 def test_image_export_dedup_and_name_clash(fresh_scene, export_ctx,
@@ -215,9 +223,13 @@ def test_image_texture_render_mode(fresh_scene, export_ctx, registry,
 
     entry = registry.convert_material(export_ctx, b_mat)['bsdf']
     params = entry['bsdf']['reflectance']
-    assert params['raw'] is True
     assert isinstance(params['bitmap'], mi.Bitmap)
     assert not (tmp_path / 'textures').exists()
+
+    # A byte buffer in the sRGB color space keeps its encoding; the gamma
+    # flag makes Mitsuba linearize it like Cycles would
+    assert params['raw'] is False
+    assert params['bitmap'].srgb_gamma()
 
     data = np.array(params['bitmap'])
     pixels = np.zeros(2 * 2 * 4, dtype=np.float32)
@@ -226,6 +238,17 @@ def test_image_texture_render_mode(fresh_scene, export_ctx, registry,
     assert np.allclose(data, expected)
 
     assert mi.load_dict(entry) is not None
+
+
+def test_render_mode_data_image_is_raw(fresh_scene, export_ctx, registry):
+    export_ctx.render = True
+    b_mat, tex = make_diffuse_with_texture('ShaderNodeTexImage')
+    tex.image = make_image('Data', size=2, colorspace='Non-Color')
+
+    entry = registry.convert_material(export_ctx, b_mat)['bsdf']
+    params = entry['bsdf']['reflectance']
+    assert params['raw'] is True
+    assert not params['bitmap'].srgb_gamma()
 
 
 def test_render_export_instantiates_textured_bsdf(fresh_scene, exporter,
