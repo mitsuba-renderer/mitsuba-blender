@@ -362,7 +362,10 @@ class GeometryExporter:
                 # the same material
                 n_refs = refs_per_mat.get(slot.material.name, 0)
                 refs_per_mat[slot.material.name] = n_refs + 1
-                name = f'{name_clean}-{slot.material.name}'
+                # The part name doubles as a PLY filename, so the material
+                # name needs cleaning too
+                name = bpy.path.clean_name(
+                    f'{name_clean}-{slot.material.name}')
                 if n_refs >= 1:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)

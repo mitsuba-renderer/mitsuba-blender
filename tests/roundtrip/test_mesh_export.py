@@ -183,3 +183,20 @@ def test_empty_material_slot_uses_default_bsdf(fresh_scene, exporter,
 
     scene = converter.dict_to_scene()
     assert sorted(m.face_count() for m in scene_meshes(scene)) == [4, 8]
+
+
+def test_material_name_with_path_separator(fresh_scene, exporter, tmp_path):
+    # Part filenames embed the material name; a separator in it must not
+    # make write_ply target a nonexistent subdirectory
+    b_obj = bpy.data.objects['Cube']
+    b_obj.data.materials.append(bpy.data.materials.new('metal/rough'))
+    for face in b_obj.data.polygons[:2]:
+        face.material_index = 1
+
+    converter = exporter(tmp_path, render=False)
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+    assert len(os.listdir(tmp_path / 'meshes')) == 2
+
+    import mitsuba as mi
+    scene = mi.load_file(str(tmp_path / 'scene.xml'))
+    assert len(scene_meshes(scene)) == 2
