@@ -72,7 +72,8 @@ class MitsubaSceneRenderer:
         else:
             # Check which split contains moments - it may not be the first one after root
             m2_index = 1 if split[1][0].startswith('m2_') else 2
-            img = np.array(split[m2_index][1], copy=False)
+            mean_index = 2 if m2_index == 1 else 1
+            img = np.array(split[mean_index][1], copy=False)
             img_m2 = np.array(split[m2_index][1], copy=False)
             return img, img_m2 - img * img
 
