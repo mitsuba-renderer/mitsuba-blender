@@ -111,6 +111,11 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
 
         self._write_render_result(sensor.film())
 
+        warnings = self.converter.export_ctx.warnings
+        if warnings:
+            self.error_set(f'{len(warnings)} warning(s) during the scene '
+                           'export (see the console)')
+
     def _write_render_result(self, film):
         '''Split the film into its image and AOV components and write them
         to the render result. Pixel values are passed through unchanged:

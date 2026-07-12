@@ -145,7 +145,11 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
         window_manager.progress_end()
 
-        self.report({'INFO'}, "Scene exported successfully!")
+        warnings = self.converter.export_ctx.warnings
+        if warnings:
+            self.report({'WARNING'}, f"Scene exported with {len(warnings)} warnings (see console).")
+        else:
+            self.report({'INFO'}, "Scene exported successfully!")
 
         # Reset the exporter
         self.reset()

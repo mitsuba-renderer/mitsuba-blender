@@ -53,6 +53,7 @@ class ExportContext:
 
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
+        self.warnings = [] # Messages of WARN or ERROR level, for reporting after the export
         self.counter = 0 # Counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
         self.export_ids = False # Export Object IDs in the XML file
@@ -119,7 +120,9 @@ class ExportContext:
 
     def log(self, message, level='INFO'):
         '''
-        Log something using mitsuba's logging API
+        Log something using mitsuba's logging API. Messages of WARN or
+        ERROR level are also collected in self.warnings so they can be
+        reported once the export has finished.
 
         Params
         ------
@@ -128,6 +131,8 @@ class ExportContext:
         level: Level of logging
         '''
         from mitsuba import Log, LogLevel
+        if level in ('WARN', 'ERROR'):
+            self.warnings.append(message)
         log_level = {
             'DEBUG': LogLevel.Debug,
             'INFO': LogLevel.Info,
