@@ -52,9 +52,11 @@ def mi_addon():
             pytest.fail('Addon failed to initialize Mitsuba: '
                         f'{prefs.mitsuba_dependencies_status_message}')
         yield ADDON_NAME
-        bpy.ops.preferences.addon_disable(module=ADDON_NAME)
+        if ADDON_NAME in bpy.context.preferences.addons:
+            bpy.ops.preferences.addon_disable(module=ADDON_NAME)
     finally:
-        os.remove(link)
+        if os.path.lexists(link):
+            os.remove(link)
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ class SetupPlugin:
         self.custom_mitsuba_path = custom_mitsuba_path
 
     def pytest_configure(self, config):
-        if os.path.exists(self.bl_mi_addon_dir):
+        if os.path.lexists(self.bl_mi_addon_dir):
             os.remove(self.bl_mi_addon_dir)
 
         # Create a symlink from the addon to the Blender script folder
@@ -37,9 +37,12 @@ class SetupPlugin:
             raise RuntimeError(f'Failed to initialize Mitsuba library: {status}')
 
     def pytest_unconfigure(self):
-        bpy.ops.preferences.addon_disable(module='mitsuba_blender')
-        # Remove the symlink
-        os.remove(self.bl_mi_addon_dir)
+        # The session fixture in tests/conftest.py may already have disabled
+        # the addon and removed the symlink.
+        if 'mitsuba_blender' in bpy.context.preferences.addons:
+            bpy.ops.preferences.addon_disable(module='mitsuba_blender')
+        if os.path.lexists(self.bl_mi_addon_dir):
+            os.remove(self.bl_mi_addon_dir)
 
     def pytest_runtest_setup(self, item):
         bpy.ops.wm.read_homefile(use_empty=True)
