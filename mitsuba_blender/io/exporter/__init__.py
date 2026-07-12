@@ -11,7 +11,6 @@ class SceneConverter:
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
         self.export_ctx.render = render
-        self.render = render
 
     def scene_to_dict(self, depsgraph, window_manager=None, use_selection=False, ignore_background=True):
         """
@@ -65,7 +64,8 @@ class SceneConverter:
                 geometry.count_instance(object_instance)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
-                if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
+                render = self.export_ctx.render
+                if not render or evaluated_obj.name_full == b_scene.camera.name_full:
                     camera.export_camera(self.export_ctx, object_instance, b_scene)
             elif object_type == 'LIGHT':
                 lights.export_light(self.export_ctx, object_instance)

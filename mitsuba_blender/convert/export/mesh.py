@@ -396,12 +396,12 @@ class GeometryExporter:
             return mi_mesh
         # Save as binary PLY, referenced by a relative path
         mesh_folder = os.path.join(export_ctx.directory,
-                                   export_ctx.subfolders['shape'])
+                                   export_ctx.MESHES_FOLDER)
         os.makedirs(mesh_folder, exist_ok=True)
         mi_mesh.write_ply(os.path.join(mesh_folder, f'{name}.ply'))
         entry = {
             'type': 'ply',
-            'filename': f"{export_ctx.subfolders['shape']}/{name}.ply",
+            'filename': f'{export_ctx.MESHES_FOLDER}/{name}.ply',
             'bsdf': export_ctx.create_ref(bsdf_id)
         }
         if emitter is not None:

@@ -92,7 +92,7 @@ def export_image(export_ctx, image):
         return cache[key]
 
     folder = os.path.join(export_ctx.directory,
-                          export_ctx.subfolders['texture'])
+                          export_ctx.TEXTURES_FOLDER)
     os.makedirs(folder, exist_ok=True)
 
     source = ''
@@ -126,7 +126,7 @@ def export_image(export_ctx, image):
         finally:
             bpy.data.images.remove(copy)
 
-    path = f"{export_ctx.subfolders['texture']}/{name}"
+    path = f'{export_ctx.TEXTURES_FOLDER}/{name}'
     cache[key] = path
     return path
 

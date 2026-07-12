@@ -7,6 +7,10 @@ class ExportContext:
     Export Context
     '''
 
+    # Subfolders of the export directory receiving meshes and textures
+    MESHES_FOLDER = 'meshes'
+    TEXTURES_FOLDER = 'textures'
+
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
         self.warnings = [] # Messages of WARN or ERROR level, for reporting after the export
@@ -22,12 +26,6 @@ class ExportContext:
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
         self.deg = None # Dependency graph
-        self.subfolders = {
-            'texture': 'textures',
-            'emitter': 'textures',
-            'shape': 'meshes',
-            'spectrum': 'spectra'
-        }
 
     def sanitize(self, name):
         '''
@@ -54,10 +52,11 @@ class ExportContext:
         Otherwise the Id of the element is used if it exists
         or a new key is generated incrementally.
         '''
-        if mts_dict is None:
-            return False
-        if isinstance(mts_dict, dict) and (len(mts_dict) == 0 or 'type' not in mts_dict):
-            return False
+        if mts_dict is None or (isinstance(mts_dict, dict)
+                                and 'type' not in mts_dict):
+            self.log('Skipping scene dict entry "%s" without a plugin '
+                     'type: %r' % (name, mts_dict), 'WARN')
+            return
 
         if not name:
             if isinstance(mts_dict, dict) and 'id' in mts_dict:
@@ -70,8 +69,6 @@ class ExportContext:
         # Sanitize name
         self.scene_data.update([(self.sanitize(name), mts_dict)])
         self.counter += 1
-
-        return True
 
     def data_get(self, name):
         return self.scene_data.get(self.sanitize(name))
