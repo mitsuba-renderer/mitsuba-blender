@@ -4,7 +4,7 @@ import bpy
 
 from . import common
 from . import materials
-from . import shapes
+from ...convert.importer import mesh as shapes
 from . import emitters
 from . import sensors
 from . import world
