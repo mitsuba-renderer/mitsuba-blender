@@ -123,50 +123,19 @@ class ExportContext:
             raise ValueError("Invalid logging level '%s'!" % level)
         Log(log_level[level], message)
 
-    def spectrum(self, value, mode='rgb'):
+    def spectrum(self, value):
         '''
-        Given a spectrum value, format it for the scene dict.
-
-        Params
-        ------
-
-        value: value of the spectrum: can be a list, a rgb triplet, a single number or a filename
-        mode: rgb or spectrum, defaults to rgb
+        Format a float or RGB(A) value as an rgb spectrum for the scene
+        dict. An alpha component is dropped.
         '''
-        spec = {}
-
         if isinstance(value, (float, int)):
-            spec = {'value': value, 'type': mode}
-
-        elif isinstance(value, (str)):
-            spec = {'filename': value, 'type': 'spectrum'}
-
-        else:
-            value = list(value)
-            if any(not isinstance(x, (float, int, tuple)) for x in value):
-                raise ValueError("Unknown spectrum entry: %s" % value)
-            if any(type(value[i]) != type(value[i+1]) for i in range(len(value)-1)):
-                raise ValueError("Mixed types in spectrum entry %s" % value)
-            totitems = len(value)
-            if isinstance(value[0], (float, int)):
-                if totitems == 3 or totitems == 4:
-                    spec = {
-                        'type': 'rgb',
-                        'value': value[:3]
-                        }
-                elif totitems == 1:
-                    spec = {'value': value[0], 'type': mode}
-                else:
-                    raise ValueError('Expected spectrum items to be 1,3 or 4 got %d: %s' % (len(value), value))
-
-            else:
-                #wavelength list
-                spec = {'value': value, 'type': 'spectrum'}
-
-        if not spec:
-            spec = {'value': 0.0, 'type': 'spectrum'}
-
-        return spec
+            return {'type': 'rgb', 'value': float(value)}
+        value = list(value)
+        if len(value) in (3, 4) and \
+                all(isinstance(x, (float, int)) for x in value):
+            return {'type': 'rgb', 'value': value[:3]}
+        raise ValueError('Expected a float or a 3/4-component sequence, '
+                         'got: %s' % (value,))
 
     def transform_matrix(self, matrix):
         '''
