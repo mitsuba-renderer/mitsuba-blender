@@ -13,8 +13,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Directories that hold tests written for this harness. The remaining files
-# under tests/ are legacy tests that require the old scripts/run_tests.py.
 DEFAULT_TEST_DIRS = ('tests/unit', 'tests/roundtrip', 'tests/golden')
 
 

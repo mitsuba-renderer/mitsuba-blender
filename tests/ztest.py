@@ -1,64 +1,20 @@
-import pytest
-import numpy as np
+"""Statistical z-test comparison of two rendered Mitsuba scenes.
+
+The scenes must wrap their integrator in a `moment` integrator so that a
+variance estimate is available for the test statistic.
+"""
 
 import os
 
-################################
-##  ResourceResolver fixture  ##
-################################
+import numpy as np
 
-class ResourceResolver:
-    def __init__(self):
-        self.root = os.path.join(os.getcwd(), 'tests/res')
-
-    def get_absolute_resource_path(self, relative_path):
-        return os.path.join(self.root, relative_path)
-
-    def ensure_resource_dir(self, relative_dir):
-        absolute_dir = self.get_absolute_resource_path(relative_dir)
-        os.makedirs(absolute_dir, exist_ok=True)
-        return absolute_dir
-
-@pytest.fixture
-def resource_resolver():
-    return ResourceResolver()
-
-##################################
-##  MitsubaSceneParser fixture  ##
-##################################
-
-class MitsubaSceneParser:
-    def __init__(self):
-        self.props = None
-
-    def load_xml(self, scene_file):
-        import mitsuba as mi
-
-        config = mi.parser.ParserConfig(mi.variant())
-        mi_state = mi.parser.parse_file(config, scene_file)
-        mi.parser.transform_all(config, mi_state)
-        self.state = mi_state
-
-    def get_props_by_name(self, plugin_name):
-        for node in self.state.nodes:
-            if node.props.plugin_name() == plugin_name:
-                return node.props
-        return None
-
-@pytest.fixture
-def mitsuba_scene_parser():
-    return MitsubaSceneParser()
-
-####################################
-##  MitsubaSceneRenderer fixture  ##
-####################################
 
 class MitsubaSceneRenderer:
 
     def _bitmap_extract(self, bmp, require_variance=True):
+        """Extract mean and variance images from moment integrator AOVs."""
         from mitsuba import Bitmap, Struct
-        """Extract different channels from moment integrator AOVs"""
-        # AVOs from the moment integrator are in XYZ (float32)
+        # AOVs from the moment integrator are in XYZ (float32)
         split = bmp.split()
         if len(split) == 1:
             if require_variance:
@@ -88,22 +44,15 @@ class MitsubaSceneRenderer:
 
         return img, var_img
 
-@pytest.fixture
-def mitsuba_scene_renderer():
-    return MitsubaSceneRenderer()
-
-###################################
-##  MitsubaRenderTester fixture  ##
-###################################
 
 class MitsubaRenderTester:
     def __init__(self, mitsuba_scene_renderer):
         self.scene_renderer = mitsuba_scene_renderer
 
     def z_test(self, mean, sample_count, reference, reference_var):
+        """Implementation of the Z-test statistical test"""
         import drjit as dr
         from drjit.scalar import ArrayXf as Float
-        """Implementation of the Z-test statistical test"""
         # Sanitize the variance images
         reference_var = np.maximum(reference_var, 1e-4)
 
@@ -148,13 +97,9 @@ class MitsubaRenderTester:
         err_bmp = 0.02 * np.array(img_bmp)
         err_bmp[~success] = 1.0
         err_bmp = Bitmap(err_bmp)
-        
+
         ref_img_bmp.write(os.path.join(output_dir, 'ref.exr'))
         img_bmp.write(os.path.join(output_dir, 'out.exr'))
         err_bmp.write(os.path.join(output_dir, 'err.exr'))
 
         return np.count_nonzero(success) / 3 >= 0.9975 * pixel_count
-
-@pytest.fixture
-def mitsuba_scene_ztest(mitsuba_scene_renderer):
-    return MitsubaRenderTester(mitsuba_scene_renderer)

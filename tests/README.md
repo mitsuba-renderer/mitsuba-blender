@@ -62,7 +62,6 @@ CI runs the full set (`--all`).
   - `fresh_scene`: resets Blender to the factory startup scene.
   - `render_dict`: renders a Mitsuba scene dict, returns a numpy array.
   - `compare_images`: mean/RMSE image comparison with tolerances.
+- `ztest.py`: statistical z-test comparison of two rendered scenes, used by
+  the full-scene round-trip test.
 - `unit/`, `roundtrip/`, `golden/`: test directories discovered by default.
-
-The remaining `test_*.py` files directly under `tests/` are legacy tests that
-require the old `scripts/run_tests.py` runner; the new harness ignores them.

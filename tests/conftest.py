@@ -11,17 +11,6 @@ ADDON_ID = 'mitsuba_blender'
 ADDON_MODULE = f'bl_ext.user_default.{ADDON_ID}'
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
-# Legacy tests predate this harness and need scripts/run_tests.py; hide them
-# from the new runner (tests/_bootstrap.py sets this variable).
-if os.environ.get('MI_BLENDER_TEST_HARNESS'):
-    collect_ignore = [
-        'test_addon.py',
-        'test_compare.py',
-        'test_importer.py',
-        'test_mitsuba.py',
-    ]
-
-
 def pytest_addoption(parser):
     parser.addoption(
         '--update-refs', action='store_true', default=False,

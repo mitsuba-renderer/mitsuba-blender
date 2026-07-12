@@ -11,9 +11,6 @@ from pathlib import Path
 # Must be set before mitsuba is first imported anywhere in the process.
 os.environ.setdefault('DRJIT_NO_RTLD_DEEPBIND', '1')
 
-# Tells tests/conftest.py that the new harness is running.
-os.environ['MI_BLENDER_TEST_HARNESS'] = '1'
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 

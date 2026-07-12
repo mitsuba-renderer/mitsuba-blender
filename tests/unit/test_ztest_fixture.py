@@ -1,4 +1,4 @@
-"""Regression test for the legacy z-test fixture in tests/fixtures.
+"""Regression test for the z-test helper in tests/ztest.py.
 
 The mean image and the second moment must come from their respective splits
 of the moment integrator output. A constant emitter of radiance 0.5 has mean
@@ -7,7 +7,7 @@ of the moment integrator output. A constant emitter of radiance 0.5 has mean
 
 import numpy as np
 
-from fixtures import MitsubaSceneRenderer
+from ztest import MitsubaSceneRenderer
 
 
 def test_bitmap_extract_moment_splits():

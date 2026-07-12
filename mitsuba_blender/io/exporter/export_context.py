@@ -1,11 +1,7 @@
 from collections import OrderedDict
 import os
-from shutil import copy2
-from numpy import pi
 
 from mathutils import Matrix
-
-import bpy
 
 texture_exts = {
     'BMP': '.bmp',
@@ -49,14 +45,6 @@ class ExportedMaterialsCache:
         Determine if the given material is in the cache or not
         """
         return mat_id in self.mats.keys()
-
-class Files:
-    MAIN = 0
-    MATS = 1
-    GEOM = 2
-    EMIT = 3
-    CAMS = 4
-    #TODO: Volumes
 
 class ExportContext:
     '''
