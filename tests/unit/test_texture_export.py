@@ -520,3 +520,26 @@ def test_environment_texture_render(fresh_scene, export_ctx, textures):
     assert params['type'] == 'envmap'
     assert isinstance(params['bitmap'], mi.Bitmap)
     assert mi.load_dict(params) is not None
+
+
+def test_vertex_color_name_matches_mesh_attribute(fresh_scene, exporter,
+                                                  tmp_path):
+    # Attribute names with non-identifier characters are sanitized by the
+    # mesh exporter; the mesh_attribute reference must match
+    b_mesh = bpy.data.objects['Cube'].data
+    attr = b_mesh.color_attributes.new('My Color', 'FLOAT_COLOR', 'POINT')
+    color = np.tile([0.25, 0.5, 0.75, 1.0], len(b_mesh.vertices))
+    attr.data.foreach_set('color', color)
+
+    b_mat, tex = make_diffuse_with_texture('ShaderNodeVertexColor')
+    tex.layer_name = 'My Color'
+    assign_material(b_mat)
+
+    converter = exporter(tmp_path)
+    params = reflectance_of(converter, 'mat-Textured')
+    assert params['name'] == 'vertex_My_Color'
+
+    import mitsuba as mi
+    scene = converter.dict_to_scene()
+    mesh = next(s for s in scene.shapes() if isinstance(s, mi.Mesh))
+    assert params['name'] in mi.traverse(mesh).keys()

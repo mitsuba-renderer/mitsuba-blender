@@ -19,6 +19,7 @@ import bpy
 from mathutils import Euler, Matrix
 
 from ... import ConversionError
+from .. import sanitize_attribute_name
 from . import texture_converter
 from ._eval import Constant, Texture, eval_color, resolve, trace_source
 
@@ -319,7 +320,9 @@ def convert_vertex_color(export_ctx, node, out_socket):
                               'name a color attribute')
     return {
         'type': 'mesh_attribute',
-        'name': f'vertex_{node.layer_name}',
+        # The mesh exporter sanitizes attribute names the same way, so the
+        # reference matches the exported attribute
+        'name': f'vertex_{sanitize_attribute_name(node.layer_name)}',
     }
 
 

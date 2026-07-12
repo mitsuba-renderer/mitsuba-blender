@@ -8,11 +8,12 @@ referenced by filename.
 '''
 
 import os
-import re
 from contextlib import contextmanager
 
 import bpy
 import numpy as np
+
+from . import sanitize_attribute_name
 
 
 @contextmanager
@@ -87,7 +88,7 @@ class MeshData:
             values = values.reshape(-1, 4)[:, :3].astype(np.float64)
             if attr.domain == 'POINT':
                 values = values[self.loop_vert]
-            self.colors.append((re.sub(r'\W', '_', attr.name), values))
+            self.colors.append((sanitize_attribute_name(attr.name), values))
 
 
 def make_mesh(export_ctx, mesh_data, name, tri_mask, matrix_world, props=None):
