@@ -79,6 +79,11 @@ def convert_material(export_ctx, b_mat):
     'emitter': dict|None}. Never raises: failures produce a warning and a
     gray diffuse fallback.'''
     try:
+        if not b_mat.use_nodes or b_mat.node_tree is None:
+            return {'bsdf': {
+                'type': 'diffuse',
+                'reflectance': export_ctx.spectrum(b_mat.diffuse_color),
+            }, 'emitter': None}
         node = surface_node(b_mat)
         if node is None:
             raise ConversionError('no output node with a linked Surface '
@@ -88,6 +93,43 @@ def convert_material(export_ctx, b_mat):
         export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
                        'Exporting a gray diffuse fallback.', 'WARN')
         return {'bsdf': copy.deepcopy(FALLBACK_BSDF), 'emitter': None}
+
+
+def add_material_to_dict(export_ctx, mat_id, bsdf, emitter):
+    '''Store a converted BSDF/emitter pair in the scene dict, in the layout
+    the shape exporter expects: the BSDF under mat_id, mixed pairs in the
+    exported materials cache.'''
+    if emitter is None:
+        export_ctx.data_add(bsdf, mat_id)
+        return
+    if bsdf is None:
+        # An emitter-only material still needs a BSDF in Mitsuba; a shared
+        # black diffuse makes the shape "shadeless"
+        if not export_ctx.data_get('empty-emitter-bsdf'):
+            export_ctx.data_add({
+                'type': 'diffuse',
+                'reflectance': export_ctx.spectrum(0.0),
+            }, 'empty-emitter-bsdf')
+        bsdf_id = 'empty-emitter-bsdf'
+    else:
+        export_ctx.data_add(bsdf, mat_id)
+        bsdf_id = mat_id
+    export_ctx.exported_mats.add_material(
+        {'bsdf': bsdf_id, 'emitter': emitter}, mat_id)
+
+
+def export_material(export_ctx, b_mat):
+    '''Convert a Blender material and store it in the scene dict, once per
+    material name.'''
+    if b_mat is None:
+        return
+    mat_id = f'mat-{b_mat.name}'
+    if export_ctx.data_get(mat_id) is not None \
+            or export_ctx.exported_mats.has_mat(mat_id):
+        return
+    result = convert_material(export_ctx, b_mat)
+    add_material_to_dict(export_ctx, mat_id, result['bsdf'],
+                         result['emitter'])
 
 
 # Converter modules register themselves when imported

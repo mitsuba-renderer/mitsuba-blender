@@ -155,7 +155,7 @@ DEFAULT_BSDF = {
 
 def material_refs(export_ctx, b_mat):
     '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
-    from ...io.exporter.materials import export_material
+    from .materials import export_material
     mat_id = f'mat-{b_mat.name}'
     if export_ctx.data_get(mat_id) is None \
             and not export_ctx.exported_mats.has_mat(mat_id):

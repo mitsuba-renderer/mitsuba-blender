@@ -1,7 +1,6 @@
 import bpy
 
 from . import export_context
-from . import materials
 from . import camera
 from ...convert.export import lights, mesh, world
 

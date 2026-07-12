@@ -87,9 +87,8 @@ def test_diffuse_export_folds_input_graph(fresh_scene, exporter, tmp_path):
         pytest.approx([0.75, 0.0, 0.25])
 
 
-def test_principled_still_uses_old_path(fresh_scene, exporter, tmp_path):
-    # The default cube material is a Principled BSDF, which has no
-    # registered converter yet
+def test_default_principled_material(fresh_scene, exporter, tmp_path):
+    # The default cube material is a Principled BSDF
     converter = exporter(tmp_path)
     entry = converter.export_ctx.data_get('mat-Material')
     assert entry['type'] == 'twosided'
@@ -147,8 +146,8 @@ def test_has_converter(fresh_scene, registry):
     assert not registry.has_converter(no_nodes)
 
 
-def test_add_material_to_dict_layouts(mi_addon):
-    materials = sys.modules[mi_addon].io.exporter.materials
+def test_add_material_to_dict_layouts(mi_addon, registry):
+    materials = registry
     export_context = sys.modules[mi_addon].io.exporter.export_context
 
     bsdf = {'type': 'diffuse'}
