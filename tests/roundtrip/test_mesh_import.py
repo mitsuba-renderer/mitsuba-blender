@@ -161,3 +161,27 @@ def test_import_degenerate_face_with_uvs(mi_addon, fresh_scene, tmp_path):
     # Mitsuba's V axis is flipped on import
     assert np.allclose(sorted(uvs.reshape(-1, 2).tolist()),
                        [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+
+
+def test_merge_shapes_import(mi_addon, fresh_scene, tmp_path):
+    # The merge_meshes parser transform moves all top-level shapes under
+    # one merge node; the importer used to drop its references and
+    # produce a single 0-vertex placeholder
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text('''<scene version="3.0.0">
+        <bsdf type="diffuse" id="shared"/>
+        <shape type="rectangle">
+            <ref id="shared"/>
+        </shape>
+        <shape type="rectangle">
+            <transform name="to_world"><translate x="3.0"/></transform>
+            <ref id="shared"/>
+        </shape>
+    </scene>''')
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(scene_file), merge_shapes=True) == {'FINISHED'}
+
+    meshes = imported_meshes()
+    assert meshes
+    assert all(len(o.data.vertices) > 0 for o in meshes)
+    assert sum(len(o.data.vertices) for o in meshes) == 8

@@ -122,6 +122,15 @@ def convert_mi_sensor(mi_context, node_id):
 def convert_mi_shape(mi_context, node_id):
     from mitsuba import ObjectType
     mi_props = mi_context.mi_state.nodes[node_id].props
+
+    # The merge_meshes parser transform wraps the top-level shapes in a
+    # merge node; convert its children individually
+    if mi_props.plugin_name() == 'merge':
+        for child_id in get_references_by_type(mi_context, mi_props,
+                                               [ObjectType.Shape]):
+            convert_mi_node(mi_context, child_id)
+        return None
+
     shape_name = mi_props.id() if mi_props.id() else f'Shape_{node_id}'
 
     mi_emitters = get_references_by_type(mi_context, mi_props, [ObjectType.Emitter])
