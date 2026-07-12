@@ -246,6 +246,58 @@ def test_export_translucent(fresh_scene, exporter, tmp_path):
     }
 
 
+####################
+##  Normal input  ##
+####################
+
+@pytest.fixture
+def fake_image_texture(registry):
+    """Registers a stand-in TEX_IMAGE texture converter, restoring any
+    previously registered one afterwards."""
+    converters = registry._eval._texture_converters
+    previous = converters.get('TEX_IMAGE')
+
+    @registry.texture_converter('TEX_IMAGE')
+    def convert_fake_image(export_ctx, node, out_socket):
+        return {'type': 'checkerboard'}
+
+    yield {'type': 'checkerboard'}
+    if previous is None:
+        del converters['TEX_IMAGE']
+    else:
+        converters['TEX_IMAGE'] = previous
+
+
+def link_normal_map(node):
+    tree = node.id_data
+    tex = tree.nodes.new('ShaderNodeTexImage')
+    normal_map = tree.nodes.new('ShaderNodeNormalMap')
+    tree.links.new(tex.outputs['Color'], normal_map.inputs['Color'])
+    tree.links.new(normal_map.outputs['Normal'], node.inputs['Normal'])
+
+
+def test_export_glossy_normal_map(fresh_scene, exporter, tmp_path,
+                                  fake_image_texture):
+    node = make_material('ShaderNodeBsdfAnisotropic')
+    link_normal_map(node)
+
+    entry = export_entry(exporter, tmp_path)
+    assert entry['type'] == 'normalmap'
+    assert entry['normalmap'] == fake_image_texture
+    assert entry['bsdf']['type'] == 'twosided'
+
+
+def test_export_glass_normal_map(fresh_scene, exporter, tmp_path,
+                                 fake_image_texture):
+    node = make_material('ShaderNodeBsdfGlass')
+    link_normal_map(node)
+
+    entry = export_entry(exporter, tmp_path)
+    assert entry['type'] == 'normalmap'
+    assert entry['normalmap'] == fake_image_texture
+    assert entry['bsdf']['type'] == 'dielectric'
+
+
 ###################
 ##  Import side  ##
 ###################

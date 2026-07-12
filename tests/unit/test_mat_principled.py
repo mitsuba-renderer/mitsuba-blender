@@ -200,8 +200,8 @@ def test_export_normal_map(fresh_scene, exporter, tmp_path,
     assert mi.load_dict(entry) is not None
 
 
-def test_export_unsupported_normal_input_ignored(fresh_scene, exporter,
-                                                 tmp_path):
+def test_export_constant_bump_ignored(fresh_scene, exporter, tmp_path):
+    # A Bump node with a constant height perturbs nothing
     node = principled_node()
     tree = node.id_data
     bump = tree.nodes.new('ShaderNodeBump')

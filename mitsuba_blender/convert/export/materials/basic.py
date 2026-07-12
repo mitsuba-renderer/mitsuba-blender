@@ -5,6 +5,7 @@ import math
 
 from . import node_converter
 from ._eval import Constant, eval_color, eval_float, resolve
+from .textures import convert_normal_input
 
 _DISTRIBUTIONS = {
     'BECKMANN': 'beckmann',
@@ -40,13 +41,14 @@ def convert_diffuse(export_ctx, node):
     if roughness.is_linked or roughness.default_value > 0.0:
         export_ctx.log(f'Mitsuba has no rough diffuse BSDF; ignoring the '
                        f'roughness of node "{node.name}".', 'WARN')
-    return {
+    bsdf = {
         'type': 'twosided',
         'bsdf': {
             'type': 'diffuse',
             'reflectance': eval_color(export_ctx, node.inputs['Color']),
         },
     }
+    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
 
 
 @node_converter('BSDF_GLOSSY')
@@ -84,7 +86,8 @@ def convert_glossy(export_ctx, node):
             params['alpha_v'] = alpha_v
     params['specular_reflectance'] = eval_color(export_ctx,
                                                 node.inputs['Color'])
-    return {'type': 'twosided', 'bsdf': params}
+    return convert_normal_input(export_ctx, node.inputs['Normal'],
+                                {'type': 'twosided', 'bsdf': params})
 
 
 def _convert_dielectric(export_ctx, node):
@@ -101,7 +104,7 @@ def _convert_dielectric(export_ctx, node):
     params['int_ior'] = ior
     params['specular_transmittance'] = eval_color(export_ctx,
                                                   node.inputs['Color'])
-    return params
+    return convert_normal_input(export_ctx, node.inputs['Normal'], params)
 
 
 @node_converter('BSDF_GLASS')
@@ -147,8 +150,9 @@ def convert_translucent(export_ctx, node):
     # full diffuse transmission is the closest match
     export_ctx.log(f'Approximating Translucent node "{node.name}" with a '
                    'thin principled BSDF.', 'WARN')
-    return {
+    bsdf = {
         'type': 'principledthin',
         'base_color': eval_color(export_ctx, node.inputs['Color']),
         'diff_trans': 2.0,
     }
+    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)

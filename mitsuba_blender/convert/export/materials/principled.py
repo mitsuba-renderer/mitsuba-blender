@@ -2,12 +2,13 @@
 
 The core parameters map onto Mitsuba's principled BSDF. Emission becomes a
 separate area emitter dict, an Alpha below one wraps the BSDF in a mask,
-and a tangent-space Normal Map input wraps it in a normalmap adapter.
+and the Normal input wraps it in normalmap/bumpmap adapters.
 '''
 
 from . import node_converter
 from ._eval import Constant, Texture, Unsupported, eval_color, eval_float, \
-    resolve, trace_source
+    resolve
+from .textures import convert_normal_input
 
 
 def _constant_float(export_ctx, socket):
@@ -59,30 +60,6 @@ def _emitter(export_ctx, node):
     return {'type': 'area', 'radiance': export_ctx.spectrum(radiance)}
 
 
-def _normal_texture(export_ctx, node):
-    '''The Mitsuba texture feeding a tangent-space Normal Map node on the
-    Normal input, or None.'''
-    source, _ = trace_source(node.inputs['Normal'])
-    if source is None:
-        return None
-    if source.type != 'NORMAL_MAP' or source.space != 'TANGENT':
-        export_ctx.log(f'Only tangent-space Normal Map nodes are supported '
-                       f'on the Normal input of node "{node.name}"; '
-                       'ignoring it', 'WARN')
-        return None
-    strength = _constant_float(export_ctx, source.inputs['Strength'])
-    if strength != 1.0:
-        export_ctx.log(f'Mitsuba does not support the strength of Normal '
-                       f'Map node "{source.name}"; using the map at full '
-                       'strength', 'WARN')
-    result = resolve(export_ctx, source.inputs['Color'])
-    if isinstance(result, Texture):
-        return result.params
-    export_ctx.log(f'The Color input of Normal Map node "{source.name}" '
-                   'must be a texture; ignoring the normal map', 'WARN')
-    return None
-
-
 @node_converter('BSDF_PRINCIPLED')
 def convert_principled(export_ctx, node):
     params = {
@@ -115,9 +92,7 @@ def convert_principled(export_ctx, node):
         params['specular'] = max(specular, 1e-3)
         bsdf = {'type': 'twosided', 'bsdf': params}
 
-    normal = _normal_texture(export_ctx, node)
-    if normal is not None:
-        bsdf = {'type': 'normalmap', 'normalmap': normal, 'bsdf': bsdf}
+    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
 
     alpha = eval_float(export_ctx, node.inputs['Alpha'])
     if isinstance(alpha, dict) or alpha < 1.0:
