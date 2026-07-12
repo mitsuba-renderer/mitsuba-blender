@@ -56,7 +56,7 @@ def convert_mi_emitter(mi_context, node_id):
     if world.should_convert_mi_emitter_to_bl_world(mi_props):
         bl_data = world.mi_emitter_to_bl_world(mi_context, mi_props)
         if mi_context.bl_scene.world is not None:
-            mi_context.log(f'Multiple Blender worlds is not supported.', 'ERROR')
+            mi_context.log('Multiple Blender worlds are not supported.', 'ERROR')
             return None
         mi_context.bl_scene.world = bl_data
     else:

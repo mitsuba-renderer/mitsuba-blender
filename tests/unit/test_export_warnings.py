@@ -1,7 +1,5 @@
 """Export warnings are collected and reported after the export."""
 
-import sys
-
 import bpy
 
 

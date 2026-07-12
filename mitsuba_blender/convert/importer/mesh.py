@@ -11,10 +11,7 @@ import bmesh
 import numpy as np
 from mathutils import Matrix, Vector
 
-
-def _to_bl_transform(mi_transform):
-    return Matrix(mi_transform.matrix.numpy()) if mi_transform is not None \
-        else Matrix()
+from ...io.importer.bl_transform_utils import mi_transform_to_bl_transform
 
 
 def _set_bl_mesh_shading(bl_mesh, flat_shading=True, flip_normals=False):
@@ -122,7 +119,7 @@ def mi_mesh_to_bl_shape(mi_context, mi_shape):
         return None
 
     bl_mesh = _buffers_to_bl_mesh(mi_shape.id(), mi_mesh)
-    world_matrix = _to_bl_transform(mi_shape.get('to_world', None))
+    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 
@@ -136,7 +133,7 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
 
     if 'to_world' in mi_shape:
         world_matrix = mi_context.mi_space_to_bl_space(
-            _to_bl_transform(mi_shape.get('to_world', None)))
+            mi_transform_to_bl_transform(mi_shape.get('to_world', None)))
         radius = 1.0
     else:
         # NOTE: We transform only the position vector to Blender space as the mesh is already correctly oriented.
@@ -167,7 +164,7 @@ def mi_disk_to_bl_shape(mi_context, mi_shape):
     _set_bl_mesh_shading(bl_mesh,
                          flip_normals=mi_shape.get('flip_normals', False))
 
-    world_matrix = _to_bl_transform(mi_shape.get('to_world', None))
+    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 
@@ -183,7 +180,7 @@ def mi_rectangle_to_bl_shape(mi_context, mi_shape):
     _set_bl_mesh_shading(bl_mesh,
                          flip_normals=mi_shape.get('flip_normals', False))
 
-    world_matrix = _to_bl_transform(mi_shape.get('to_world', None))
+    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 
@@ -198,7 +195,7 @@ def mi_cube_to_bl_shape(mi_context, mi_shape):
     _set_bl_mesh_shading(bl_mesh,
                          flip_normals=mi_shape.get('flip_normals', False))
 
-    world_matrix = _to_bl_transform(mi_shape.get('to_world', None))
+    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
     return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
 
 

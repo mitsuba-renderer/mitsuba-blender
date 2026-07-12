@@ -9,7 +9,6 @@ import math
 import os
 
 import bpy
-from mathutils import Matrix
 
 from ..export.world import ENVMAP_COORDINATE_MAT
 from ...io.importer import mi_spectra_utils

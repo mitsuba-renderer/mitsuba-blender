@@ -7,7 +7,7 @@ import bpy
 import numpy as np
 import pytest
 from bpy_extras.io_utils import axis_conversion
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 AXIS_MAT = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
 

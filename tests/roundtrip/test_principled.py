@@ -163,8 +163,6 @@ def test_exported_scene_dict_loads(mi_addon, fresh_scene, exporter,
                                    tmp_path):
     """A full scene with a masked, transmissive and emissive Principled
     material must load in Mitsuba."""
-    import mitsuba as mi
-
     node = principled_node()
     node.inputs['Transmission Weight'].default_value = 0.5
     node.inputs['IOR'].default_value = 1.45

@@ -9,7 +9,7 @@ import math
 
 import bpy
 import pytest
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 
 def _export_scene_dict():

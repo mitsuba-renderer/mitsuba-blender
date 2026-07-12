@@ -15,7 +15,6 @@ class MitsubaSceneImportContext:
         self.axis_matrix_inv = axis_matrix.inverted()
         self.bl_material_cache = {} # Mapping of Mitsuba node IDs to Blender materials
         self.bl_texture_cache = {} # Mapping of Mitsuba node IDs to Blender textures
-        self.processed_nodes = set()
         self.warnings = [] # Messages of WARN or ERROR level, for the operator report
 
     def log(self, message, level='INFO'):
@@ -46,9 +45,6 @@ class MitsubaSceneImportContext:
         if level not in log_level:
             raise ValueError("Invalid logging level '%s'!" % level)
         Log(log_level[level], message)
-
-    def bl_space_to_mi_space(self, matrix):
-        return self.axis_matrix @ matrix
 
     def mi_space_to_bl_space(self, matrix):
         return self.axis_matrix_inv @ matrix

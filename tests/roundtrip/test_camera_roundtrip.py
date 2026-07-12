@@ -1,7 +1,5 @@
 """Numeric round trips of camera parameters through export and import."""
 
-import math
-
 import bpy
 import pytest
 from mathutils import Euler, Matrix

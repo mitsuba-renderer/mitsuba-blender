@@ -1,7 +1,6 @@
 """Round-trip and import tests for world/environment emitters."""
 
 import importlib
-import math
 
 import bpy
 import numpy as np

@@ -57,7 +57,6 @@ class ExportContext:
         self.counter = 0 # Counter to create unique IDs.
         self.exported_mats = ExportedMaterialsCache()
         self.export_ids = False # Export Object IDs in the XML file
-        self.exported_ids = set()
         self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
         self.bsdf_objects = {} # Instantiated BSDFs, by material id (render mode)
         # All the args defined below are set in the Converter
