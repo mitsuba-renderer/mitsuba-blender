@@ -1,5 +1,3 @@
-import os
-
 if "bpy" in locals():
     import importlib
     if "export_context" in locals():
@@ -114,11 +112,19 @@ class SceneConverter:
         state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
         # Reorder the plugins so they are written in a legible order
         mi.parser.transform_reorder(config, state)
-        # Place files in convenient subfolders (e.g. textures, meshes, etc.)
-        output_dir = os.path.dirname(filename)
-        mi.parser.transform_relocate(config, state, output_dir)
+        # The exporter already placed meshes and textures in subfolders of the
+        # output directory, matching the relative references in the dict.
         mi.parser.write_file(state, filename, True)
 
     def dict_to_scene(self):
-        from mitsuba import load_dict
-        return load_dict(self.export_ctx.scene_data)
+        import mitsuba as mi
+        # Resolve relative file references against the export directory
+        fr = mi.file_resolver()
+        paths = list(fr)
+        fr.prepend(self.export_ctx.directory)
+        try:
+            return mi.load_dict(self.export_ctx.scene_data)
+        finally:
+            fr.clear()
+            for path in paths:
+                fr.append(path)

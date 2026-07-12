@@ -1,3 +1,5 @@
+import tempfile
+
 import bpy
 import numpy as np
 from ..io.exporter import SceneConverter
@@ -23,8 +25,12 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         self.size_x = int(b_scene.render.resolution_x * scale)
         self.size_y = int(b_scene.render.resolution_y * scale)
 
-        self.converter.scene_to_dict(depsgraph)
-        mts_scene = self.converter.dict_to_scene()
+        # Temporary files (meshes, textures) written during the export must
+        # survive until the scene has been loaded.
+        with tempfile.TemporaryDirectory() as export_dir:
+            self.converter.export_ctx.directory = export_dir
+            self.converter.scene_to_dict(depsgraph)
+            mts_scene = self.converter.dict_to_scene()
 
         sensor = mts_scene.sensors()[0]
         mts_scene.integrator().render(mts_scene, sensor)

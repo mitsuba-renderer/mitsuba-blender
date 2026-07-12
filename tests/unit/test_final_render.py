@@ -1,7 +1,5 @@
 """Final render (F12) through the MITSUBA render engine."""
 
-import os
-
 import bpy
 import numpy as np
 
@@ -16,15 +14,7 @@ def test_f12_default_cube(mi_addon, fresh_scene, tmp_path):
     scene.render.filepath = str(tmp_path / 'render.exr')
     scene.render.image_settings.file_format = 'OPEN_EXR'
 
-    # The exporter may emit files relative to the current directory; keep
-    # any such side effects inside the test sandbox.
-    old_cwd = os.getcwd()
-    os.chdir(tmp_path)
-    try:
-        result = bpy.ops.render.render(write_still=True)
-    finally:
-        os.chdir(old_cwd)
-    assert result == {'FINISHED'}
+    assert bpy.ops.render.render(write_still=True) == {'FINISHED'}
 
     import mitsuba as mi
     img = np.array(mi.Bitmap(str(tmp_path / 'render.exr')))
