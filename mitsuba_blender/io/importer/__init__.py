@@ -3,12 +3,11 @@ import time
 import bpy
 
 from . import common
-from . import materials
 from ...convert.importer import lights
+from ...convert.importer import materials
 from ...convert.importer import mesh as shapes
 from ...convert.importer import world
 from . import sensors
-from . import textures
 from . import renderer
 from .mi_props_utils import get_references_by_type
 
@@ -79,7 +78,7 @@ def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
     else:
         em_props = mi_context.mi_state.nodes[emitter_id].props
 
-    bl_material = materials.mi_material_to_bl_material(mi_context, mi_props, mi_emitter=em_props)
+    bl_material = materials.convert_material(mi_context, mi_props, mi_emitter=em_props)
     if bl_material is None:
         mi_context.log(f'Failed to convert material "{bsdf_name}".', 'ERROR')
         return None
@@ -140,7 +139,7 @@ def convert_mi_shape(mi_context, node_id):
         mi_null = Properties('null')
         mi_null.set_id(f'{shape_name}-emitter')
         em_props = mi_context.mi_state.nodes[em_id].props
-        bl_mat = materials.mi_material_to_bl_material(mi_context, mi_null, mi_emitter=em_props)
+        bl_mat = materials.convert_material(mi_context, mi_null, mi_emitter=em_props)
     else:
         mi_context.log(f'Shape "{shape_name}" does not have a material. Using default diffuse.', 'WARN')
 

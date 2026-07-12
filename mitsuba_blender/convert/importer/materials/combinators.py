@@ -2,7 +2,7 @@
 mask and null.'''
 
 from ... import ConversionError
-from . import has_converter, material_converter
+from . import material_converter
 
 
 def _child_bsdfs(builder, mi_props):
@@ -17,54 +17,19 @@ def _child_bsdfs(builder, mi_props):
     return children
 
 
-def _convert_child(builder, mi_props):
-    '''Convert a nested BSDF into nodes; returns its shader output socket.
-    Plugins that only the legacy importer understands are routed through it
-    until every BSDF converter has moved to the registry.'''
-    if not has_converter(mi_props.plugin_name()):
-        socket = _legacy_convert(builder, mi_props)
-        if socket is not None:
-            return socket
-    return builder.convert_bsdf(mi_props)
-
-
-def _legacy_convert(builder, mi_props):
-    try:
-        from ....io.importer import bl_shader_utils
-        from ....io.importer import materials as legacy
-    except ImportError:
-        return None
-    if mi_props.plugin_name() not in legacy._material_writers:
-        return None
-    # The legacy writers build into an existing input socket; a temporary
-    # reroute node provides one and is removed again afterwards
-    reroute = builder.node('NodeReroute')
-    wrapper = bl_shader_utils.NodeMaterialWrapper(builder.bl_mat,
-                                                  out_node=reroute)
-    legacy.write_mi_material_to_node_graph(builder.mi_context, mi_props,
-                                           wrapper, 'Input')
-    links = reroute.inputs[0].links
-    socket = links[0].from_socket if links else None
-    builder.tree.nodes.remove(reroute)
-    if socket is None:
-        raise ConversionError('the legacy importer produced no nodes for '
-                              f'BSDF type "{mi_props.plugin_name()}"')
-    return socket
-
-
 @material_converter('twosided')
 def convert_twosided(builder, mi_props):
     children = _child_bsdfs(builder, mi_props)
     if len(children) == 1:
         # Blender materials are two-sided by default
-        return _convert_child(builder, children[0])
+        return builder.convert_bsdf(children[0])
     if len(children) == 2:
         # Select between the front and back BSDF by face orientation
         mix = builder.node('ShaderNodeMixShader')
         geometry = builder.node('ShaderNodeNewGeometry')
         builder.link(geometry.outputs['Backfacing'], mix.inputs['Fac'])
-        builder.link(_convert_child(builder, children[0]), mix.inputs[1])
-        builder.link(_convert_child(builder, children[1]), mix.inputs[2])
+        builder.link(builder.convert_bsdf(children[0]), mix.inputs[1])
+        builder.link(builder.convert_bsdf(children[1]), mix.inputs[2])
         return mix.outputs['Shader']
     raise ConversionError(f'twosided BSDF has {len(children)} nested '
                           'BSDFs, expected 1 or 2')
@@ -79,8 +44,8 @@ def convert_blendbsdf(builder, mi_props):
     # A weight of zero selects the first BSDF, matching the Fac semantics
     mix = builder.node('ShaderNodeMixShader')
     builder.set_float(mix.inputs['Fac'], mi_props, 'weight', default=0.5)
-    builder.link(_convert_child(builder, children[0]), mix.inputs[1])
-    builder.link(_convert_child(builder, children[1]), mix.inputs[2])
+    builder.link(builder.convert_bsdf(children[0]), mix.inputs[1])
+    builder.link(builder.convert_bsdf(children[1]), mix.inputs[2])
     return mix.outputs['Shader']
 
 
@@ -123,7 +88,7 @@ def convert_mask(builder, mi_props):
     builder.set_float(mix.inputs['Fac'], mi_props, 'opacity', default=0.5)
     transparent = builder.node('ShaderNodeBsdfTransparent')
     builder.link(transparent.outputs['BSDF'], mix.inputs[1])
-    builder.link(_convert_child(builder, children[0]), mix.inputs[2])
+    builder.link(builder.convert_bsdf(children[0]), mix.inputs[2])
     return mix.outputs['Shader']
 
 
