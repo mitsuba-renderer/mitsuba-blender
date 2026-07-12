@@ -22,17 +22,17 @@ import subprocess
 
 from . import io, engine
 
-DEPS_MITSUBA_VERSION = "3.7.1"
+DEPS_MITSUBA_VERSION = "3.9.0"
 
 
 def get_addon_preferences(context):
     return context.preferences.addons[__name__].preferences
 
-def init_mitsuba(context):
+def init_mitsuba(context, reload=False):
     # Make sure we can load mitsuba from blender
     try:
         os.environ['DRJIT_NO_RTLD_DEEPBIND'] = 'True'
-        should_reload_mitsuba = 'mitsuba' in sys.modules
+        should_reload_mitsuba = reload and 'mitsuba' in sys.modules
         import mitsuba
         # If mitsuba was already loaded and we change the path, we need to reload it, since the import above will be ignored
         if should_reload_mitsuba:
@@ -50,7 +50,7 @@ def try_register_mitsuba(context):
     could_init_mitsuba = False
     if prefs.using_mitsuba_custom_path:
         update_additional_custom_paths(prefs, context)
-        could_init_mitsuba = init_mitsuba(context)
+        could_init_mitsuba = init_mitsuba(context, reload=True)
         if could_init_mitsuba:
             import mitsuba
             prefs.mitsuba_custom_version = mitsuba.__version__
