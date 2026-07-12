@@ -13,6 +13,13 @@ os.environ.setdefault('DRJIT_NO_RTLD_DEEPBIND', '1')
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Optional override: run the suite against a local Mitsuba build (a directory
+# containing the mitsuba and drjit packages, e.g. <build>/python) instead of
+# the wheel installed in Blender's Python.
+_mitsuba_python = os.environ.get('MITSUBA_PYTHON')
+if _mitsuba_python:
+    sys.path.insert(0, _mitsuba_python)
+
 
 def main():
     argv = sys.argv

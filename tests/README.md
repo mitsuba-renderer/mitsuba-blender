@@ -18,6 +18,14 @@ that launches Blender, runs pytest in it, and propagates the result.
   /path/to/blender-4.2.22-linux-x64/4.2/python/bin/python3.11 -m pip install mitsuba==3.9.0 pytest
   ```
 
+- To run the suite against a local Mitsuba build instead of the wheel, point
+  `MITSUBA_PYTHON` at a directory containing the `mitsuba` and `drjit`
+  packages (compiled for Blender's Python version):
+
+  ```sh
+  export MITSUBA_PYTHON=/path/to/mitsuba3/build/python
+  ```
+
 ## Running
 
 ```sh
