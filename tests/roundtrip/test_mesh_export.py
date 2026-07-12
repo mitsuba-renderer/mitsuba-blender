@@ -164,3 +164,22 @@ def test_faceless_mesh_does_not_abort_export(fresh_scene, exporter, tmp_path):
     # Only the default cube survives; the faceless mesh is skipped
     assert len(scene_meshes(scene)) == 1
     assert any('no faces' in w for w in converter.export_ctx.warnings)
+
+
+def test_empty_material_slot_uses_default_bsdf(fresh_scene, exporter,
+                                               tmp_path):
+    b_obj = bpy.data.objects['Cube']
+    b_obj.data.materials.clear()
+    b_obj.data.materials.append(None)
+    b_obj.data.materials.append(bpy.data.materials.new('Second'))
+    for face in b_obj.data.polygons[:2]:
+        face.material_index = 1
+
+    converter = exporter(tmp_path, render=False)
+    plys = [v for v in converter.export_ctx.scene_data.values()
+            if isinstance(v, dict) and v.get('type') == 'ply']
+    assert len(plys) == 2
+    assert {p['bsdf']['id'] for p in plys} == {'default-bsdf', 'mat-Second'}
+
+    scene = converter.dict_to_scene()
+    assert sorted(m.face_count() for m in scene_meshes(scene)) == [4, 8]
