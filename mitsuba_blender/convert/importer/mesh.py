@@ -153,43 +153,25 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     return bl_mesh, world_matrix
 
 
-def mi_disk_to_bl_shape(mi_context, mi_shape):
+# Analytic shapes that differ only in the bmesh primitive they create.
+# The operators are looked up by name at call time: BMeshOpFunc objects
+# must not outlive the bmesh.ops attribute access that created them.
+_analytic_ops = {
+    'disk': ('create_circle',
+             dict(cap_ends=True, cap_tris=True, segments=32, radius=1.0)),
+    'rectangle': ('create_grid',
+                  dict(x_segments=1, y_segments=1, size=1.0)),
+    'cube': ('create_cube', dict(size=2.0)),
+}
+
+
+def _analytic_to_bl_shape(mi_context, mi_shape):
+    op_name, kwargs = _analytic_ops[mi_shape.plugin_name()]
+    op = getattr(bmesh.ops, op_name)
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
-    bmesh.ops.create_circle(bl_bmesh, cap_ends=True, cap_tris=True,
-                            segments=32, radius=1.0, calc_uvs=True)
-    bl_bmesh.to_mesh(bl_mesh)
-    bl_bmesh.free()
-
-    _set_bl_mesh_shading(bl_mesh,
-                         flip_normals=mi_shape.get('flip_normals', False))
-
-    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
-    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
-
-
-def mi_rectangle_to_bl_shape(mi_context, mi_shape):
-    bl_mesh = bpy.data.meshes.new(mi_shape.id())
-    bl_bmesh = bmesh.new()
-
-    bmesh.ops.create_grid(bl_bmesh, x_segments=1, y_segments=1, size=1.0,
-                          calc_uvs=True)
-    bl_bmesh.to_mesh(bl_mesh)
-    bl_bmesh.free()
-
-    _set_bl_mesh_shading(bl_mesh,
-                         flip_normals=mi_shape.get('flip_normals', False))
-
-    world_matrix = mi_transform_to_bl_transform(mi_shape.get('to_world', None))
-    return bl_mesh, mi_context.mi_space_to_bl_space(world_matrix)
-
-
-def mi_cube_to_bl_shape(mi_context, mi_shape):
-    bl_mesh = bpy.data.meshes.new(mi_shape.id())
-    bl_bmesh = bmesh.new()
-
-    bmesh.ops.create_cube(bl_bmesh, size=2.0, calc_uvs=True)
+    op(bl_bmesh, calc_uvs=True, **kwargs)
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
@@ -206,9 +188,7 @@ def mi_cube_to_bl_shape(mi_context, mi_shape):
 
 _analytic_converters = {
     'sphere': mi_sphere_to_bl_shape,
-    'disk': mi_disk_to_bl_shape,
-    'rectangle': mi_rectangle_to_bl_shape,
-    'cube': mi_cube_to_bl_shape,
+    **{name: _analytic_to_bl_shape for name in _analytic_ops},
 }
 
 
