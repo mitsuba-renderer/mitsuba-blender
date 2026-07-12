@@ -36,28 +36,13 @@ def _new_world(name):
     return bl_world, background
 
 
-def _radiance_to_color_strength(mi_context, mi_props, name, default):
-    from mitsuba import Properties
-    if name in mi_props:
-        prop_type = mi_props.type(name)
-        if prop_type == Properties.Type.Color:
-            return mi_spectra_utils.get_color_strength_from_radiance(
-                list(mi_props[name]))
-        if prop_type == Properties.Type.Float:
-            return mi_spectra_utils.get_color_strength_from_radiance(
-                [float(mi_props[name])] * 3)
-        mi_context.log(f'World property "{name}" of type {prop_type} is '
-                       'not supported. Using the default value.', 'WARN')
-    return mi_spectra_utils.get_color_strength_from_radiance(list(default))
-
-
 ######################
 ##    Converters    ##
 ######################
 
 def _convert_constant(mi_context, mi_props, background):
-    color, strength = _radiance_to_color_strength(mi_context, mi_props,
-                                                  'radiance', [1.0] * 3)
+    color, strength = mi_spectra_utils.convert_radiance_property(
+        mi_context, mi_props, 'radiance', [1.0] * 3)
     background.inputs['Color'].default_value = list(color) + [1.0]
     background.inputs['Strength'].default_value = strength
 

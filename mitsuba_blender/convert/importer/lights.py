@@ -24,23 +24,6 @@ def _light_name(mi_props):
     return mi_props.id() or f'Light-{mi_props.plugin_name()}'
 
 
-def _color_and_strength(mi_context, mi_props, name, default):
-    '''Split a radiance-like property into a Blender color and a scalar
-    strength.'''
-    from mitsuba import Properties
-    if name in mi_props:
-        prop_type = mi_props.type(name)
-        if prop_type == Properties.Type.Color:
-            return mi_spectra_utils.get_color_strength_from_radiance(
-                list(mi_props[name]))
-        if prop_type == Properties.Type.Float:
-            return mi_spectra_utils.get_color_strength_from_radiance(
-                [float(mi_props[name])] * 3)
-        mi_context.log(f'Emitter property "{name}" of type {prop_type} is '
-                       'not supported. Using the default value.', 'WARN')
-    return mi_spectra_utils.get_color_strength_from_radiance(list(default))
-
-
 def _direction_matrix(direction, up):
     '''A rotation matrix whose +Z axis points along `direction`.'''
     z = direction
@@ -70,8 +53,8 @@ _FLIP = Matrix.Rotation(math.pi, 4, 'X')
 
 def _convert_point(mi_context, mi_props):
     bl_light = bpy.data.lights.new(name=_light_name(mi_props), type='POINT')
-    color, strength = _color_and_strength(mi_context, mi_props, 'intensity',
-                                          [1.0, 1.0, 1.0])
+    color, strength = mi_spectra_utils.convert_radiance_property(
+        mi_context, mi_props, 'intensity', [1.0, 1.0, 1.0])
     bl_light.color = color
     bl_light.energy = intensity_to_power(strength)
     bl_light.shadow_soft_size = 0.0
@@ -87,8 +70,8 @@ def _convert_point(mi_context, mi_props):
 
 def _convert_spot(mi_context, mi_props):
     bl_light = bpy.data.lights.new(name=_light_name(mi_props), type='SPOT')
-    color, strength = _color_and_strength(mi_context, mi_props, 'intensity',
-                                          [1.0, 1.0, 1.0])
+    color, strength = mi_spectra_utils.convert_radiance_property(
+        mi_context, mi_props, 'intensity', [1.0, 1.0, 1.0])
     bl_light.color = color
     bl_light.energy = intensity_to_power(strength)
     bl_light.shadow_soft_size = 0.0
@@ -105,8 +88,8 @@ def _convert_spot(mi_context, mi_props):
 
 def _convert_directional(mi_context, mi_props):
     bl_light = bpy.data.lights.new(name=_light_name(mi_props), type='SUN')
-    color, strength = _color_and_strength(mi_context, mi_props, 'irradiance',
-                                          [1.0, 1.0, 1.0])
+    color, strength = mi_spectra_utils.convert_radiance_property(
+        mi_context, mi_props, 'irradiance', [1.0, 1.0, 1.0])
     bl_light.color = color
     # The energy of a Blender sun light is its irradiance in W/m^2
     bl_light.energy = strength
@@ -152,8 +135,8 @@ def mi_area_emitter_to_bl_light(mi_context, mi_emitter, mi_shape):
         if shape_type not in _area_shapes:
             raise ValueError(f'shape type "{shape_type}" cannot be '
                              'converted to a Blender light')
-        color, radiance = _color_and_strength(mi_context, mi_emitter,
-                                              'radiance', [1.0, 1.0, 1.0])
+        color, radiance = mi_spectra_utils.convert_radiance_property(
+            mi_context, mi_emitter, 'radiance', [1.0, 1.0, 1.0])
         matrix = mi_context.mi_space_to_bl_space(
             mi_transform_to_bl_transform(mi_shape.get('to_world', None)))
         name = _light_name(mi_emitter)

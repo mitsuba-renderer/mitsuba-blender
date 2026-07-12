@@ -185,21 +185,9 @@ def _rgba(color):
 
 def _wrap_emitter(builder, bsdf_socket, mi_emitter):
     '''Combine a BSDF output with an area emitter via an Add Shader.'''
-    from mitsuba import Properties
-    radiance, strength = [1.0, 1.0, 1.0], 1.0
-    if 'radiance' in mi_emitter:
-        prop_type = mi_emitter.type('radiance')
-        if prop_type in (Properties.Type.Color, Properties.Type.Float):
-            from ....io.importer import mi_spectra_utils
-            value = mi_emitter['radiance']
-            value = list(value) if prop_type == Properties.Type.Color \
-                else [float(value)] * 3
-            radiance, strength = \
-                mi_spectra_utils.get_color_strength_from_radiance(value)
-        else:
-            builder.mi_context.log(
-                f'Emitter radiance of type "{mi_emitter.type("radiance")}" '
-                'is not supported. Using the default.', 'WARN')
+    from ....io.importer import mi_spectra_utils
+    radiance, strength = mi_spectra_utils.convert_radiance_property(
+        builder.mi_context, mi_emitter, 'radiance', [1.0, 1.0, 1.0])
 
     emission = builder.node('ShaderNodeEmission')
     emission.inputs['Color'].default_value = _rgba(radiance)
