@@ -131,6 +131,12 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.converter = exporter.SceneConverter()
 
     def execute(self, context):
+        # Leave edit mode so the exported meshes include pending edits.
+        # This must happen here: the render engine calls scene_to_dict from
+        # the render job thread, where operators are forbidden.
+        if bpy.ops.object.mode_set.poll():
+            bpy.ops.object.mode_set(mode='OBJECT')
+
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
 	            to_forward=self.axis_forward,

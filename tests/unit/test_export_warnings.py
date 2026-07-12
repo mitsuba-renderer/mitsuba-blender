@@ -78,3 +78,20 @@ def test_export_survives_disabled_cycles_addon(mi_addon, fresh_scene,
     assert integrator['max_depth'] > 0
     sensor = next(v for v in entries if v.get('type') == 'perspective')
     assert sensor['sampler']['sample_count'] > 0
+
+
+def test_scene_to_dict_leaves_edit_mode_alone(mi_addon, fresh_scene,
+                                              tmp_path):
+    # The render engine calls scene_to_dict on the render job thread,
+    # where operators like mode_set are forbidden; the converter must not
+    # switch modes behind the user's back
+    bpy.context.view_layer.objects.active = bpy.data.objects['Cube']
+    bpy.ops.object.mode_set(mode='EDIT')
+    try:
+        converter = _scene_converter(mi_addon)
+        converter.export_ctx.directory = str(tmp_path)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        converter.scene_to_dict(depsgraph)
+        assert bpy.data.objects['Cube'].mode == 'EDIT'
+    finally:
+        bpy.ops.object.mode_set(mode='OBJECT')

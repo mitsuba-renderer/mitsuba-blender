@@ -30,11 +30,6 @@ class SceneConverter:
         ignore_background : bool, optional
             Ignore the default background in Blender's world settings. Defaults to True.
         """
-        # Switch to object mode before exporting stuff, so everything is defined properly
-        if bpy.ops.object.mode_set.poll():
-            bpy.ops.object.mode_set(mode='OBJECT')
-
-        #depsgraph = context.evaluated_depsgraph_get()
         self.export_ctx.deg = depsgraph
 
         b_scene = depsgraph.scene #TODO: what if there are multiple scenes?
