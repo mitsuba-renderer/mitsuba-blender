@@ -22,6 +22,12 @@ if os.environ.get('MI_BLENDER_TEST_HARNESS'):
     ]
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        '--update-refs', action='store_true', default=False,
+        help='regenerate golden reference images instead of comparing')
+
+
 def pytest_configure(config):
     config.addinivalue_line(
         'markers', 'slow: takes more than a few seconds, skipped by default')

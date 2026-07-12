@@ -28,6 +28,14 @@ python3 tests/run.py --all               # include slow and packaging tests
 python3 tests/run.py -m packaging        # only packaging tests
 ```
 
+Golden render tests compare against small EXR references committed under
+`tests/golden/refs`. After an intentional change in rendering output,
+regenerate them with:
+
+```sh
+python3 tests/run.py tests/golden --update-refs
+```
+
 All arguments except `--all` are forwarded to pytest verbatim. The launcher
 prints the tail of the pytest report plus a final `PASS`/`FAIL` line; the full
 (noisy) Blender output is written to a log file whose path is printed at the
