@@ -52,39 +52,23 @@ class SceneConverter:
 
         materials.export_world(self.export_ctx, b_scene.world, ignore_background)
 
-        # Establish list of particle objects
-        particles = []
-        for particle_sys in bpy.data.particles:
-            if particle_sys.render_type == 'OBJECT':
-                particles.append(particle_sys.instance_object.name)
-            elif particle_sys.render_type == 'COLLECTION':
-                for obj in particle_sys.instance_collection.objects:
-                    particles.append(obj.name)
+        geometry = mesh.GeometryExporter(self.export_ctx)
 
+        # First pass: cameras, lights, and a count of how often each mesh
+        # data occurs (repeated data becomes a shapegroup with instances)
         progress_counter = 0
-        # Main export loop
         for object_instance in depsgraph.object_instances:
             if window_manager is not None:
                 window_manager.progress_update(progress_counter)
             progress_counter += 1
 
-            if use_selection:
-                #skip if it's not selected or if it's an instance and the parent object is not selected
-                if not object_instance.is_instance and not object_instance.object.original.select_get():
-                    continue
-                if (object_instance.is_instance and object_instance.object.parent
-                    and not object_instance.object.parent.original.select_get()):
-                    continue
+            if self._skip_instance(object_instance, use_selection):
+                continue
 
             evaluated_obj = object_instance.object
             object_type = evaluated_obj.type
-            #type: enum in [‘MESH’, ‘CURVE’, ‘SURFACE’, ‘META’, ‘FONT’, ‘ARMATURE’, ‘LATTICE’, ‘EMPTY’, ‘GPENCIL’, ‘CAMERA’, ‘LIGHT’, ‘SPEAKER’, ‘LIGHT_PROBE’], default ‘EMPTY’, (readonly)
-            if evaluated_obj.hide_render or (object_instance.is_instance
-                and evaluated_obj.parent and evaluated_obj.parent.original.hide_render):
-                self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
-                continue#ignore it since we don't want it rendered (TODO: hide_viewport)
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
-                mesh.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
+                geometry.count_instance(object_instance)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
                 if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
@@ -93,6 +77,33 @@ class SceneConverter:
                 lights.export_light(object_instance, self.export_ctx)
             else:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
+
+        # Second pass: convert the geometry. Evaluated objects may not be
+        # kept alive across iteration steps, so each one is converted while
+        # the iterator points at it.
+        for object_instance in depsgraph.object_instances:
+            if self._skip_instance(object_instance, use_selection, log=False):
+                continue
+            if object_instance.object.type in {'MESH', 'FONT', 'SURFACE', 'META'}:
+                geometry.export_instance(object_instance)
+
+    def _skip_instance(self, object_instance, use_selection, log=True):
+        if use_selection:
+            #skip if it's not selected or if it's an instance and the parent object is not selected
+            if not object_instance.is_instance and not object_instance.object.original.select_get():
+                return True
+            if (object_instance.is_instance and object_instance.object.parent
+                and not object_instance.object.parent.original.select_get()):
+                return True
+
+        evaluated_obj = object_instance.object
+        if evaluated_obj.hide_render or (object_instance.is_instance
+            and evaluated_obj.parent and evaluated_obj.parent.original.hide_render):
+            #ignore it since we don't want it rendered (TODO: hide_viewport)
+            if log:
+                self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
+            return True
+        return False
 
     def dict_to_xml(self, filename):
         import mitsuba as mi

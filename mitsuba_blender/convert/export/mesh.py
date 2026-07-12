@@ -201,29 +201,110 @@ def shape_props(export_ctx, bsdf_id, emitter_dict):
     return props
 
 
-def export_object(deg_instance, export_ctx, is_particle):
-    '''Convert a Blender object into one Mitsuba mesh per material slot.'''
-    b_object = deg_instance.object
-    # Remove spurious characters such as slashes
-    name_clean = bpy.path.clean_name(b_object.name_full)
-    object_id = f'mesh-{name_clean}'
+class GeometryExporter:
+    '''Converts each distinct combination of mesh data and materials once.
+    Combinations that are rendered multiple times, including depsgraph
+    instances from particles and instanced collections, become a shapegroup
+    that is referenced by one Mitsuba instance per occurrence.
 
-    is_instance_emitter = b_object.parent is not None \
-        and b_object.parent.original.is_instancer
-    is_instance = deg_instance.is_instance
+    The caller iterates the dependency graph twice: a counting pass over all
+    mesh-like instances (count_instance), then a conversion pass
+    (export_instance). Splitting the work this way avoids keeping evaluated
+    object references alive across iteration steps, which Blender forbids.'''
 
-    # Only convert objects that have never been exported before
-    if export_ctx.data_get(object_id) is None:
+    def __init__(self, export_ctx):
+        self.export_ctx = export_ctx
+        self.occurrences = {}
+        self.group_ids = {}
+
+    @staticmethod
+    def instance_key(deg_instance):
+        b_object = deg_instance.object
+        materials = tuple(slot.material.name if slot.material else None
+                          for slot in b_object.material_slots)
+        return (b_object.data.session_uid, materials)
+
+    @staticmethod
+    def is_prototype(deg_instance):
+        '''Blender does not render the prototype object of an instancer
+        (e.g. the child of a vertex instancer) at its own location.'''
+        b_object = deg_instance.object
+        return not deg_instance.is_instance and b_object.parent is not None \
+            and b_object.parent.original.is_instancer
+
+    def count_instance(self, deg_instance):
+        key = self.instance_key(deg_instance)
+        count = self.occurrences.get(key, 0)
+        if not self.is_prototype(deg_instance):
+            count += 1
+        self.occurrences[key] = count
+
+    def export_instance(self, deg_instance):
+        count = self.occurrences[self.instance_key(deg_instance)]
+        if count == 0:
+            return
+        if count == 1:
+            # Rendered exactly once: a plain shape with the transform baked in
+            if not self.is_prototype(deg_instance):
+                self.export_single(deg_instance)
+        else:
+            self.export_instanced(deg_instance)
+
+    def export_single(self, deg_instance):
+        export_ctx = self.export_ctx
+        key = self.instance_key(deg_instance)
+        if key in self.group_ids:
+            return
+        self.group_ids[key] = None
+        b_object = deg_instance.object
+        name_clean = bpy.path.clean_name(b_object.name_full)
+        converted = self.convert_parts(b_object, name_clean,
+                                       deg_instance.matrix_world)
+        for name, bsdf_id, emitter, mi_mesh in converted:
+            name = name_clean if len(converted) == 1 else name
+            entry = self.make_entry(name, bsdf_id, emitter, mi_mesh)
+            if export_ctx.render or export_ctx.export_ids:
+                export_ctx.data_add(entry, name=f'mesh-{name}')
+            else:
+                export_ctx.data_add(entry)
+
+    def export_instanced(self, deg_instance):
+        export_ctx = self.export_ctx
+        key = self.instance_key(deg_instance)
+        if key not in self.group_ids:
+            self.group_ids[key] = None
+            b_object = deg_instance.object
+            name_clean = bpy.path.clean_name(b_object.name_full)
+            converted = self.convert_parts(b_object, name_clean, None)
+            group = {'type': 'shapegroup'}
+            for name, bsdf_id, emitter, mi_mesh in converted:
+                name = name_clean if len(converted) == 1 else name
+                group[export_ctx.sanitize(name)] = \
+                    self.make_entry(name, bsdf_id, emitter, mi_mesh)
+            if len(group) > 1:
+                object_id = f'mesh-{name_clean}'
+                export_ctx.data_add(group, name=object_id)
+                self.group_ids[key] = object_id
+
+        object_id = self.group_ids[key]
+        if object_id is not None and not self.is_prototype(deg_instance):
+            export_ctx.data_add({
+                'type': 'instance',
+                'shape': export_ctx.create_ref(object_id),
+                'to_world': export_ctx.transform_matrix(
+                    deg_instance.matrix_world)
+            })
+
+    def convert_parts(self, b_object, name_clean, transform):
+        '''Convert the object into one (name, bsdf_id, emitter, mesh) tuple
+        per non-empty material slot.'''
+        export_ctx = self.export_ctx
         if b_object.type == 'MESH':
             b_mesh = b_object.data
         else: # Metaballs, text, surfaces
             b_mesh = b_object.to_mesh()
 
         mesh_data = MeshData(export_ctx, b_mesh, name_clean)
-        if is_instance or is_instance_emitter:
-            transform = None
-        else:
-            transform = b_object.matrix_world
 
         # One entry per material slot: (name, bsdf_id, emitter_dict, tri_mask)
         parts = []
@@ -257,44 +338,23 @@ def export_object(deg_instance, export_ctx, is_particle):
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
+        return converted
 
-        # Use a shapegroup for instanced objects
-        use_shapegroup = is_instance or is_instance_emitter or is_particle
-        group = {'type': 'shapegroup'} if use_shapegroup else None
-
-        for name, bsdf_id, emitter, mi_mesh in converted:
-            name = name_clean if len(converted) == 1 else name
-
-            if export_ctx.render:
-                entry = mi_mesh
-            else:
-                # Save as binary PLY, referenced by a relative path
-                mesh_folder = os.path.join(export_ctx.directory,
-                                           export_ctx.subfolders['shape'])
-                os.makedirs(mesh_folder, exist_ok=True)
-                mi_mesh.write_ply(os.path.join(mesh_folder, f'{name}.ply'))
-                entry = {
-                    'type': 'ply',
-                    'filename': f"{export_ctx.subfolders['shape']}/{name}.ply",
-                    'bsdf': export_ctx.create_ref(bsdf_id)
-                }
-                if emitter is not None:
-                    entry['emitter'] = emitter
-
-            if use_shapegroup:
-                group[export_ctx.sanitize(name)] = entry
-            elif export_ctx.render or export_ctx.export_ids:
-                export_ctx.data_add(entry, name=f'mesh-{name}')
-            else:
-                export_ctx.data_add(entry)
-
-        if use_shapegroup:
-            export_ctx.data_add(group, name=object_id)
-
-    if is_instance or is_particle:
-        params = {
-            'type': 'instance',
-            'shape': export_ctx.create_ref(object_id),
-            'to_world': export_ctx.transform_matrix(deg_instance.matrix_world)
+    def make_entry(self, name, bsdf_id, emitter, mi_mesh):
+        '''Return the scene dict entry of a converted mesh part.'''
+        export_ctx = self.export_ctx
+        if export_ctx.render:
+            return mi_mesh
+        # Save as binary PLY, referenced by a relative path
+        mesh_folder = os.path.join(export_ctx.directory,
+                                   export_ctx.subfolders['shape'])
+        os.makedirs(mesh_folder, exist_ok=True)
+        mi_mesh.write_ply(os.path.join(mesh_folder, f'{name}.ply'))
+        entry = {
+            'type': 'ply',
+            'filename': f"{export_ctx.subfolders['shape']}/{name}.ply",
+            'bsdf': export_ctx.create_ref(bsdf_id)
         }
-        export_ctx.data_add(params)
+        if emitter is not None:
+            entry['emitter'] = emitter
+        return entry
