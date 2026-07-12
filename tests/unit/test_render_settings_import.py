@@ -91,3 +91,33 @@ def test_film_crop_applied(mi_addon, fresh_scene):
     assert scene.render.border_min_y == pytest.approx(0.0)
     assert scene.render.border_max_x == pytest.approx(0.5)
     assert scene.render.border_max_y == pytest.approx(0.5)
+
+
+def test_top_level_sampler_via_ref(mi_addon, fresh_scene, tmp_path):
+    # A sampler declared at the scene level used to be converted from the
+    # root pass before any camera exists, crashing on scene.camera.data
+    import sys
+    importer = sys.modules[mi_addon].io.importer
+    from bl_ext.user_default.mitsuba_blender.io import bl_utils
+    from bpy_extras.io_utils import axis_conversion
+
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text('''<scene version="3.0.0">
+        <sampler type="stratified" id="samp">
+            <integer name="sample_count" value="12"/>
+        </sampler>
+        <sensor type="perspective">
+            <ref id="samp"/>
+        </sensor>
+    </scene>''')
+
+    axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
+    scene = bl_utils.init_empty_scene(bpy.context, name='sampler-ref-test')
+    warnings = importer.load_mitsuba_scene(
+        bpy.context, scene, scene.collection, str(scene_file), axis_mat,
+        False, True, import_render_settings=True)
+
+    assert warnings == []
+    camera = scene.camera.data.mitsuba
+    assert camera.active_sampler == 'stratified'
+    assert camera.samplers.stratified.sample_count == 12

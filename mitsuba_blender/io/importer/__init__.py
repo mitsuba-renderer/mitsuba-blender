@@ -218,9 +218,15 @@ def convert_mi_node(mi_context, node_id, extra_id=None):
                            f'{e}.', 'ERROR')
 
 def convert_mi_scene(mi_context):
-    from mitsuba import Properties
+    from mitsuba import ObjectType, Properties
+    # Samplers, films and rfilters are only converted as sensor children,
+    # where a camera exists to receive their settings
+    deferred = (ObjectType.Sampler, ObjectType.Film,
+                ObjectType.ReconstructionFilter)
     for key, val in mi_context.mi_state.root.props.items():
         if isinstance(val, Properties.ResolvedReference):
+            if mi_context.mi_state.nodes[val.index()].type in deferred:
+                continue
             convert_mi_node(mi_context, val.index())
 
 #########################
