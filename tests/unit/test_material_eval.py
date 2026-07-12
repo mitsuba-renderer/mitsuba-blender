@@ -412,48 +412,55 @@ def test_unsupported_node_inside_fold(ev, tree, probe):
     assert noise.name in result.reason
 
 
-def test_texture_converter_registry(ev, tree, probe):
-    @ev.texture_converter('TEX_CHECKER')
-    def convert_checker(export_ctx, node, out_socket):
-        return {'type': 'checkerboard'}
+@pytest.fixture
+def override_checker(ev):
+    """Temporarily replaces the TEX_CHECKER converter, restoring the real
+    one afterwards."""
+    previous = ev._texture_converters.get('TEX_CHECKER')
 
-    try:
-        node = tree.nodes.new('ShaderNodeTexChecker')
-        result = fold_color(ev, tree, probe, node.outputs['Color'])
-        assert isinstance(result, ev.Texture)
-        assert result.params == {'type': 'checkerboard'}
-    finally:
-        del ev._texture_converters['TEX_CHECKER']
+    def _override(func):
+        ev.texture_converter('TEX_CHECKER')(func)
+
+    yield _override
+    if previous is None:
+        ev._texture_converters.pop('TEX_CHECKER', None)
+    else:
+        ev._texture_converters['TEX_CHECKER'] = previous
 
 
-def test_texture_converter_error_is_unsupported(ev, tree, probe):
-    @ev.texture_converter('TEX_CHECKER')
+def test_texture_converter_registry(ev, tree, probe, override_checker):
+    override_checker(lambda export_ctx, node, out_socket:
+                     {'type': 'checkerboard'})
+
+    node = tree.nodes.new('ShaderNodeTexChecker')
+    result = fold_color(ev, tree, probe, node.outputs['Color'])
+    assert isinstance(result, ev.Texture)
+    assert result.params == {'type': 'checkerboard'}
+
+
+def test_texture_converter_error_is_unsupported(ev, tree, probe,
+                                                override_checker):
     def convert_checker(export_ctx, node, out_socket):
         raise ev.ConversionError('checker says no')
+    override_checker(convert_checker)
 
-    try:
-        node = tree.nodes.new('ShaderNodeTexChecker')
-        result = fold_color(ev, tree, probe, node.outputs['Color'])
-        assert isinstance(result, ev.Unsupported)
-        assert result.reason == 'checker says no'
-    finally:
-        del ev._texture_converters['TEX_CHECKER']
+    node = tree.nodes.new('ShaderNodeTexChecker')
+    result = fold_color(ev, tree, probe, node.outputs['Color'])
+    assert isinstance(result, ev.Unsupported)
+    assert result.reason == 'checker says no'
 
 
-def test_texture_node_inside_fold_is_unsupported(ev, tree, probe):
-    @ev.texture_converter('TEX_CHECKER')
-    def convert_checker(export_ctx, node, out_socket):
-        return {'type': 'checkerboard'}
+def test_texture_node_inside_fold_is_unsupported(ev, tree, probe,
+                                                 override_checker):
+    override_checker(lambda export_ctx, node, out_socket:
+                     {'type': 'checkerboard'})
 
-    try:
-        checker = tree.nodes.new('ShaderNodeTexChecker')
-        add = math_node(tree, 'ADD', 0.0, 1.0)
-        tree.links.new(checker.outputs['Color'], add.inputs[0])
-        result = fold_float(ev, tree, probe, add.outputs['Value'])
-        assert isinstance(result, ev.Unsupported)
-        assert 'texture' in result.reason
-    finally:
-        del ev._texture_converters['TEX_CHECKER']
+    checker = tree.nodes.new('ShaderNodeTexChecker')
+    add = math_node(tree, 'ADD', 0.0, 1.0)
+    tree.links.new(checker.outputs['Color'], add.inputs[0])
+    result = fold_float(ev, tree, probe, add.outputs['Value'])
+    assert isinstance(result, ev.Unsupported)
+    assert 'texture' in result.reason
 
 
 def test_eval_float_returns_default_on_unsupported(ev, tree, probe, mi_addon):

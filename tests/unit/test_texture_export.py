@@ -27,19 +27,6 @@ def textures(mi_addon):
         f'{mi_addon}.convert.export.materials.textures')
 
 
-@pytest.fixture(autouse=True)
-def restore_texture_converters(mi_addon, textures):
-    """Other test modules temporarily replace registry entries (and drop
-    them on cleanup); make sure the real converters are in place here."""
-    eval_mod = importlib.import_module(
-        f'{mi_addon}.convert.export.materials._eval')
-    eval_mod._texture_converters.update({
-        'TEX_IMAGE': textures.convert_image_texture,
-        'TEX_CHECKER': textures.convert_checker_texture,
-        'VERTEX_COLOR': textures.convert_vertex_color,
-    })
-
-
 @pytest.fixture
 def exporter(mi_addon):
     import mitsuba as mi
