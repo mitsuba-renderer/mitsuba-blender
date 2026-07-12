@@ -80,7 +80,11 @@ def _buffers_to_bl_mesh(name, mi_mesh):
                        dtype=np.float32).reshape(-1, 2)
         uvs[:, 1] = 1.0 - uvs[:, 1]
         uv_layer = bl_mesh.uv_layers.new(name='UVMap')
-        uv_layer.uv.foreach_set('vector', uvs[faces].ravel())
+        # validate() may have deleted invalid faces, so per-loop data
+        # cannot be indexed with the pre-validate face buffer
+        loop_vertices = np.empty(len(bl_mesh.loops), dtype=np.int32)
+        bl_mesh.loops.foreach_get('vertex_index', loop_vertices)
+        uv_layer.uv.foreach_set('vector', uvs[loop_vertices].ravel())
 
     # Extra per-vertex attributes (e.g. vertex colors)
     reserved = {'vertex_positions', 'vertex_normals', 'vertex_texcoords'}

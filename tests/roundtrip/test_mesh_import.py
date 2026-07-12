@@ -125,3 +125,39 @@ def test_roundtrip_vertex_colors(mi_addon, fresh_scene, tmp_path):
     imported.color_attributes['Col'].data.foreach_get('color', values)
     assert np.allclose(values.reshape(-1, 4)[:, :3], [0.25, 0.5, 0.75],
                        atol=1e-5)
+
+
+def test_import_degenerate_face_with_uvs(mi_addon, fresh_scene, tmp_path):
+    # bl_mesh.validate() silently deletes invalid faces (e.g. a repeated
+    # vertex index); UVs set from the pre-validate face buffer then no
+    # longer match the loop count and crashed the whole import
+    import mitsuba as mi
+    mi.set_variant('scalar_rgb')
+    mesh = mi.Mesh('degen', 4, 2, has_vertex_texcoords=True)
+    params = mi.traverse(mesh)
+    params['vertex_positions'] = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]
+    params['vertex_texcoords'] = [0, 0, 1, 0, 1, 1, 0, 1]
+    params['faces'] = [0, 1, 2, 1, 1, 3]
+    params.update()
+    ply_file = str(tmp_path / 'degen.ply')
+    mesh.write_ply(ply_file)
+
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text('''<scene version="3.0.0">
+        <shape type="ply">
+            <string name="filename" value="degen.ply"/>
+        </shape>
+    </scene>''')
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+    meshes = imported_meshes()
+    assert len(meshes) == 1
+    imported = meshes[0].data
+    assert len(imported.polygons) == 1
+    assert imported.uv_layers
+    uvs = np.empty(len(imported.loops) * 2, dtype=np.float32)
+    imported.uv_layers[0].uv.foreach_get('vector', uvs)
+    # Mitsuba's V axis is flipped on import
+    assert np.allclose(sorted(uvs.reshape(-1, 2).tolist()),
+                       [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
