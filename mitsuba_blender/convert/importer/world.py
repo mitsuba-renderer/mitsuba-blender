@@ -10,6 +10,7 @@ import math
 import bpy
 
 from ..export.world import ENVMAP_COORDINATE_MAT
+from ...compat import ensure_node_tree
 from ...io.importer import mi_spectra_utils
 from ...io.importer.bl_transform_utils import mi_transform_to_bl_transform
 
@@ -24,8 +25,7 @@ def _new_world(name):
     '''A fresh node-based world with a Background node wired to its
     output. Returns (bl_world, background node).'''
     bl_world = bpy.data.worlds.new(name=name)
-    bl_world.use_nodes = True
-    tree = bl_world.node_tree
+    tree = ensure_node_tree(bl_world)
     tree.nodes.clear()
     output = tree.nodes.new('ShaderNodeOutputWorld')
     output.location = (300, 0)

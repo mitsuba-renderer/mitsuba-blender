@@ -18,6 +18,7 @@ import pkgutil
 import bpy
 
 from ... import ConversionError
+from ....compat import ensure_node_tree
 
 _material_converters = {}
 _texture_converters = {}
@@ -160,8 +161,7 @@ def convert_material(mi_context, mi_props, mi_emitter=None):
     shader when an area emitter is given. Never raises.'''
     name = mi_props.id() or f'Material-{mi_props.plugin_name()}'
     bl_mat = bpy.data.materials.new(name=name)
-    bl_mat.use_nodes = True
-    tree = bl_mat.node_tree
+    tree = ensure_node_tree(bl_mat)
     tree.nodes.clear()
     output = tree.nodes.new('ShaderNodeOutputMaterial')
 

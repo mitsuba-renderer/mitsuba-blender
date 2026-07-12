@@ -17,6 +17,7 @@ import importlib
 import pkgutil
 
 from ... import ConversionError
+from ....compat import uses_nodes
 from . import _eval
 from ._eval import (Constant, Texture, Unsupported, eval_color, eval_float,
                     resolve, texture_converter)
@@ -68,7 +69,7 @@ def has_converter(b_mat):
     Materials without a node tree are left to the caller. Materials without
     a usable surface node are claimed so that convert_material can emit the
     fallback instead of crashing.'''
-    if not b_mat.use_nodes or b_mat.node_tree is None:
+    if not uses_nodes(b_mat):
         return False
     node = surface_node(b_mat)
     return node is None or node.type in _node_converters
@@ -79,7 +80,7 @@ def convert_material(export_ctx, b_mat):
     'emitter': dict|None}. Never raises: failures produce a warning and a
     gray diffuse fallback.'''
     try:
-        if not b_mat.use_nodes or b_mat.node_tree is None:
+        if not uses_nodes(b_mat):
             return {'bsdf': {
                 'type': 'diffuse',
                 'reflectance': export_ctx.spectrum(b_mat.diffuse_color),

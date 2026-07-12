@@ -9,6 +9,7 @@ node driven by generated texture coordinates.
 from mathutils import Euler, Matrix, Vector
 
 from .. import ConversionError
+from ...compat import uses_nodes
 from .materials import _eval
 from .materials.textures import convert_environment_texture
 
@@ -89,7 +90,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
         export_ctx.log('No Blender world to export.', 'INFO')
         return None
 
-    if not b_world.use_nodes or b_world.node_tree is None:
+    if not uses_nodes(b_world):
         return {
             'type': 'constant',
             'radiance': export_ctx.spectrum(list(b_world.color)),
