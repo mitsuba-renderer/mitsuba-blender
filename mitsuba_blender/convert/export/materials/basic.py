@@ -1,5 +1,5 @@
-'''Converters for the basic Cycles BSDF nodes: Glossy, Glass, Refraction,
-Transparent and Translucent.'''
+'''Converters for the basic Cycles BSDF nodes: Diffuse, Glossy, Glass,
+Refraction, Transparent and Translucent.'''
 
 import math
 
@@ -32,6 +32,21 @@ def _eval_roughness(export_ctx, socket):
     dicts pass through unchanged.'''
     value = eval_float(export_ctx, socket)
     return value * value if isinstance(value, float) else value
+
+
+@node_converter('BSDF_DIFFUSE')
+def convert_diffuse(export_ctx, node):
+    roughness = node.inputs['Roughness']
+    if roughness.is_linked or roughness.default_value > 0.0:
+        export_ctx.log(f'Mitsuba has no rough diffuse BSDF; ignoring the '
+                       f'roughness of node "{node.name}".', 'WARN')
+    return {
+        'type': 'twosided',
+        'bsdf': {
+            'type': 'diffuse',
+            'reflectance': eval_color(export_ctx, node.inputs['Color']),
+        },
+    }
 
 
 @node_converter('BSDF_GLOSSY')
