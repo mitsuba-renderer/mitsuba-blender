@@ -89,20 +89,6 @@ def apply_mi_integrator_properties(mi_context, mi_props):
         return True
     bl_renderer.active_integrator = mi_integrator_type
     bl_renderer.custom_integrator = ''
-
-    # Cycles properties
-    if mi_integrator_type in _mi_simple_integrators:
-        bl_cycles = mi_context.bl_scene.cycles
-        bl_cycles.progressive = 'PATH'
-        bl_max_bounces = mi_props.get('max_depth', 1024)
-        bl_cycles.max_bounces = bl_max_bounces
-        bl_cycles.diffuse_bounces = bl_max_bounces
-        bl_cycles.glossy_bounces = bl_max_bounces
-        bl_cycles.transparent_max_bounces = bl_max_bounces
-        bl_cycles.transmission_bounces = bl_max_bounces
-        bl_cycles.volume_bounces = bl_max_bounces
-        bl_cycles.min_light_bounces = mi_props.get('rr_depth', 5)
-
     return True
 
 ##########################
@@ -124,15 +110,6 @@ def apply_mi_rfilter_properties(mi_context, mi_props):
         bl_props.C = mi_props.get('C', 1.0 / 3.0)
     elif mi_rfilter_type == 'lanczos':
         bl_props.lobes = mi_props.get('lobes', 3)
-
-    # Cycles properties
-    bl_cycles = mi_context.bl_scene.cycles
-    if mi_rfilter_type == 'box':
-        bl_cycles.pixel_filter_type = 'BOX'
-    elif mi_rfilter_type == 'gaussian':
-        bl_cycles.pixel_filter_type = 'GAUSSIAN'
-        bl_cycles.filter_width = mi_props.get('stddev', 0.5)
-
     return True
 
 ##########################
@@ -153,16 +130,6 @@ def apply_mi_sampler_properties(mi_context, mi_props):
         bl_props.jitter = mi_props.get('jitter', True)
     if mi_sampler_type == 'orthogonal':
         bl_props.strength = mi_props.get('strength', 2)
-
-    # Cycles properties
-    bl_cycles = mi_context.bl_scene.cycles
-    if mi_sampler_type in ('multijitter', 'orthogonal'):
-        bl_cycles.sampling_pattern = 'TABULATED_SOBOL'
-    else:
-        bl_cycles.sampling_pattern = 'AUTOMATIC'
-    bl_cycles.samples = mi_props.get('sample_count', 4)
-    bl_cycles.preview_samples = mi_props.get('sample_count', 4)
-    bl_cycles.seed = mi_props.get('seed', 0)
     return True
 
 #######################
@@ -215,9 +182,12 @@ def apply_mi_film_properties(mi_context, mi_props):
 ##  Renderer properties  ##
 ###########################
 
-def init_mitsuba_renderer(mi_context):
+def init_mitsuba_variant(mi_context):
+    '''Select the Mitsuba variant on the render properties. The importer
+    never changes the active render engine.'''
     import mitsuba
-    mi_context.bl_scene.render.engine = 'MITSUBA'
+    if not mi_context.import_render_settings:
+        return True
     if 'scalar_rgb' not in mitsuba.variants():
         mi_context.log('Mitsuba variant "scalar_rgb" not available.', 'ERROR')
         return False

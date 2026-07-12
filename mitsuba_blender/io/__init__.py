@@ -44,6 +44,13 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         default = True,
     )
 
+    import_render_settings: BoolProperty(
+        name = 'Import Render Settings',
+        description = 'Apply the integrator, sampler, reconstruction filter and film '
+                      'settings of the imported scene to the Mitsuba render properties.',
+        default = False,
+    )
+
     def execute(self, context):
         # Set blender to object mode
         if bpy.ops.object.mode_set.poll():
@@ -63,7 +70,7 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
         collection = scene.collection
 
         try:
-            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins)
+            warnings = importer.load_mitsuba_scene(context, scene, collection, self.filepath, axis_mat, self.merge_shapes, self.merge_plugins, self.import_render_settings)
         except Exception as e:
             print(e)
             self.report({'ERROR'}, "Failed to load Mitsuba scene. See error log.")

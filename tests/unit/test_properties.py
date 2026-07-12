@@ -124,7 +124,8 @@ def test_import_preserves_unsupported_integrator(mi_addon, fresh_scene, tmp_path
                 </integrator>
             </integrator>
         </scene>''')
-    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == {'FINISHED'}
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(scene_file), import_render_settings=True) == {'FINISHED'}
 
     result = bpy.context.scene.mitsuba.integrator_to_dict()
     assert result['type'] == 'moment'

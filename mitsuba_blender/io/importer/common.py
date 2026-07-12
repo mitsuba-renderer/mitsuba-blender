@@ -2,7 +2,8 @@ import os
 
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
-    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_state, axis_matrix):
+    def __init__(self, bl_context, bl_scene, bl_collection, filepath, mi_state, axis_matrix,
+                 import_render_settings=False):
         self.bl_context = bl_context
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
@@ -10,6 +11,7 @@ class MitsubaSceneImportContext:
         self.directory, _ = os.path.split(self.filepath)
         self.mi_state = mi_state
         self.axis_matrix = axis_matrix
+        self.import_render_settings = import_render_settings
         self.axis_matrix_inv = axis_matrix.inverted()
         self.bl_material_cache = {} # Mapping of Mitsuba node IDs to Blender materials
         self.bl_texture_cache = {} # Mapping of Mitsuba node IDs to Blender textures

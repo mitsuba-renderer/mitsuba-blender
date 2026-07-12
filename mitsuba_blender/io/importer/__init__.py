@@ -18,6 +18,8 @@ from .mi_props_utils import get_references_by_type
 def convert_mi_film(mi_context, node_id):
     from mitsuba import ObjectType
 
+    if not mi_context.import_render_settings:
+        return None
     mi_props = mi_context.mi_state.nodes[node_id].props
     if not renderer.apply_mi_film_properties(mi_context, mi_props):
         return None
@@ -31,17 +33,21 @@ def convert_mi_film(mi_context, node_id):
     return True
 
 def convert_mi_rfilter(mi_context, node_id):
+    if not mi_context.import_render_settings:
+        return None
     mi_props = mi_context.mi_state.nodes[node_id].props
-    #TODO: return what ?
     renderer.apply_mi_rfilter_properties(mi_context, mi_props)
 
 def convert_mi_sampler(mi_context, node_id):
+    if not mi_context.import_render_settings:
+        return None
     mi_props = mi_context.mi_state.nodes[node_id].props
     renderer.apply_mi_sampler_properties(mi_context, mi_props)
 
 def convert_mi_integrator(mi_context, node_id):
+    if not mi_context.import_render_settings:
+        return None
     mi_props = mi_context.mi_state.nodes[node_id].props
-    # FIXME: Support nested integrators (AOVs)
     renderer.apply_mi_integrator_properties(mi_context, mi_props)
 
 def convert_mi_emitter(mi_context, node_id):
@@ -204,7 +210,8 @@ def convert_mi_scene(mi_context):
 ##    Main loading     ##
 #########################
 
-def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins):
+def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
+                       import_render_settings=False):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
 
     Params
@@ -216,6 +223,8 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     global_mat: Axis conversion matrix
     merge_shapes: Whether to merge similar shapes (same material) into a single one
     merge_plugins: Whether to merge identical plugins (e.g. materials) into a single one
+    import_render_settings: Whether to apply the scene's integrator, sampler,
+        reconstruction filter and film settings to the Mitsuba render properties
 
     Returns
     -------
@@ -231,10 +240,11 @@ def load_mitsuba_scene(bl_context, bl_scene, bl_collection, filepath, global_mat
     mi_state = mi.parser.parse_file(config, filepath)
     # Resolve all references and merge equivalent plugins if enabled
     mi.parser.transform_all(config, mi_state)
-    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_state, global_mat)
+    mi_context = common.MitsubaSceneImportContext(bl_context, bl_scene, bl_collection, filepath, mi_state, global_mat,
+                                                  import_render_settings)
 
-    # Initialize the Mitsuba renderer inside of Blender
-    renderer.init_mitsuba_renderer(mi_context)
+    # Select the Mitsuba variant used for rendering
+    renderer.init_mitsuba_variant(mi_context)
 
     # Convert the Mitsuba scene state to a Blender scene
     #TODO: error checking
