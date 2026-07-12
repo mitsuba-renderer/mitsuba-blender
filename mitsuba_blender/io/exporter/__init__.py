@@ -41,9 +41,11 @@ class SceneConverter:
         if b_scene.render.engine == 'MITSUBA':
             integrator = b_scene.mitsuba.integrator_to_dict()
         else:
+            # scene.cycles only exists while the Cycles addon is enabled
+            cycles = getattr(b_scene, 'cycles', None)
             integrator = {
-                'type':'path',
-                'max_depth': b_scene.cycles.max_bounces
+                'type': 'path',
+                'max_depth': cycles.max_bounces if cycles else 12,
             }
         self.export_ctx.data_add(integrator)
 

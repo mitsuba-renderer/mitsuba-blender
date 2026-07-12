@@ -56,3 +56,25 @@ def test_export_operator_reports_warnings(mi_addon, fresh_scene, tmp_path,
     captured = capfd.readouterr()
     assert 'exported with' in captured.out
     assert 'warnings' in captured.out
+
+
+def test_export_survives_disabled_cycles_addon(mi_addon, fresh_scene,
+                                               tmp_path):
+    # scene.cycles is registered by the Cycles addon; with it disabled the
+    # non-Mitsuba fallbacks must use defaults instead of crashing
+    bpy.ops.preferences.addon_disable(module='cycles')
+    try:
+        assert not hasattr(bpy.context.scene, 'cycles')
+        converter = _scene_converter(mi_addon)
+        converter.export_ctx.directory = str(tmp_path)
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        converter.scene_to_dict(depsgraph)
+    finally:
+        bpy.ops.preferences.addon_enable(module='cycles')
+
+    entries = [v for v in converter.export_ctx.scene_data.values()
+               if isinstance(v, dict)]
+    integrator = next(v for v in entries if v.get('type') == 'path')
+    assert integrator['max_depth'] > 0
+    sensor = next(v for v in entries if v.get('type') == 'perspective')
+    assert sensor['sampler']['sample_count'] > 0

@@ -164,9 +164,11 @@ def convert_camera(export_ctx, b_camera, b_scene, matrix_world=None):
 def _convert_sampler(b_camera, b_scene):
     if b_scene.render.engine == 'MITSUBA':
         return b_camera.data.mitsuba.sampler_to_dict()
+    # scene.cycles only exists while the Cycles addon is enabled
+    cycles = getattr(b_scene, 'cycles', None)
     return {
         'type': 'independent',
-        'sample_count': b_scene.cycles.samples,
+        'sample_count': cycles.samples if cycles else 64,
     }
 
 
