@@ -200,3 +200,16 @@ def test_material_name_with_path_separator(fresh_scene, exporter, tmp_path):
     import mitsuba as mi
     scene = mi.load_file(str(tmp_path / 'scene.xml'))
     assert len(scene_meshes(scene)) == 2
+
+
+def test_out_of_range_material_index_not_dropped(fresh_scene, exporter,
+                                                 tmp_path):
+    # Indices beyond the slot count come from slot deletion via the API or
+    # imported files; Blender clamps them at render time
+    b_mesh = bpy.data.objects['Cube'].data
+    for face in b_mesh.polygons[:3]:
+        face.material_index = 7
+
+    converter = exporter(tmp_path, render=True)
+    scene = converter.dict_to_scene()
+    assert sum(m.face_count() for m in scene_meshes(scene)) == 12

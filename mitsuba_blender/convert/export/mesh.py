@@ -47,6 +47,11 @@ class MeshData:
 
         self.tri_mats = np.empty(self.tri_count, dtype=np.int32)
         b_mesh.loop_triangles.foreach_get('material_index', self.tri_mats)
+        # Out-of-range indices (deleted slots, imported data) would match
+        # no material slot and silently drop the faces; Blender clamps
+        # them when rendering, so do the same
+        np.clip(self.tri_mats, 0, max(len(b_mesh.materials) - 1, 0),
+                out=self.tri_mats)
 
         self.loop_vert = np.empty(loop_count, dtype=np.int32)
         b_mesh.loops.foreach_get('vertex_index', self.loop_vert)
