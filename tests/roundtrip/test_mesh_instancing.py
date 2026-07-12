@@ -135,3 +135,37 @@ def test_particle_instances(fresh_scene, exporter, tmp_path):
 
     scene = converter.dict_to_scene()
     assert len(scene.shapes()) == 7
+
+
+def test_shared_emissive_mesh_avoids_shapegroup(fresh_scene, exporter,
+                                                tmp_path):
+    # Mitsuba rejects emitters inside a shapegroup, so linked duplicates
+    # with an emissive material fall back to per-occurrence plain shapes
+    remove_default_light()
+    b_mat = bpy.data.materials.new('Emitter')
+    b_mat.use_nodes = True
+    tree = b_mat.node_tree
+    tree.nodes.remove(tree.nodes['Principled BSDF'])
+    emission = tree.nodes.new('ShaderNodeEmission')
+    emission.inputs['Strength'].default_value = 5.0
+    tree.links.new(emission.outputs['Emission'],
+                   tree.nodes['Material Output'].inputs['Surface'])
+    b_cube = bpy.data.objects['Cube']
+    b_cube.data.materials.clear()
+    b_cube.data.materials.append(b_mat)
+    duplicate = bpy.data.objects.new('Cube2', b_cube.data)
+    duplicate.location = (4.0, 0.0, 0.0)
+    bpy.context.collection.objects.link(duplicate)
+
+    converter = exporter(tmp_path, render=True)
+    assert count_types(converter, 'shapegroup') == 0
+    assert count_types(converter, 'instance') == 0
+    assert any('emissive' in w for w in converter.export_ctx.warnings)
+
+    scene = converter.dict_to_scene()
+    assert len(scene.shapes()) == 2
+    assert all(s.emitter() is not None for s in scene.shapes())
+    # Each occurrence keeps its own transform
+    centers = {round(0.5 * (s.bbox().min.x + s.bbox().max.x), 3)
+               for s in scene.shapes()}
+    assert len(centers) == 2

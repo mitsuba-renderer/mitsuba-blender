@@ -212,10 +212,15 @@ class GeometryExporter:
     (export_instance). Splitting the work this way avoids keeping evaluated
     object references alive across iteration steps, which Blender forbids.'''
 
+    # Marks combinations that cannot become a shapegroup because a part
+    # carries an emitter, which Mitsuba does not allow on group members
+    EMITTER_FALLBACK = object()
+
     def __init__(self, export_ctx):
         self.export_ctx = export_ctx
         self.occurrences = {}
         self.group_ids = {}
+        self.fallback_counts = {}
 
     @staticmethod
     def instance_key(deg_instance):
@@ -251,14 +256,18 @@ class GeometryExporter:
             self.export_instanced(deg_instance)
 
     def export_single(self, deg_instance):
-        export_ctx = self.export_ctx
         key = self.instance_key(deg_instance)
         if key in self.group_ids:
             return
         self.group_ids[key] = None
-        b_object = deg_instance.object
-        name_clean = bpy.path.clean_name(b_object.name_full)
-        converted = self.convert_parts(b_object, name_clean,
+        name_clean = bpy.path.clean_name(deg_instance.object.name_full)
+        self.export_plain(deg_instance, name_clean)
+
+    def export_plain(self, deg_instance, name_clean):
+        '''Export one occurrence as plain shapes with the transform baked
+        into the vertex data.'''
+        export_ctx = self.export_ctx
+        converted = self.convert_parts(deg_instance.object, name_clean,
                                        deg_instance.matrix_world)
         for name, bsdf_id, emitter, mi_mesh in converted:
             name = name_clean if len(converted) == 1 else name
@@ -268,6 +277,14 @@ class GeometryExporter:
             else:
                 export_ctx.data_add(entry)
 
+    def uses_emitter(self, b_object):
+        '''Whether any material of the object exports an emitter.'''
+        for slot in b_object.material_slots:
+            if slot.material is not None and \
+                    material_refs(self.export_ctx, slot.material)[1] is not None:
+                return True
+        return False
+
     def export_instanced(self, deg_instance):
         export_ctx = self.export_ctx
         key = self.instance_key(deg_instance)
@@ -275,18 +292,34 @@ class GeometryExporter:
             self.group_ids[key] = None
             b_object = deg_instance.object
             name_clean = bpy.path.clean_name(b_object.name_full)
-            converted = self.convert_parts(b_object, name_clean, None)
-            group = {'type': 'shapegroup'}
-            for name, bsdf_id, emitter, mi_mesh in converted:
-                name = name_clean if len(converted) == 1 else name
-                group[export_ctx.sanitize(name)] = \
-                    self.make_entry(name, bsdf_id, emitter, mi_mesh)
-            if len(group) > 1:
-                object_id = f'mesh-{name_clean}'
-                export_ctx.data_add(group, name=object_id)
-                self.group_ids[key] = object_id
+            if self.uses_emitter(b_object):
+                export_ctx.log(
+                    f'Object "{b_object.name_full}" occurs multiple times '
+                    'and has an emissive material, which Mitsuba does not '
+                    'support on instanced shapes. Exporting each occurrence '
+                    'as a separate shape.', 'WARN')
+                self.group_ids[key] = self.EMITTER_FALLBACK
+            else:
+                converted = self.convert_parts(b_object, name_clean, None)
+                group = {'type': 'shapegroup'}
+                for name, bsdf_id, emitter, mi_mesh in converted:
+                    name = name_clean if len(converted) == 1 else name
+                    group[export_ctx.sanitize(name)] = \
+                        self.make_entry(name, bsdf_id, emitter, mi_mesh)
+                if len(group) > 1:
+                    object_id = f'mesh-{name_clean}'
+                    export_ctx.data_add(group, name=object_id)
+                    self.group_ids[key] = object_id
 
         object_id = self.group_ids[key]
+        if object_id is self.EMITTER_FALLBACK:
+            if not self.is_prototype(deg_instance):
+                count = self.fallback_counts.get(key, 0)
+                self.fallback_counts[key] = count + 1
+                name_clean = bpy.path.clean_name(
+                    deg_instance.object.name_full)
+                self.export_plain(deg_instance, f'{name_clean}-{count:03d}')
+            return
         if object_id is not None and not self.is_prototype(deg_instance):
             export_ctx.data_add({
                 'type': 'instance',
