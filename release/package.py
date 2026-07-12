@@ -3,11 +3,11 @@ from zipfile import ZipFile
 import os
 
 def main(args):
-    addon_name = 'mitsuba-blender'
+    addon_name = 'mitsuba_blender'
     base_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     addon_dir = os.path.join(base_dir, addon_name)
 
-    with ZipFile('mitsuba-blender.zip', 'w') as archive:
+    with ZipFile('mitsuba_blender.zip', 'w') as archive:
         # Package miscellaneous files
         miscellaneous_files = ['README.md', 'LICENSE']
         for filename in miscellaneous_files:

@@ -62,10 +62,10 @@ $BLENDER_PYTHON -m pip install mitsuba
 To run the tests using Blender's Python, use:
 
 ```bash
-$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba-blender
+$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba_blender
 ```
 
 If you prefer using a custom Mitsuba version, specify a path to the Mitsuba build directory:
 ```bash
-$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py --mitsuba /some/path/mitsuba3/build -- -v --cov=mitsuba-blender
+$BLENDER -b -noaudio --factory-startup --python scripts/run_tests.py --mitsuba /some/path/mitsuba3/build -- -v --cov=mitsuba_blender
 ``` 

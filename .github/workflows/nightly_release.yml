@@ -55,7 +55,7 @@ jobs:
         prerelease: true
         allowUpdates: true
         replacesArtifacts: true
-        artifacts: "mitsuba-blender.zip"
+        artifacts: "mitsuba_blender.zip"
         artifactErrorsFailBuild: true
         tag: "latest"
         bodyFile: "release/nightly_release_body.md"

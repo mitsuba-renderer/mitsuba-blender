@@ -7,7 +7,7 @@ import bpy
 import numpy as np
 import pytest
 
-ADDON_NAME = 'mitsuba-blender'
+ADDON_NAME = 'mitsuba_blender'
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
 # Legacy tests predate this harness and need scripts/run_tests.py; hide them

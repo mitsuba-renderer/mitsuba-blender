@@ -36,7 +36,7 @@ jobs:
     - name: Create GitHub draft release
       uses: ncipollo/release-action@v1
       with:
-        artifacts: "mitsuba-blender.zip"
+        artifacts: "mitsuba_blender.zip"
         artifactErrorsFailBuild: true
         bodyFile: "release/release_body_template.md"
         draft: true
