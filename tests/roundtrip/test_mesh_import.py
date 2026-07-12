@@ -89,6 +89,8 @@ def test_roundtrip_flat_cube_normals(mi_addon, fresh_scene, tmp_path):
 
 
 def test_roundtrip_multi_material(mi_addon, fresh_scene, tmp_path):
+    # The default point light would come back as an emissive sphere mesh
+    bpy.data.objects.remove(bpy.data.objects['Light'])
     b_obj = bpy.data.objects['Cube']
     second = bpy.data.materials.new('Second')
     b_obj.data.materials.append(second)

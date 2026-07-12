@@ -2,9 +2,8 @@ import bpy
 
 from . import export_context
 from . import materials
-from . import lights
 from . import camera
-from ...convert.export import mesh
+from ...convert.export import lights, mesh, world
 
 class SceneConverter:
     '''
@@ -50,7 +49,7 @@ class SceneConverter:
             }
         self.export_ctx.data_add(integrator)
 
-        materials.export_world(self.export_ctx, b_scene.world, ignore_background)
+        world.export_world(self.export_ctx, b_scene.world, ignore_background)
 
         geometry = mesh.GeometryExporter(self.export_ctx)
 
@@ -74,7 +73,7 @@ class SceneConverter:
                 if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
                     camera.export_camera(object_instance, b_scene, self.export_ctx)
             elif object_type == 'LIGHT':
-                lights.export_light(object_instance, self.export_ctx)
+                lights.export_light(self.export_ctx, object_instance)
             else:
                 self.export_ctx.log("Object: %s of type '%s' is not supported!" % (evaluated_obj.name_full, object_type), 'WARN')
 

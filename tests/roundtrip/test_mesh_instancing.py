@@ -28,7 +28,14 @@ def count_types(converter, type_name):
                if isinstance(v, dict) and v.get('type') == type_name)
 
 
+def remove_default_light():
+    # Point lights export as sphere emitter shapes, which would skew the
+    # shape counts these tests assert on
+    bpy.data.objects.remove(bpy.data.objects['Light'])
+
+
 def test_linked_duplicates_share_a_shapegroup(fresh_scene, exporter, tmp_path):
+    remove_default_light()
     b_cube = bpy.data.objects['Cube']
     duplicate = bpy.data.objects.new('Cube2', b_cube.data)
     duplicate.location = (4.0, 0.0, 0.0)
@@ -66,6 +73,7 @@ def test_material_override_prevents_instancing(fresh_scene, exporter, tmp_path):
 
 
 def test_collection_instances(fresh_scene, exporter, tmp_path):
+    remove_default_light()
     proto = bpy.data.collections.new('Proto')
     b_cube = bpy.data.objects['Cube']
     bpy.context.collection.objects.unlink(b_cube)
@@ -108,6 +116,7 @@ def test_vertex_instancer_prototype_is_hidden(fresh_scene, exporter, tmp_path):
 
 
 def test_particle_instances(fresh_scene, exporter, tmp_path):
+    remove_default_light()
     emitter = bpy.data.objects['Cube']
     psys = emitter.modifiers.new('ps', 'PARTICLE_SYSTEM').particle_system
     settings = psys.settings
