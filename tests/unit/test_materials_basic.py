@@ -1,5 +1,6 @@
-"""Tests for the basic BSDF export converters: Glossy, Glass,
-Refraction, Transparent and Translucent."""
+"""Tests for the basic BSDF converters: Glossy, Glass, Refraction,
+Transparent and Translucent on export; conductors, dielectrics and
+plastics on import."""
 
 import importlib
 import math
@@ -244,3 +245,201 @@ def test_export_translucent(fresh_scene, exporter, tmp_path):
         'diff_trans': 2.0,
     }
 
+
+###################
+##  Import side  ##
+###################
+
+def import_xml(tmp_path, xml_body):
+    xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(xml)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+
+def imported_material(name):
+    b_mat = bpy.data.materials[name]
+    surface = b_mat.node_tree.get_output_node('CYCLES').inputs['Surface']
+    assert surface.is_linked
+    return b_mat, surface.links[0].from_node
+
+
+def test_import_conductor(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="conductor" id="mat-gold">
+                <string name="material" value="Au"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-gold')
+    assert node.bl_idname == 'ShaderNodeBsdfAnisotropic'
+    assert node.inputs['Roughness'].default_value == 0.0
+    color = tuple(node.inputs['Color'].default_value)
+    # Gold: strong red, weak blue
+    assert color[0] > 0.8 and color[0] > color[1] > color[2]
+
+
+def test_import_roughconductor(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="roughconductor" id="mat-brushed">
+                <string name="distribution" value="ggx"/>
+                <float name="alpha" value="0.09"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-brushed')
+    assert node.bl_idname == 'ShaderNodeBsdfAnisotropic'
+    assert node.distribution == 'GGX'
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.3)
+
+
+def test_import_roughconductor_anisotropic(mi_addon, fresh_scene, tmp_path):
+    # alpha_u/alpha_v as produced by the exporter for roughness 0.5,
+    # anisotropy 0.5
+    aspect = math.sqrt(1.0 - 0.9 * 0.5)
+    import_xml(tmp_path, f'''
+        <shape type="sphere">
+            <bsdf type="roughconductor" id="mat-aniso">
+                <float name="alpha_u" value="{0.25 / aspect}"/>
+                <float name="alpha_v" value="{0.25 * aspect}"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-aniso')
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.5)
+    assert node.inputs['Anisotropy'].default_value == \
+        pytest.approx(0.5, rel=1e-4)
+
+
+def test_import_dielectric(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="dielectric" id="mat-glass">
+                <float name="int_ior" value="1.45"/>
+                <rgb name="specular_transmittance" value="0.7 0.8 0.9"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-glass')
+    assert node.bl_idname == 'ShaderNodeBsdfGlass'
+    assert node.inputs['Roughness'].default_value == 0.0
+    assert node.inputs['IOR'].default_value == pytest.approx(1.45)
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.7, 0.8, 0.9, 1.0))
+
+
+def test_import_dielectric_named_ior(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="dielectric" id="mat-water">
+                <string name="int_ior" value="water"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-water')
+    assert node.inputs['IOR'].default_value == pytest.approx(1.333)
+
+
+def test_import_thindielectric(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="thindielectric" id="mat-thin"/>
+        </shape>''')
+
+    _, node = imported_material('mat-thin')
+    assert node.bl_idname == 'ShaderNodeBsdfGlass'
+    assert node.inputs['IOR'].default_value == pytest.approx(1.0)
+
+
+def test_import_roughdielectric(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="roughdielectric" id="mat-frosted">
+                <string name="distribution" value="ggx"/>
+                <float name="alpha" value="0.04"/>
+                <float name="int_ior" value="1.52"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-frosted')
+    assert node.bl_idname == 'ShaderNodeBsdfGlass'
+    assert node.distribution == 'GGX'
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.2)
+    assert node.inputs['IOR'].default_value == pytest.approx(1.52)
+
+
+def test_import_plastic(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="plastic" id="mat-shiny">
+                <rgb name="diffuse_reflectance" value="0.1 0.2 0.3"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-shiny')
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    assert tuple(node.inputs['Base Color'].default_value) == \
+        pytest.approx((0.1, 0.2, 0.3, 1.0))
+    assert node.inputs['IOR'].default_value == pytest.approx(1.49)
+    assert node.inputs['Roughness'].default_value == 0.0
+
+
+def test_import_roughplastic(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="roughplastic" id="mat-matte">
+                <float name="alpha" value="0.25"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-matte')
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.5)
+
+
+###################
+##  Round trips  ##
+###################
+
+def roundtrip(exporter, tmp_path):
+    converter = exporter(tmp_path)
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+    bpy.ops.wm.read_homefile()
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(tmp_path / 'scene.xml')) == {'FINISHED'}
+
+
+def test_roundtrip_glass(mi_addon, fresh_scene, exporter, tmp_path):
+    node = make_material('ShaderNodeBsdfGlass', name='Glass')
+    node.distribution = 'GGX'
+    node.inputs['Color'].default_value = (0.9, 0.8, 0.7, 1.0)
+    node.inputs['Roughness'].default_value = 0.4
+    node.inputs['IOR'].default_value = 1.45
+
+    roundtrip(exporter, tmp_path)
+    _, node = imported_material('mat-Glass')
+    assert node.bl_idname == 'ShaderNodeBsdfGlass'
+    assert node.distribution == 'GGX'
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.4)
+    assert node.inputs['IOR'].default_value == pytest.approx(1.45)
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.9, 0.8, 0.7, 1.0))
+
+
+def test_roundtrip_glossy(mi_addon, fresh_scene, exporter, tmp_path):
+    node = make_material('ShaderNodeBsdfAnisotropic', name='Glossy')
+    node.distribution = 'GGX'
+    node.inputs['Color'].default_value = (0.9, 0.5, 0.1, 1.0)
+    node.inputs['Roughness'].default_value = 0.5
+
+    roundtrip(exporter, tmp_path)
+    # The exporter wraps the conductor in twosided; the importer unwraps it
+    b_mat = bpy.data.materials['mat-Glossy']
+    glossy = [n for n in b_mat.node_tree.nodes
+              if n.bl_idname == 'ShaderNodeBsdfAnisotropic']
+    assert len(glossy) == 1
+    assert glossy[0].distribution == 'GGX'
+    assert glossy[0].inputs['Roughness'].default_value == pytest.approx(0.5)

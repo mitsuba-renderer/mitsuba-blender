@@ -260,6 +260,8 @@ def test_import_diffuse_with_emitter(mi_addon, fresh_scene, tmp_path):
 
 def test_import_error_placeholder(mi_addon, fresh_scene, tmp_path,
                                   import_registry):
+    previous = import_registry._material_converters.get('plastic')
+
     @import_registry.material_converter('plastic')
     def convert_plastic(builder, mi_props):
         raise import_registry.ConversionError('plastic says no')
@@ -270,7 +272,10 @@ def test_import_error_placeholder(mi_addon, fresh_scene, tmp_path,
                 <bsdf type="plastic" id="mat-broken"/>
             </shape>''')
     finally:
-        del import_registry._material_converters['plastic']
+        if previous is None:
+            del import_registry._material_converters['plastic']
+        else:
+            import_registry._material_converters['plastic'] = previous
 
     _, node = imported_material('mat-broken')
     assert node.bl_idname == 'ShaderNodeBsdfDiffuse'
