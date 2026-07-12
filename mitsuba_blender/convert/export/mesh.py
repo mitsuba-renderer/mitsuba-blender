@@ -163,11 +163,9 @@ def material_refs(export_ctx, b_mat):
     '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
     from .materials import export_material
     mat_id = f'mat-{b_mat.name}'
-    if export_ctx.data_get(mat_id) is None \
-            and not export_ctx.exported_mats.has_mat(mat_id):
-        export_material(export_ctx, b_mat)
-    if export_ctx.exported_mats.has_mat(mat_id):
-        mixed = export_ctx.exported_mats.mats[mat_id]
+    export_material(export_ctx, b_mat)
+    mixed = export_ctx.exported_mats.get(mat_id)
+    if mixed is not None:
         return mixed['bsdf'], mixed['emitter']
     if export_ctx.data_get(mat_id) is None:
         return default_bsdf_id(export_ctx), None

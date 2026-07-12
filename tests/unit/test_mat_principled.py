@@ -78,7 +78,7 @@ def test_export_default_material(fresh_scene, exporter, tmp_path):
     assert 'eta' not in params
 
     # No emission by default: the material is not stored as a bsdf/emitter pair
-    assert not converter.export_ctx.exported_mats.has_mat('mat-Material')
+    assert 'mat-Material' not in converter.export_ctx.exported_mats
 
     import mitsuba as mi
     assert mi.load_dict(entry) is not None
@@ -135,7 +135,7 @@ def test_export_emission(fresh_scene, exporter, tmp_path):
 
     converter, entry = exported_entry(exporter, tmp_path)
     assert entry['type'] == 'twosided'
-    pair = converter.export_ctx.exported_mats.mats['mat-Material']
+    pair = converter.export_ctx.exported_mats['mat-Material']
     assert pair['bsdf'] == 'mat-Material'
     assert pair['emitter']['type'] == 'area'
     assert pair['emitter']['radiance']['value'] == \
@@ -148,7 +148,7 @@ def test_export_black_emission_ignored(fresh_scene, exporter, tmp_path):
     node.inputs['Emission Color'].default_value = (0.0, 0.0, 0.0, 1.0)
 
     converter, _ = exported_entry(exporter, tmp_path)
-    assert not converter.export_ctx.exported_mats.has_mat('mat-Material')
+    assert 'mat-Material' not in converter.export_ctx.exported_mats
 
 
 def test_export_alpha_wraps_mask(fresh_scene, exporter, tmp_path):

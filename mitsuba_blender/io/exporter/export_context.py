@@ -2,30 +2,6 @@ from collections import OrderedDict
 
 from mathutils import Matrix
 
-class ExportedMaterialsCache:
-    '''
-    Store a list of the exported materials, that have both a BSDF and an emitter
-    We need it to add 2 refs to each shape using this material
-    This is useless when a material is only one bsdf/emitter, so we won't add those.
-    '''
-    def __init__(self):
-        self.mats = {} # the mixed materials (1 BSDF, 1 emitter)
-
-    def add_material(self, mat_dict, mat_id):
-        """
-        Store a dict containing one ref to a bsdf and one emitter
-
-        mat_dict: {'emitter':emitter_dict, 'bsdf': bsdf_id}
-        mat_id: id of the blender material that encapsulates all these
-        """
-        self.mats[mat_id] = mat_dict
-
-    def has_mat(self, mat_id):
-        """
-        Determine if the given material is in the cache or not
-        """
-        return mat_id in self.mats.keys()
-
 class ExportContext:
     '''
     Export Context
@@ -35,7 +11,10 @@ class ExportContext:
         self.scene_data = OrderedDict([('type','scene')])
         self.warnings = [] # Messages of WARN or ERROR level, for reporting after the export
         self.counter = 0 # Counter to create unique IDs.
-        self.exported_mats = ExportedMaterialsCache()
+        # Materials with both a BSDF and an emitter, as
+        # {mat_id: {'bsdf': bsdf_id, 'emitter': emitter_dict}}; shapes
+        # using them need two references
+        self.exported_mats = {}
         self.export_ids = False # Export Object IDs in the XML file
         self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
         self.bsdf_objects = {} # Instantiated BSDFs, by material id (render mode)

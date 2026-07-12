@@ -114,8 +114,7 @@ def add_material_to_dict(export_ctx, mat_id, bsdf, emitter):
     else:
         export_ctx.data_add(bsdf, mat_id)
         bsdf_id = mat_id
-    export_ctx.exported_mats.add_material(
-        {'bsdf': bsdf_id, 'emitter': emitter}, mat_id)
+    export_ctx.exported_mats[mat_id] = {'bsdf': bsdf_id, 'emitter': emitter}
 
 
 def export_material(export_ctx, b_mat):
@@ -125,7 +124,7 @@ def export_material(export_ctx, b_mat):
         return
     mat_id = f'mat-{b_mat.name}'
     if export_ctx.data_get(mat_id) is not None \
-            or export_ctx.exported_mats.has_mat(mat_id):
+            or mat_id in export_ctx.exported_mats:
         return
     result = convert_material(export_ctx, b_mat)
     add_material_to_dict(export_ctx, mat_id, result['bsdf'],

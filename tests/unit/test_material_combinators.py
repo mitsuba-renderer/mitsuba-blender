@@ -100,7 +100,7 @@ def test_emission_export(fresh_scene, exporter, tmp_path):
     ctx = converter.export_ctx
     assert ctx.data_get('mat-Glow') is None
     assert ctx.data_get('empty-emitter-bsdf') is not None
-    assert ctx.exported_mats.mats['mat-Glow'] == {
+    assert ctx.exported_mats['mat-Glow'] == {
         'bsdf': 'empty-emitter-bsdf',
         'emitter': {'type': 'area',
                     'radiance': {'type': 'rgb',
@@ -124,7 +124,7 @@ def test_emission_zero_strength_exports_black_diffuse(fresh_scene, exporter,
         'type': 'diffuse',
         'reflectance': {'type': 'rgb', 'value': 0.0},
     }
-    assert not ctx.exported_mats.has_mat('mat-Dark')
+    assert 'mat-Dark' not in ctx.exported_mats
 
 
 def test_emission_folds_strength_graph(fresh_scene, exporter, tmp_path):
@@ -140,7 +140,7 @@ def test_emission_folds_strength_graph(fresh_scene, exporter, tmp_path):
     assign_material(b_mat)
 
     ctx = exporter(tmp_path).export_ctx
-    assert ctx.exported_mats.mats['mat-MathGlow']['emitter']['radiance'] == \
+    assert ctx.exported_mats['mat-MathGlow']['emitter']['radiance'] == \
         {'type': 'rgb', 'value': pytest.approx([1.5, 1.5, 1.5])}
 
 
@@ -156,7 +156,7 @@ def test_emission_textured_color(fresh_scene, exporter, tmp_path, registry):
     with fake_texture_converter(registry, 'TEX_NOISE',
                                 {'type': 'checkerboard'}):
         ctx = exporter(tmp_path).export_ctx
-    assert ctx.exported_mats.mats['mat-TexGlow']['emitter'] == \
+    assert ctx.exported_mats['mat-TexGlow']['emitter'] == \
         {'type': 'area', 'radiance': {'type': 'checkerboard'}}
 
 
@@ -176,7 +176,7 @@ def test_add_emission_and_bsdf(fresh_scene, exporter, tmp_path):
 
     ctx = exporter(tmp_path).export_ctx
     assert ctx.data_get('mat-GlowingDiffuse') == diffuse_dict([0.2, 0.4, 0.6])
-    assert ctx.exported_mats.mats['mat-GlowingDiffuse'] == {
+    assert ctx.exported_mats['mat-GlowingDiffuse'] == {
         'bsdf': 'mat-GlowingDiffuse',
         'emitter': {'type': 'area',
                     'radiance': {'type': 'rgb',
@@ -195,7 +195,7 @@ def test_add_two_emissions_sums_radiance(fresh_scene, exporter, tmp_path):
     assign_material(b_mat)
 
     ctx = exporter(tmp_path).export_ctx
-    assert ctx.exported_mats.mats['mat-DoubleGlow']['emitter']['radiance'] == \
+    assert ctx.exported_mats['mat-DoubleGlow']['emitter']['radiance'] == \
         {'type': 'rgb', 'value': pytest.approx([1.0, 3.0, 0.0])}
 
 
@@ -270,7 +270,7 @@ def test_mix_two_emissions(fresh_scene, exporter, tmp_path):
     assign_material(b_mat)
 
     ctx = exporter(tmp_path).export_ctx
-    assert ctx.exported_mats.mats['mat-GlowMix']['emitter']['radiance'] == \
+    assert ctx.exported_mats['mat-GlowMix']['emitter']['radiance'] == \
         {'type': 'rgb', 'value': pytest.approx([0.75, 0.5, 0.0])}
 
 
