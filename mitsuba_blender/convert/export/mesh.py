@@ -1,0 +1,300 @@
+'''Convert evaluated Blender meshes into Mitsuba meshes.
+
+The conversion reads the triangulated geometry into numpy arrays and builds
+`mitsuba.Mesh` objects directly. When rendering inside Blender, the meshes are
+kept in memory and inserted into the scene dict as instantiated objects. When
+exporting to a file, they are saved as binary PLY next to the XML and
+referenced by filename.
+'''
+
+import os
+import re
+from contextlib import contextmanager
+
+import bpy
+import numpy as np
+
+
+@contextmanager
+def resolver_append(directory):
+    '''Temporarily add a directory to Mitsuba's file resolver.'''
+    import mitsuba as mi
+    fr = mi.file_resolver()
+    paths = list(fr)
+    fr.prepend(directory)
+    try:
+        yield
+    finally:
+        fr.clear()
+        for path in paths:
+            fr.append(path)
+
+
+class MeshData:
+    '''Numpy snapshot of an evaluated Blender mesh, in Mitsuba conventions.'''
+
+    def __init__(self, export_ctx, b_mesh, name):
+        b_mesh.calc_loop_triangles()
+        self.tri_count = len(b_mesh.loop_triangles)
+        if self.tri_count == 0:
+            export_ctx.log(f'Mesh "{name}" has no faces. Skipping.', 'WARN')
+            return
+        loop_count = len(b_mesh.loops)
+
+        self.tri_loops = np.empty(self.tri_count * 3, dtype=np.int32)
+        b_mesh.loop_triangles.foreach_get('loops', self.tri_loops)
+        self.tri_loops = self.tri_loops.reshape(-1, 3)
+
+        self.tri_mats = np.empty(self.tri_count, dtype=np.int32)
+        b_mesh.loop_triangles.foreach_get('material_index', self.tri_mats)
+
+        self.loop_vert = np.empty(loop_count, dtype=np.int32)
+        b_mesh.loops.foreach_get('vertex_index', self.loop_vert)
+
+        self.positions = np.empty(len(b_mesh.vertices) * 3, dtype=np.float32)
+        b_mesh.vertices.foreach_get('co', self.positions)
+        self.positions = self.positions.reshape(-1, 3).astype(np.float64)
+
+        # Per-corner normals include the effect of smooth/sharp faces and
+        # custom split normals.
+        normals = np.empty(loop_count * 3, dtype=np.float32)
+        b_mesh.corner_normals.foreach_get('vector', normals)
+        self.normals = normals.reshape(-1, 3).astype(np.float64)
+
+        self.uvs = None
+        if len(b_mesh.uv_layers) > 1:
+            export_ctx.log(f'Mesh "{name}" has multiple UV layers. Mitsuba '
+                           'only supports one. Exporting the one set active '
+                           'for render.', 'WARN')
+        for uv_layer in b_mesh.uv_layers:
+            if uv_layer.active_render:
+                uvs = np.empty(loop_count * 2, dtype=np.float32)
+                uv_layer.uv.foreach_get('vector', uvs)
+                self.uvs = uvs.reshape(-1, 2).astype(np.float64)
+                self.uvs[:, 1] = 1.0 - self.uvs[:, 1]
+                break
+
+        # Color attributes, converted to one RGB value per corner
+        self.colors = []
+        for attr in b_mesh.color_attributes:
+            values = np.empty(len(attr.data) * 4, dtype=np.float32)
+            attr.data.foreach_get('color', values)
+            values = values.reshape(-1, 4)[:, :3].astype(np.float64)
+            if attr.domain == 'POINT':
+                values = values[self.loop_vert]
+            self.colors.append((re.sub(r'\W', '_', attr.name), values))
+
+
+def make_mesh(export_ctx, mesh_data, name, tri_mask, matrix_world, props=None):
+    '''Build a mitsuba.Mesh from a subset of the triangles of a MeshData.
+
+    Corners that share the same vertex, normal, UV and color values are
+    welded into a single Mitsuba vertex. When a world matrix is given, it is
+    combined with the axis conversion matrix and baked into the vertex data.
+    Returns None if the selection contains no triangles.
+    '''
+    import mitsuba as mi
+
+    if mesh_data.tri_count == 0:
+        return None
+    tris = mesh_data.tri_loops if tri_mask is None else mesh_data.tri_loops[tri_mask]
+    face_count = len(tris)
+    if face_count == 0:
+        return None
+
+    corners = tris.ravel()
+    columns = [mesh_data.loop_vert[corners, None].astype(np.float64),
+               mesh_data.normals[corners]]
+    if mesh_data.uvs is not None:
+        columns.append(mesh_data.uvs[corners])
+    for _, values in mesh_data.colors:
+        columns.append(values[corners])
+
+    unique, inverse = np.unique(np.hstack(columns), axis=0, return_inverse=True)
+    faces = inverse.astype(np.uint32).reshape(-1, 3)
+    positions = mesh_data.positions[unique[:, 0].astype(np.int64)]
+    normals = unique[:, 1:4]
+
+    if matrix_world is not None:
+        to_world = np.array(export_ctx.axis_mat @ matrix_world, dtype=np.float64)
+        positions = positions @ to_world[:3, :3].T + to_world[:3, 3]
+        normals = normals @ np.linalg.inv(to_world[:3, :3])
+        if np.linalg.det(to_world[:3, :3]) < 0:
+            # Mirroring transforms flip the face winding
+            faces = faces[:, ::-1]
+    normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-20)
+
+    mi_mesh = mi.Mesh(name, len(unique), face_count,
+                      props=props if props is not None else mi.Properties(),
+                      has_vertex_normals=True,
+                      has_vertex_texcoords=mesh_data.uvs is not None)
+    offset = 4
+    if mesh_data.uvs is not None:
+        offset = 6
+    for attr_name, _ in mesh_data.colors:
+        mi_mesh.add_attribute(f'vertex_{attr_name}', 3,
+                              unique[:, offset:offset + 3].ravel())
+        offset += 3
+
+    params = mi.traverse(mi_mesh)
+    params['vertex_positions'] = positions.ravel()
+    params['vertex_normals'] = normals.ravel()
+    if mesh_data.uvs is not None:
+        params['vertex_texcoords'] = unique[:, 4:6].ravel()
+    params['faces'] = faces.ravel()
+    params.update()
+    return mi_mesh
+
+
+DEFAULT_BSDF_ID = 'default-bsdf'
+DEFAULT_BSDF = {
+    'type': 'twosided',
+    'bsdf': {'type': 'diffuse'}
+}
+
+
+def material_refs(export_ctx, b_mat):
+    '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
+    from ...io.exporter.materials import export_material
+    mat_id = f'mat-{b_mat.name}'
+    if export_ctx.data_get(mat_id) is None \
+            and not export_ctx.exported_mats.has_mat(mat_id):
+        export_material(export_ctx, b_mat)
+    if export_ctx.exported_mats.has_mat(mat_id):
+        mixed = export_ctx.exported_mats.mats[mat_id]
+        return mixed['bsdf'], mixed['emitter']
+    if export_ctx.data_get(mat_id) is None:
+        return default_bsdf_id(export_ctx), None
+    return mat_id, None
+
+
+def default_bsdf_id(export_ctx):
+    '''Return the id of the fallback material, adding it to the dict once.'''
+    if not export_ctx.render and export_ctx.data_get(DEFAULT_BSDF_ID) is None:
+        export_ctx.data_add(dict(DEFAULT_BSDF), name=DEFAULT_BSDF_ID)
+    return DEFAULT_BSDF_ID
+
+
+def instantiate_bsdf(export_ctx, bsdf_id):
+    '''Instantiate a BSDF from its exported dict, once per id (render mode).'''
+    import mitsuba as mi
+    cache = export_ctx.bsdf_objects
+    if bsdf_id not in cache:
+        if bsdf_id == DEFAULT_BSDF_ID:
+            bsdf_dict = DEFAULT_BSDF
+        else:
+            bsdf_dict = export_ctx.data_get(bsdf_id)
+            del export_ctx.scene_data[export_ctx.sanitize(bsdf_id)]
+        with resolver_append(export_ctx.directory):
+            cache[bsdf_id] = mi.load_dict(bsdf_dict)
+    return cache[bsdf_id]
+
+
+def shape_props(export_ctx, bsdf_id, emitter_dict):
+    '''Build the constructor properties of a shape (render mode).'''
+    import mitsuba as mi
+    props = mi.Properties()
+    props['bsdf'] = instantiate_bsdf(export_ctx, bsdf_id)
+    if emitter_dict is not None:
+        with resolver_append(export_ctx.directory):
+            props['emitter'] = mi.load_dict(emitter_dict)
+    return props
+
+
+def export_object(deg_instance, export_ctx, is_particle):
+    '''Convert a Blender object into one Mitsuba mesh per material slot.'''
+    b_object = deg_instance.object
+    # Remove spurious characters such as slashes
+    name_clean = bpy.path.clean_name(b_object.name_full)
+    object_id = f'mesh-{name_clean}'
+
+    is_instance_emitter = b_object.parent is not None \
+        and b_object.parent.original.is_instancer
+    is_instance = deg_instance.is_instance
+
+    # Only convert objects that have never been exported before
+    if export_ctx.data_get(object_id) is None:
+        if b_object.type == 'MESH':
+            b_mesh = b_object.data
+        else: # Metaballs, text, surfaces
+            b_mesh = b_object.to_mesh()
+
+        mesh_data = MeshData(export_ctx, b_mesh, name_clean)
+        if is_instance or is_instance_emitter:
+            transform = None
+        else:
+            transform = b_object.matrix_world
+
+        # One entry per material slot: (name, bsdf_id, emitter_dict, tri_mask)
+        parts = []
+        slots = b_object.material_slots
+        if len(slots) == 0:
+            parts.append((name_clean, default_bsdf_id(export_ctx), None, None))
+        else:
+            refs_per_mat = {}
+            for mat_nr, slot in enumerate(slots):
+                if slot.material is None:
+                    continue
+                # Ensure unique part names even if multiple slots refer to
+                # the same material
+                n_refs = refs_per_mat.get(slot.material.name, 0)
+                refs_per_mat[slot.material.name] = n_refs + 1
+                name = f'{name_clean}-{slot.material.name}'
+                if n_refs >= 1:
+                    name += f'-{n_refs:03d}'
+                bsdf_id, emitter = material_refs(export_ctx, slot.material)
+                parts.append((name, bsdf_id, emitter,
+                              mesh_data.tri_mats == mat_nr))
+
+        converted = []
+        for name, bsdf_id, emitter, tri_mask in parts:
+            props = shape_props(export_ctx, bsdf_id, emitter) \
+                if export_ctx.render else None
+            mi_mesh = make_mesh(export_ctx, mesh_data, name, tri_mask,
+                                transform, props)
+            if mi_mesh is not None:
+                converted.append((name, bsdf_id, emitter, mi_mesh))
+
+        if b_object.type != 'MESH':
+            b_object.to_mesh_clear()
+
+        # Use a shapegroup for instanced objects
+        use_shapegroup = is_instance or is_instance_emitter or is_particle
+        group = {'type': 'shapegroup'} if use_shapegroup else None
+
+        for name, bsdf_id, emitter, mi_mesh in converted:
+            name = name_clean if len(converted) == 1 else name
+
+            if export_ctx.render:
+                entry = mi_mesh
+            else:
+                # Save as binary PLY, referenced by a relative path
+                mesh_folder = os.path.join(export_ctx.directory,
+                                           export_ctx.subfolders['shape'])
+                os.makedirs(mesh_folder, exist_ok=True)
+                mi_mesh.write_ply(os.path.join(mesh_folder, f'{name}.ply'))
+                entry = {
+                    'type': 'ply',
+                    'filename': f"{export_ctx.subfolders['shape']}/{name}.ply",
+                    'bsdf': export_ctx.create_ref(bsdf_id)
+                }
+                if emitter is not None:
+                    entry['emitter'] = emitter
+
+            if use_shapegroup:
+                group[export_ctx.sanitize(name)] = entry
+            elif export_ctx.render or export_ctx.export_ids:
+                export_ctx.data_add(entry, name=f'mesh-{name}')
+            else:
+                export_ctx.data_add(entry)
+
+        if use_shapegroup:
+            export_ctx.data_add(group, name=object_id)
+
+    if is_instance or is_particle:
+        params = {
+            'type': 'instance',
+            'shape': export_ctx.create_ref(object_id),
+            'to_world': export_ctx.transform_matrix(deg_instance.matrix_world)
+        }
+        export_ctx.data_add(params)

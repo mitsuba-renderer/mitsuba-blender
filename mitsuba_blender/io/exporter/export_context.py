@@ -69,6 +69,8 @@ class ExportContext:
         self.exported_mats = ExportedMaterialsCache()
         self.export_ids = False # Export Object IDs in the XML file
         self.exported_ids = set()
+        self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
+        self.bsdf_objects = {} # Instantiated BSDFs, by material id (render mode)
         # All the args defined below are set in the Converter
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
@@ -99,21 +101,23 @@ class ExportContext:
 
     def data_add(self, mts_dict, name=''):
         '''
-        Function to add new elements to the scene dict.
+        Function to add new elements to the scene dict. The element is either
+        a plugin dict or an already instantiated Mitsuba object (render mode).
         If a name is provided it will be used as the key of the element.
         Otherwise the Id of the element is used if it exists
         or a new key is generated incrementally.
         '''
-        if mts_dict is None or not isinstance(mts_dict, dict) or len(mts_dict) == 0 or 'type' not in mts_dict:
+        if mts_dict is None:
+            return False
+        if isinstance(mts_dict, dict) and (len(mts_dict) == 0 or 'type' not in mts_dict):
             return False
 
         if not name:
-            try:
+            if isinstance(mts_dict, dict) and 'id' in mts_dict:
                 name = mts_dict['id']
                 #remove the corresponding entry
                 del mts_dict['id']
-
-            except KeyError:
+            else:
                 name = 'elm__%i' % self.counter
 
         # Sanitize name

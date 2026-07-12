@@ -2,9 +2,9 @@ import bpy
 
 from . import export_context
 from . import materials
-from . import geometry
 from . import lights
 from . import camera
+from ...convert.export import mesh
 
 class SceneConverter:
     '''
@@ -13,6 +13,7 @@ class SceneConverter:
     '''
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
+        self.export_ctx.render = render
         self.render = render
 
     def scene_to_dict(self, depsgraph, window_manager=None, use_selection=False, ignore_background=True):
@@ -83,7 +84,7 @@ class SceneConverter:
                 self.export_ctx.log("Object: {} is hidden for render. Ignoring it.".format(evaluated_obj.name), 'INFO')
                 continue#ignore it since we don't want it rendered (TODO: hide_viewport)
             if object_type in {'MESH', 'FONT', 'SURFACE', 'META'}:
-                geometry.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
+                mesh.export_object(object_instance, self.export_ctx, evaluated_obj.name in particles)
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
                 if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
