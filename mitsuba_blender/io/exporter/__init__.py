@@ -111,13 +111,10 @@ class SceneConverter:
 
     def dict_to_scene(self):
         import mitsuba as mi
-        # Resolve relative file references against the export directory
-        fr = mi.file_resolver()
-        paths = list(fr)
-        fr.prepend(self.export_ctx.directory)
-        try:
-            return mi.load_dict(self.export_ctx.scene_data)
-        finally:
-            fr.clear()
-            for path in paths:
-                fr.append(path)
+        # A resources entry resolves the relative file references against
+        # the export directory; it must precede the entries that use them
+        data = {'type': 'scene',
+                'resources': {'type': 'resources',
+                              'path': self.export_ctx.directory}}
+        data.update(self.export_ctx.scene_data)
+        return mi.load_dict(data)
