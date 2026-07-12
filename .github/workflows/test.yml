@@ -1,91 +1,103 @@
-# This workflow runs on every pull request and push on any other branch other than master.
-# It executes the test suite on different environments to validate the add-on.
+# Runs the test suite inside headless Blender and builds the extension zip.
 name: Test suite
 
-# Triggers the workflow on pull requests created for the master branch as well as
-# push events on other branches than master.
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+  # No branch filter, so pull requests against any base branch run the suite.
   pull_request:
-    branches: [ master ]
   workflow_call:
+  schedule:
+    # The weekly run additionally tests the daily Blender development build.
+    - cron: '0 5 * * 1'
 
-# Workflow steps
 jobs:
-  build:
-    name: "${{ matrix.environment.os }} | Blender ${{ matrix.blender.version }}"
-    runs-on: ${{ matrix.environment.os }}
+  test:
+    name: "Blender ${{ matrix.blender-version }}"
+    runs-on: ubuntu-latest
+    # The daily Blender build may break at any time; report but do not fail.
+    continue-on-error: ${{ matrix.blender-version == 'daily' }}
     strategy:
-      # Do not stop other jobs if one fails
       fail-fast: false
       matrix:
-        environment:
-        - {
-          os: "ubuntu-latest",
-          mitsuba-version: "3.7.1"
-        }
-        - {
-          os: "windows-latest",
-          mitsuba-version: "3.7.1"
-        }
-        blender:
-        - {
-          version: "3.6",
-          python-version: "3.10"
-        }
-        - {
-          version: "4.2",
-          python-version: "3.11"
-        }
-        - {
-          version: "4.5",
-          python-version: "3.11"
-        }
+        blender-version: ${{ fromJSON(github.event_name == 'schedule' && '["4.2", "4.5", "daily"]' || '["4.2", "4.5"]') }}
+
     steps:
     - name: Git checkout
       uses: actions/checkout@v4
 
     - name: Setup Python
-      uses: "actions/setup-python@v2"
+      uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.blender.python-version }}
+        python-version: '3.11'
 
-    - name: Install Python dependencies
+    - name: Install host Python dependencies
       run: python -m pip install --upgrade requests
 
     - name: Retrieve Blender full version
       id: blender-version
-      shell: bash
-      run: |
-        echo "::set-output name=BLENDER_VERSION::$(python scripts/blender_downloader.py ${{ matrix.blender.version }} --print-version)"
+      run: echo "version=$(python scripts/blender_downloader.py ${{ matrix.blender-version }} --print-version)" >> "$GITHUB_OUTPUT"
 
     - name: Cache Blender archive
       id: cache-blender
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: blender
-        key: ${{ matrix.environment.os }}-${{ steps.blender-version.outputs.BLENDER_VERSION }}-v1
+        key: ${{ runner.os }}-${{ steps.blender-version.outputs.version }}
 
     - name: Download Blender
       if: steps.cache-blender.outputs.cache-hit != 'true'
-      run: python scripts/blender_downloader.py ${{ matrix.blender.version }} -o blender
+      run: python scripts/blender_downloader.py ${{ matrix.blender-version }} -o blender
 
-    - name: Install Blender dependencies
-      shell: bash
+    - name: Install test dependencies into Blender's Python
       run: |
-        BLENDER_PYTHON=$(find blender/ -regextype posix-extended -regex '.*bin\/python(.exe|[0-9].[0-9]{1,2}m?)' -print -quit)
-        echo "Blender Python is $BLENDER_PYTHON"
-        ./$BLENDER_PYTHON -m ensurepip
-        ./$BLENDER_PYTHON -m pip install -U pip
-        ./$BLENDER_PYTHON -m pip install --upgrade pytest pytest-cov
-        ./$BLENDER_PYTHON -m pip install mitsuba==${{ matrix.environment.mitsuba-version }} --force-reinstall
+        blender_python=$(find blender -path '*/python/bin/python3*' -type f -print -quit)
+        echo "Blender Python is $blender_python"
+        "$blender_python" -m ensurepip
+        "$blender_python" -m pip install --upgrade pip
+        "$blender_python" -m pip install pytest mitsuba==3.9.0
 
-    - name: Run Addon test suite
-      shell: bash
-      run: |
-        BLENDER_EXECUTABLE=$(find blender/ -maxdepth 1 -regextype posix-extended -regex '.*blender(.exe)?' -print -quit)
-        echo "Blender Executable is $BLENDER_EXECUTABLE"
-        ./$BLENDER_EXECUTABLE -b -noaudio --factory-startup --python scripts/run_tests.py -- -v --cov=mitsuba_blender
+    - name: Run the test suite
+      run: BLENDER="$PWD/blender/blender" python tests/run.py --all
 
+  package:
+    name: Package extension
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Git checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install host Python dependencies
+      run: python -m pip install --upgrade requests
+
+    - name: Retrieve Blender full version
+      id: blender-version
+      run: echo "version=$(python scripts/blender_downloader.py 4.2 --print-version)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Blender archive
+      id: cache-blender
+      uses: actions/cache@v4
+      with:
+        path: blender
+        key: ${{ runner.os }}-${{ steps.blender-version.outputs.version }}
+
+    - name: Download Blender
+      if: steps.cache-blender.outputs.cache-hit != 'true'
+      run: python scripts/blender_downloader.py 4.2 -o blender
+
+    - name: Build the extension
+      run: ./blender/blender --command extension build --source-dir mitsuba_blender --output-dir .
+
+    - name: Upload the extension zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-zips
+        path: mitsuba_blender-*.zip
+        if-no-files-found: error

@@ -12,6 +12,8 @@ BLENDER_MIRROR_URLS = [
     'https://ftp.nluug.nl/pub/graphics/blender/release'
 ]
 
+BLENDER_DAILY_BUILDS_URL = 'https://builder.blender.org/download/daily/?format=json&v=1'
+
 def get_platform_suffix_pattern():
     if sys.platform.startswith('linux'):
         return 'linux(-x64|64).tar.(xz|gz|bz2)'
@@ -38,7 +40,11 @@ class BlenderHTMLParser(HTMLParser):
                 platform_blender_links.append(link)
         
         if len(self.blender_version_parts) == 2:
-            return platform_blender_links[-1]
+            # Pick the highest patch release; the directory listing is
+            # sorted lexicographically, so 4.2.9 would come after 4.2.22.
+            def link_version(link):
+                return tuple(int(p) for p in link.split('-')[1].split('.'))
+            return max(platform_blender_links, key=link_version, default=None)
         else:
             for link in platform_blender_links:
                 link_blender_version = link.split('-')[1]
@@ -55,7 +61,27 @@ class BlenderHTMLParser(HTMLParser):
         return super().handle_starttag(tag, attrs)
 
 
+def get_daily_download_url():
+    if sys.platform.startswith('linux'):
+        platform, architecture, extension = 'linux', 'x86_64', 'xz'
+    elif sys.platform.startswith('win64') or sys.platform.startswith('win32'):
+        platform, architecture, extension = 'windows', 'amd64', 'zip'
+    else:
+        raise RuntimeError(f'Unsupported platform: {sys.platform}')
+
+    builds = requests.get(BLENDER_DAILY_BUILDS_URL).json()
+    for build in builds:
+        if (build['branch'] == 'main'
+                and build['platform'] == platform
+                and build['architecture'] == architecture
+                and build['file_extension'] == extension):
+            return build['url']
+    return None
+
 def get_download_url(blender_version):
+    if blender_version == 'daily':
+        return get_daily_download_url()
+
     version_parts = blender_version.split('.')
     version_parts_count = len(version_parts)
 
@@ -90,7 +116,10 @@ def main(args):
         blender_version_parts = archive_file_name.split('-')
         if len(blender_version_parts) < 2:
             raise RuntimeError(f'Invalid blender version: {archive_file_name}')
-        print(f'{blender_version_parts[0]}-{blender_version_parts[1]}')
+        # Daily archive names carry the branch and commit hash in the third
+        # part; keep it so consumers (e.g. CI caches) see a unique version.
+        part_count = 3 if args.version == 'daily' else 2
+        print('-'.join(blender_version_parts[:part_count]))
         return
 
     if not os.path.exists(archive_file_name):
@@ -132,7 +161,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Blender archive downloader.')
-    parser.add_argument('version', help='Blender version')
+    parser.add_argument('version', help="Blender version (e.g. 4.2, 4.2.22, or 'daily')")
     parser.add_argument('-o', '--out', default='blender', help='output file name')
     parser.add_argument('--print-version', action='store_const', const=True, default=False, help='print the Blender version instead of downloading the archive')
     
