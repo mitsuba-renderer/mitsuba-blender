@@ -74,8 +74,9 @@ class ImportMistuba(bpy.types.Operator, ImportHelper):
             # Clear the current scene
             scene = bl_utils.init_empty_scene(context, name=bpy.context.scene.name)
         else:
-            # Create a new scene for Mitsuba objects
-            scene = bl_utils.init_empty_scene(context, name='Mitsuba')
+            # Create a new scene for Mitsuba objects; Blender uniquifies
+            # the name, keeping earlier imports intact
+            scene = bpy.data.scenes.new('Mitsuba')
         collection = scene.collection
 
         try:

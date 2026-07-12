@@ -135,3 +135,28 @@ def test_clean_scene_has_no_warnings(mi_addon, fresh_scene, tmp_path):
         bpy.context, scene, scene.collection, str(scene_file), axis_mat,
         False, True)
     assert warnings == []
+
+
+def test_second_import_keeps_previous_import(mi_addon, fresh_scene,
+                                             tmp_path):
+    # Importing into a new scene used to delete an existing 'Mitsuba'
+    # scene and purge its data, silently destroying the previous import
+    scene_file = _write_scene(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="diffuse"/>
+        </shape>''')
+
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(scene_file), override_scene=False) == {'FINISHED'}
+    first_name = bpy.context.window.scene.name
+    first_objs = {o.name for o in bpy.context.window.scene.objects}
+    assert first_objs
+
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(scene_file), override_scene=False) == {'FINISHED'}
+    second_name = bpy.context.window.scene.name
+
+    assert second_name != first_name
+    assert first_name in bpy.data.scenes
+    assert {o.name for o in bpy.data.scenes[first_name].objects} == \
+        first_objs
