@@ -235,3 +235,111 @@ def test_export_folds_input_graph(fresh_scene, exporter, tmp_path):
 
     _, entry = exported_entry(exporter, tmp_path)
     assert entry['bsdf']['metallic'] == pytest.approx(0.5)
+
+
+######################
+##   Import  side   ##
+######################
+
+def import_xml(tmp_path, xml_body):
+    xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(xml)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+
+def imported_material(name):
+    b_mat = bpy.data.materials[name]
+    surface = b_mat.node_tree.get_output_node('CYCLES').inputs['Surface']
+    assert surface.is_linked
+    return b_mat, surface.links[0].from_node
+
+
+def test_import_principled(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="principled" id="mat-p">
+                <rgb name="base_color" value="0.2 0.4 0.6"/>
+                <float name="roughness" value="0.3"/>
+                <float name="metallic" value="0.7"/>
+                <float name="anisotropic" value="0.2"/>
+                <float name="spec_trans" value="1.0"/>
+                <float name="eta" value="1.45"/>
+                <float name="spec_tint" value="0.25"/>
+                <float name="sheen" value="0.6"/>
+                <float name="sheen_tint" value="0.4"/>
+                <float name="clearcoat" value="0.8"/>
+                <float name="clearcoat_gloss" value="0.9"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-p')
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    inputs = node.inputs
+    assert tuple(inputs['Base Color'].default_value) == \
+        pytest.approx((0.2, 0.4, 0.6, 1.0))
+    assert inputs['Roughness'].default_value == pytest.approx(0.3)
+    assert inputs['Metallic'].default_value == pytest.approx(0.7)
+    assert inputs['Anisotropic'].default_value == pytest.approx(0.2)
+    assert inputs['Transmission Weight'].default_value == pytest.approx(1.0)
+    assert inputs['IOR'].default_value == pytest.approx(1.45)
+    assert inputs['Specular IOR Level'].default_value == \
+        pytest.approx(((1.45 - 1.0) / (1.45 + 1.0)) ** 2 / 0.08)
+    assert tuple(inputs['Specular Tint'].default_value) == \
+        pytest.approx((0.75, 0.75, 0.75, 1.0))
+    assert inputs['Sheen Weight'].default_value == pytest.approx(0.6)
+    assert tuple(inputs['Sheen Tint'].default_value) == \
+        pytest.approx((0.4, 0.4, 0.4, 1.0))
+    assert inputs['Coat Weight'].default_value == pytest.approx(0.8)
+    assert inputs['Coat Roughness'].default_value == pytest.approx(0.1)
+
+
+def test_import_principled_specular(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="principled" id="mat-s">
+                <float name="specular" value="0.5"/>
+            </bsdf>
+        </shape>''')
+
+    _, node = imported_material('mat-s')
+    assert node.inputs['Specular IOR Level'].default_value == \
+        pytest.approx(0.5)
+    # F0 = 0.08 * 0.5 = 0.04 corresponds to an IOR of 1.5
+    assert node.inputs['IOR'].default_value == pytest.approx(1.5)
+
+
+def test_import_principled_defaults(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="principled" id="mat-d"/>
+        </shape>''')
+
+    _, node = imported_material('mat-d')
+    assert node.bl_idname == 'ShaderNodeBsdfPrincipled'
+    assert tuple(node.inputs['Base Color'].default_value) == \
+        pytest.approx((0.5, 0.5, 0.5, 1.0))
+    assert node.inputs['Roughness'].default_value == pytest.approx(0.5)
+
+
+def test_import_principled_with_emitter(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="principled" id="mat-glow"/>
+            <emitter type="area">
+                <rgb name="radiance" value="2 1 0.5"/>
+            </emitter>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-glow')
+    assert node.bl_idname == 'ShaderNodeAddShader'
+    emission = [n for n in b_mat.node_tree.nodes
+                if n.bl_idname == 'ShaderNodeEmission']
+    assert len(emission) == 1
+    assert emission[0].inputs['Strength'].default_value == pytest.approx(2.0)
+    assert tuple(emission[0].inputs['Color'].default_value) == \
+        pytest.approx((1.0, 0.5, 0.25, 1.0))
+    principled = [n for n in b_mat.node_tree.nodes
+                  if n.bl_idname == 'ShaderNodeBsdfPrincipled']
+    assert len(principled) == 1
