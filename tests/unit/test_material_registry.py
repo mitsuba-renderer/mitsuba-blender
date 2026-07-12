@@ -184,3 +184,114 @@ def test_shared_material_exported_once(fresh_scene, exporter, tmp_path):
     entries = [key for key in converter.export_ctx.scene_data
                if key.startswith('mat-Shared')]
     assert entries == ['mat-Shared']
+
+
+#######################
+##   Import  side    ##
+#######################
+
+@pytest.fixture(scope='session')
+def import_registry(mi_addon):
+    return importlib.import_module(f'{mi_addon}.convert.importer.materials')
+
+
+def import_xml(tmp_path, xml_body):
+    xml = f'<scene version="3.0.0">\n{xml_body}\n</scene>'
+    scene_file = tmp_path / 'scene.xml'
+    scene_file.write_text(xml)
+    assert bpy.ops.import_scene.mitsuba(filepath=str(scene_file)) == \
+        {'FINISHED'}
+
+
+def imported_material(name):
+    b_mat = bpy.data.materials[name]
+    surface = b_mat.node_tree.get_output_node('CYCLES').inputs['Surface']
+    assert surface.is_linked
+    return b_mat, surface.links[0].from_node
+
+
+def test_import_diffuse(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="diffuse" id="mat-thing">
+                <rgb name="reflectance" value="0.2 0.4 0.6"/>
+            </bsdf>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-thing')
+    assert node.bl_idname == 'ShaderNodeBsdfDiffuse'
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.2, 0.4, 0.6, 1.0))
+
+
+def test_import_diffuse_default_reflectance(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="sphere">
+            <bsdf type="diffuse" id="mat-plain"/>
+        </shape>''')
+
+    _, node = imported_material('mat-plain')
+    assert node.bl_idname == 'ShaderNodeBsdfDiffuse'
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx((0.8, 0.8, 0.8, 1.0))
+
+
+def test_import_diffuse_with_emitter(mi_addon, fresh_scene, tmp_path):
+    import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="diffuse" id="mat-glowing"/>
+            <emitter type="area">
+                <rgb name="radiance" value="3 3 3"/>
+            </emitter>
+        </shape>''')
+
+    b_mat, node = imported_material('mat-glowing')
+    assert node.bl_idname == 'ShaderNodeAddShader'
+    tree = b_mat.node_tree
+    emission = [n for n in tree.nodes
+                if n.bl_idname == 'ShaderNodeEmission']
+    assert len(emission) == 1
+    assert emission[0].inputs['Strength'].default_value == \
+        pytest.approx(3.0)
+    diffuse = [n for n in tree.nodes
+               if n.bl_idname == 'ShaderNodeBsdfDiffuse']
+    assert len(diffuse) == 1
+
+
+def test_import_error_placeholder(mi_addon, fresh_scene, tmp_path,
+                                  import_registry):
+    @import_registry.material_converter('plastic')
+    def convert_plastic(builder, mi_props):
+        raise import_registry.ConversionError('plastic says no')
+
+    try:
+        import_xml(tmp_path, '''
+            <shape type="sphere">
+                <bsdf type="plastic" id="mat-broken"/>
+            </shape>''')
+    finally:
+        del import_registry._material_converters['plastic']
+
+    _, node = imported_material('mat-broken')
+    assert node.bl_idname == 'ShaderNodeBsdfDiffuse'
+    assert tuple(node.inputs['Color'].default_value) == \
+        pytest.approx(import_registry.ERROR_COLOR)
+
+
+def test_roundtrip_diffuse(mi_addon, fresh_scene, exporter, tmp_path):
+    b_mat = make_diffuse_material('Roundtrip', color=(0.25, 0.5, 0.75, 1.0))
+    assign_material(b_mat)
+    converter = exporter(tmp_path)
+    converter.dict_to_xml(str(tmp_path / 'scene.xml'))
+
+    bpy.ops.wm.read_homefile()
+    assert bpy.ops.import_scene.mitsuba(
+        filepath=str(tmp_path / 'scene.xml')) == {'FINISHED'}
+    # The exporter wraps the diffuse BSDF in twosided, which the legacy
+    # importer unwraps before dispatching the inner diffuse
+    b_mat = bpy.data.materials['mat-Roundtrip']
+    diffuse = [n for n in b_mat.node_tree.nodes
+               if n.bl_idname == 'ShaderNodeBsdfDiffuse']
+    assert len(diffuse) == 1
+    assert tuple(diffuse[0].inputs['Color'].default_value) == \
+        pytest.approx((0.25, 0.5, 0.75, 1.0))

@@ -618,6 +618,13 @@ def mi_material_to_bl_material(mi_context, mi_mat, mi_emitter=None):
     # Check that the emitter is of the correct type
     assert mi_emitter is None or mi_emitter.plugin_name() == 'area'
 
+    # BSDF types covered by the converter registry take the new path; the
+    # remaining plugins fall back to the legacy importer below.
+    from ...convert.importer import materials as converters
+    if converters.has_converter(mi_mat.plugin_name()):
+        return converters.convert_material(mi_context, mi_mat,
+                                           mi_emitter=mi_emitter)
+
     bl_mat = bpy.data.materials.new(name=mi_mat.id())
     bl_mat_wrap = bl_shader_utils.NodeMaterialWrapper(bl_mat, init_empty=True)
     out_socket_id = 'Surface'
