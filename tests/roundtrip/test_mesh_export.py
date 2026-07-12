@@ -150,3 +150,17 @@ def test_vertex_colors_roundtrip(fresh_scene, exporter, tmp_path):
     params = mi.traverse(mesh)
     values = np.array(params['vertex_Col']).reshape(-1, 3)
     assert np.allclose(values, [0.25, 0.5, 0.75], atol=1e-5)
+
+
+def test_faceless_mesh_does_not_abort_export(fresh_scene, exporter, tmp_path):
+    b_mesh = bpy.data.meshes.new('Wire')
+    b_mesh.from_pydata([(0, 0, 0), (1, 0, 0)], [(0, 1)], [])
+    b_mesh.materials.append(bpy.data.materials.new('WireMat'))
+    b_obj = bpy.data.objects.new('Wire', b_mesh)
+    bpy.context.scene.collection.objects.link(b_obj)
+
+    converter = exporter(tmp_path, render=True)
+    scene = converter.dict_to_scene()
+    # Only the default cube survives; the faceless mesh is skipped
+    assert len(scene_meshes(scene)) == 1
+    assert any('no faces' in w for w in converter.export_ctx.warnings)

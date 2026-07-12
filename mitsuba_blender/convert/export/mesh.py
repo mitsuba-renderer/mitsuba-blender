@@ -305,6 +305,10 @@ class GeometryExporter:
             b_mesh = b_object.to_mesh()
 
         mesh_data = MeshData(export_ctx, b_mesh, name_clean)
+        if mesh_data.tri_count == 0:
+            if b_object.type != 'MESH':
+                b_object.to_mesh_clear()
+            return []
 
         # One entry per material slot: (name, bsdf_id, emitter_dict, tri_mask)
         parts = []
