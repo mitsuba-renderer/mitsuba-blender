@@ -1,6 +1,17 @@
 """Regression tests for importer crashes inherited from PR #137."""
 
 import bpy
+import numpy as np
+
+
+def _write_png(path, size=4):
+    image = bpy.data.images.new('png-writer', size, size, alpha=True)
+    values = np.linspace(0.0, 1.0, size * size * 4, dtype=np.float32)
+    image.pixels.foreach_set(values)
+    image.filepath_raw = str(path)
+    image.file_format = 'PNG'
+    image.save()
+    bpy.data.images.remove(image)
 
 
 def _import_xml(tmp_path, xml_body):
@@ -94,6 +105,25 @@ def test_emitter_shape_without_bsdf(mi_addon, fresh_scene, tmp_path):
     emission_nodes = _find_nodes(mats[0], 'ShaderNodeEmission')
     assert len(emission_nodes) == 1
     assert emission_nodes[0].inputs['Strength'].default_value == 2.0
+
+
+def test_conductor_with_textured_property(mi_addon, fresh_scene, tmp_path):
+    # Copying a ResolvedReference property into the reflectance-probing
+    # load_dict call followed a dangling parser-state index and killed
+    # the whole Blender session with a segfault
+    _write_png(tmp_path / 'tex.png')
+    _import_xml(tmp_path, '''
+        <shape type="rectangle">
+            <bsdf type="roughconductor" id="mat-cond">
+                <texture type="bitmap" name="specular_reflectance">
+                    <string name="filename" value="tex.png"/>
+                </texture>
+            </bsdf>
+        </shape>''')
+
+    mats = _mesh_materials()
+    assert len(mats) == 1
+    assert len(_find_nodes(mats[0], 'ShaderNodeBsdfAnisotropic')) == 1
 
 
 def test_area_emitter_rectangle_becomes_light(mi_addon, fresh_scene,

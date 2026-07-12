@@ -83,12 +83,17 @@ def _retro_reflectance(builder, mi_props, default=(1.0, 1.0, 1.0)):
     '''Estimate the reflection color of a BSDF by evaluating it head-on.
     Smooth conductors are delta lobes that evaluate to zero, so they are
     evaluated through an equivalent rough one.'''
-    from mitsuba import (BSDFContext, SurfaceInteraction3f, Vector3f,
-                         load_dict)
+    from mitsuba import (BSDFContext, Properties, SurfaceInteraction3f,
+                         Vector3f, load_dict)
     try:
         bsdf_dict = {'type': mi_props.plugin_name()}
         for name in mi_props.keys():
-            bsdf_dict[name] = mi_props.get(name)
+            value = mi_props.get(name)
+            # References index into the parser state; following them from
+            # a standalone load_dict call would crash Mitsuba
+            if isinstance(value, Properties.ResolvedReference):
+                continue
+            bsdf_dict[name] = value
         if bsdf_dict['type'] == 'conductor':
             bsdf_dict['type'] = 'roughconductor'
             bsdf_dict['alpha'] = 0.1
