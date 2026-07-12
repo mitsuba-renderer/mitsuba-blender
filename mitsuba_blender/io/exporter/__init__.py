@@ -1,8 +1,7 @@
 import bpy
 
 from . import export_context
-from . import camera
-from ...convert.export import lights, mesh, world
+from ...convert.export import camera, lights, mesh, world
 
 class SceneConverter:
     '''
@@ -70,7 +69,7 @@ class SceneConverter:
             elif object_type == 'CAMERA':
                 # When rendering inside blender, export only the active camera
                 if (self.render and evaluated_obj.name_full == b_scene.camera.name_full) or not self.render:
-                    camera.export_camera(object_instance, b_scene, self.export_ctx)
+                    camera.export_camera(self.export_ctx, object_instance, b_scene)
             elif object_type == 'LIGHT':
                 lights.export_light(self.export_ctx, object_instance)
             else:
