@@ -253,6 +253,11 @@ def parse_mitsuba_scene(filepath, merge_shapes, merge_plugins):
         # Resolve all references and merge equivalent plugins if enabled
         mi.parser.transform_all(config, mi_state)
         search_paths = [str(path) for path in fr if str(path) not in before]
+    # Mitsuba builds with the resolver-leak fix keep the resolver clean and
+    # expose the <path> directories on the parser state instead
+    for path in getattr(mi_state, 'resource_paths', ()):
+        if str(path) not in search_paths:
+            search_paths.append(str(path))
     return mi_state, search_paths
 
 def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
