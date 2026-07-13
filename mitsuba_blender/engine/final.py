@@ -134,20 +134,29 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         layer = blender_result.layers[0]
 
         for name, channels, pixels in results:
-            if pixels.shape[2] < len(channels):
+            if name == '<root>':
+                name = 'Combined'
+                pixels = _to_rgba(pixels)
+            elif pixels.shape[2] < len(channels):
                 # Zero padding for channel counts Blender does not support
                 padding = np.zeros((*pixels.shape[:2],
                                     len(channels) - pixels.shape[2]))
                 pixels = np.dstack((pixels, padding))
-            if name == '<root>':
-                name = 'Combined'
-                if pixels.shape[2] == 3:
-                    # Blender's Combined pass is always RGBA
-                    alpha = np.ones((*pixels.shape[:2], 1))
-                    pixels = np.dstack((pixels, alpha))
             layer.passes[name].rect = \
                 np.flip(pixels, 0).reshape((self.size_x * self.size_y, -1))
         self.end_result(blender_result)
+
+
+def _to_rgba(pixels):
+    '''Blender's Combined pass is always RGBA. Monochrome films replicate
+    their single luminance channel; a missing alpha channel is filled with
+    ones. Writing a rect with fewer than four channels crashes Blender.'''
+    if pixels.shape[2] in (1, 2):
+        luminance = np.repeat(pixels[:, :, :1], 3, axis=2)
+        pixels = np.dstack((luminance, pixels[:, :, 1:]))
+    if pixels.shape[2] == 3:
+        pixels = np.dstack((pixels, np.ones((*pixels.shape[:2], 1))))
+    return pixels
 
 
 def _pass_channels(bitmap):
