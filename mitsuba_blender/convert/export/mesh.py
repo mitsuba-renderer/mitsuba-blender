@@ -98,10 +98,63 @@ def make_mesh(export_ctx, mesh_data, name, tri_mask, matrix_world, props=None):
     if mesh_data.tri_count == 0:
         return None
     tris = mesh_data.tri_loops if tri_mask is None else mesh_data.tri_loops[tri_mask]
-    face_count = len(tris)
-    if face_count == 0:
+    if len(tris) == 0:
         return None
+    if props is None:
+        props = mi.Properties()
 
+    # Mitsuba builds since Mesh.from_corners weld corners in C++, which is far
+    # faster than np.unique. Older wheels take the numpy path.
+    if hasattr(mi.Mesh, 'from_corners'):
+        return _make_mesh_from_corners(export_ctx, mesh_data, name, tris,
+                                       matrix_world, props)
+    return _make_mesh_np_unique(export_ctx, mesh_data, name, tris,
+                                matrix_world, props)
+
+
+def _corner_transform(export_ctx, matrix_world):
+    '''Return the object-to-world matrix and whether it flips winding.'''
+    if matrix_world is None:
+        return None, False
+    to_world = np.array(export_ctx.axis_mat @ matrix_world, dtype=np.float64)
+    return to_world, np.linalg.det(to_world[:3, :3]) < 0
+
+
+def _make_mesh_from_corners(export_ctx, mesh_data, name, tris, matrix_world, props):
+    import mitsuba as mi
+
+    to_world, flip = _corner_transform(export_ctx, matrix_world)
+    # Reverse each triangle's corners so the implicit face winding flips.
+    corners = (tris[:, ::-1] if flip else tris).ravel()
+
+    positions = mesh_data.positions
+    normals = mesh_data.normals[corners]
+    if to_world is not None:
+        rot = to_world[:3, :3]
+        positions = positions @ rot.T + to_world[:3, 3]
+        normals = normals @ np.linalg.inv(rot)
+    normals = normals / np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-20)
+
+    texcoords = None
+    if mesh_data.uvs is not None:
+        texcoords = mesh_data.uvs[corners].astype(np.float32)
+    attributes = {f'vertex_{attr_name}': values[corners].astype(np.float32)
+                  for attr_name, values in mesh_data.colors}
+
+    return mi.Mesh.from_corners(
+        name,
+        positions.astype(np.float32),
+        mesh_data.loop_vert[corners].astype(np.uint32),
+        normals=normals.astype(np.float32),
+        texcoords=texcoords,
+        attributes=attributes,
+        props=props)
+
+
+def _make_mesh_np_unique(export_ctx, mesh_data, name, tris, matrix_world, props):
+    import mitsuba as mi
+
+    face_count = len(tris)
     corners = tris.ravel()
     columns = [mesh_data.loop_vert[corners, None].astype(np.float64),
                mesh_data.normals[corners]]
@@ -125,7 +178,7 @@ def make_mesh(export_ctx, mesh_data, name, tri_mask, matrix_world, props=None):
     normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-20)
 
     mi_mesh = mi.Mesh(name, len(unique), face_count,
-                      props=props if props is not None else mi.Properties(),
+                      props=props,
                       has_vertex_normals=True,
                       has_vertex_texcoords=mesh_data.uvs is not None)
     offset = 4
