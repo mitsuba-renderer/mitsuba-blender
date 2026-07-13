@@ -15,8 +15,9 @@ jobs:
   test:
     name: "Blender ${{ matrix.blender-version }}"
     runs-on: ubuntu-latest
-    # The daily Blender build may break at any time; report but do not fail.
-    continue-on-error: ${{ matrix.blender-version == 'daily' }}
+    # The daily Blender build only runs on the weekly schedule, so letting it
+    # fail the (scheduled) workflow is the early-warning signal we want; it
+    # never gates pull requests or releases.
     strategy:
       fail-fast: false
       matrix:
