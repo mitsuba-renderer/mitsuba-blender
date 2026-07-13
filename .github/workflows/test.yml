@@ -2,14 +2,19 @@
 name: Test suite
 
 on:
-  push:
-    branches: [master]
+  # Master pushes are covered by nightly_release.yml, which calls this
+  # workflow; a push trigger here would run the whole matrix twice.
   # No branch filter, so pull requests against any base branch run the suite.
   pull_request:
   workflow_call:
   schedule:
     # The weekly run additionally tests the daily Blender development build.
     - cron: '0 5 * * 1'
+
+# Supersede in-flight runs when a pull request is updated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
