@@ -6,6 +6,7 @@ environment variable and propagates pytest's exit code. See tests/README.md.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,6 +67,10 @@ def main(argv):
 
     env = os.environ.copy()
     env['DRJIT_NO_RTLD_DEEPBIND'] = '1'
+    # Point Blender's user config/scripts/extensions at a throwaway directory
+    # so the conftest addon install cannot touch the developer's real profile.
+    user_resources = tempfile.mkdtemp(prefix='mi-blender-test-home-')
+    env['BLENDER_USER_RESOURCES'] = user_resources
     rc_fd, rc_path = tempfile.mkstemp(prefix='mi-blender-test-rc-')
     os.close(rc_fd)
     os.remove(rc_path)
@@ -93,6 +98,7 @@ def main(argv):
         crashed = True
     finally:
         Path(rc_path).unlink(missing_ok=True)
+        shutil.rmtree(user_resources, ignore_errors=True)
 
     print()
     for line in pytest_tail(proc.stdout):

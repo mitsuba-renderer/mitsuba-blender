@@ -1,3 +1,5 @@
+import os
+
 import bpy
 import numpy as np
 
@@ -40,3 +42,11 @@ def test_render_dict(render_dict, compare_images):
     }, spp=2)
     assert img.shape == (16, 16, 3)
     compare_images(img, np.full((16, 16, 3), 0.5), mean_tol=1e-4, rmse_tol=1e-4)
+
+
+def test_harness_isolated_from_user_profile():
+    '''tests/run.py points BLENDER_USER_RESOURCES at a throwaway directory so
+    the addon install in conftest cannot touch the developer's real profile.'''
+    user_resources = os.environ.get('BLENDER_USER_RESOURCES')
+    assert user_resources, 'harness did not isolate BLENDER_USER_RESOURCES'
+    assert bpy.utils.resource_path('USER').startswith(user_resources)
