@@ -160,7 +160,7 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
             if phi < 0:
                 phi += 2 * math.pi
             u = phi / (2 * math.pi)
-            v = 0.5 - math.asin(co.z) / math.pi
+            v = 1.0 - math.acos(co.z) / math.pi
             loop[uv_layer].uv = (u, v)
 
     bl_bmesh.to_mesh(bl_mesh)
