@@ -135,6 +135,7 @@ def mi_mesh_to_bl_shape(mi_context, mi_shape):
 ######################
 
 def mi_sphere_to_bl_shape(mi_context, mi_shape):
+    import math
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
@@ -145,8 +146,23 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     world_matrix = mi_context.mi_space_to_bl_space(
         to_world @ Matrix.Translation(center))
 
+    # calc_uvs produces no UV layer  therefore the calc_uvs=True is useless
     bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16,
-                              radius=radius, calc_uvs=True)
+                              radius=radius)
+
+    # edit UVs on the BMESH, before to_mesh
+    uv_layer = bl_bmesh.loops.layers.uv.verify() # get existing or create
+    for face in bl_bmesh.faces:
+        for loop in face.loops:
+            co = loop.vert.co.normalized()
+            # In order to match how sphere.cpp does it
+            phi = math.atan2(co.y, co.x)
+            if phi < 0:
+                phi += 2 * math.pi
+            u = phi / (2 * math.pi)
+            v = 0.5 - math.asin(co.z) / math.pi
+            loop[uv_layer].uv = (u, v)
+
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
@@ -165,6 +181,7 @@ _analytic_ops = {
     'rectangle': ('create_grid',
                   dict(x_segments=1, y_segments=1, size=1.0)),
     'cube': ('create_cube', dict(size=2.0)),
+    #TODO: create a new mapping for other shape
 }
 
 
@@ -174,7 +191,21 @@ def _analytic_to_bl_shape(mi_context, mi_shape):
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
-    op(bl_bmesh, calc_uvs=True, **kwargs)
+    # bmesh's calc_uvs produces no UV layer for create_grid, create_circle or
+    # create_cube (measured), so UVs must be built explicitly. Only rectangle
+    # is handled here. Its parameterization is a planar XY projection of
+    # [-1,1] onto [0,1]. disk (polar) and cube (per-face) still import without
+    # UVs; their Mitsuba parameterizations need to be matched the way mi_sphere_to_bl_shape
+    #matches sphere.cpp.
+    op(bl_bmesh, **kwargs)
+    if mi_shape.plugin_name() == "rectangle":
+        uv_layer = bl_bmesh.loops.layers.uv.verify() # get existing or create
+        for face in bl_bmesh.faces:
+            for loop in face.loops:
+                co = loop.vert.co
+                loop[uv_layer].uv = ((co.x + 1) / 2, (co.y + 1) / 2)
+
+    #TODO: create the uv mapping for other shapes
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
