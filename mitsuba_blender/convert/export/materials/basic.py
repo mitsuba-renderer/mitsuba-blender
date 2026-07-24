@@ -7,6 +7,7 @@ from . import node_converter
 from ._eval import Constant, eval_color, eval_float, resolve
 from .textures import convert_normal_input
 
+# Should add comments here about MULTI_GGC -> ggx mapping
 _DISTRIBUTIONS = {
     'BECKMANN': 'beckmann',
     'GGX': 'ggx',
@@ -15,10 +16,10 @@ _DISTRIBUTIONS = {
 }
 
 
-def _constant_float(export_ctx, socket):
+def _constant_float(export_ctx, socket, stack):
     '''Resolve a socket that must be a constant float. Textures and
     unsupported inputs fall back to the socket default with a warning.'''
-    result = resolve(export_ctx, socket)
+    result = resolve(export_ctx, socket, stack)
     if isinstance(result, Constant):
         return result.value
     reason = getattr(result, 'reason',
@@ -28,15 +29,16 @@ def _constant_float(export_ctx, socket):
     return float(socket.default_value)
 
 
-def _eval_roughness(export_ctx, socket):
+def _eval_roughness(export_ctx, socket, stack):
     '''Blender roughness -> Mitsuba alpha: constants are squared, texture
     dicts pass through unchanged.'''
-    value = eval_float(export_ctx, socket)
+    value = eval_float(export_ctx, socket, stack=stack)
     return value * value if isinstance(value, float) else value
 
 
 @node_converter('BSDF_DIFFUSE')
-def convert_diffuse(export_ctx, node):
+def convert_diffuse(export_ctx, ref):
+    node = ref.node
     roughness = node.inputs['Roughness']
     if roughness.is_linked or roughness.default_value > 0.0:
         export_ctx.log(f'Mitsuba has no rough diffuse BSDF; ignoring the '
@@ -48,13 +50,14 @@ def convert_diffuse(export_ctx, node):
             'reflectance': eval_color(export_ctx, node.inputs['Color']),
         },
     }
-    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
+    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack=ref.stack)
 
 
 @node_converter('BSDF_GLOSSY')
-def convert_glossy(export_ctx, node):
-    alpha = _eval_roughness(export_ctx, node.inputs['Roughness'])
-    anisotropy = _constant_float(export_ctx, node.inputs['Anisotropy'])
+def convert_glossy(export_ctx, ref):
+    node = ref.node
+    alpha = _eval_roughness(export_ctx, node.inputs['Roughness'], stack=ref.stack)
+    anisotropy = _constant_float(export_ctx, node.inputs['Anisotropy'], stack=ref.stack)
     anisotropy = min(max(anisotropy, -0.99), 0.99)
     rotation = node.inputs['Rotation']
     if rotation.is_linked or rotation.default_value != 0.0:
@@ -87,12 +90,13 @@ def convert_glossy(export_ctx, node):
     params['specular_reflectance'] = eval_color(export_ctx,
                                                 node.inputs['Color'])
     return convert_normal_input(export_ctx, node.inputs['Normal'],
-                                {'type': 'twosided', 'bsdf': params})
+                                {'type': 'twosided', 'bsdf': params}, stack=ref.stack)
 
 
-def _convert_dielectric(export_ctx, node):
-    ior = _constant_float(export_ctx, node.inputs['IOR'])
-    alpha = _eval_roughness(export_ctx, node.inputs['Roughness'])
+def _convert_dielectric(export_ctx, ref):
+    node = ref.node
+    ior = _constant_float(export_ctx, node.inputs['IOR'], stack=ref.stack)
+    alpha = _eval_roughness(export_ctx, node.inputs['Roughness'], stack=ref.stack)
     if isinstance(alpha, float) and alpha == 0.0:
         params = {'type': 'thindielectric' if ior == 1.0 else 'dielectric'}
     else:
@@ -103,26 +107,27 @@ def _convert_dielectric(export_ctx, node):
         }
     params['int_ior'] = ior
     params['specular_transmittance'] = eval_color(export_ctx,
-                                                  node.inputs['Color'])
-    return convert_normal_input(export_ctx, node.inputs['Normal'], params)
+                                                  node.inputs['Color'], stack=ref.stack)
+    return convert_normal_input(export_ctx, node.inputs['Normal'], params, stack=ref.stack)
 
 
 @node_converter('BSDF_GLASS')
-def convert_glass(export_ctx, node):
-    return _convert_dielectric(export_ctx, node)
+def convert_glass(export_ctx, ref):
+    return _convert_dielectric(export_ctx, ref)
 
 
 @node_converter('BSDF_REFRACTION')
-def convert_refraction(export_ctx, node):
+def convert_refraction(export_ctx, ref):
     export_ctx.log(f'Mitsuba has no transmission-only BSDF; exporting '
-                   f'Refraction node "{node.name}" as a dielectric that '
+                   f'Refraction node "{ref.node.name}" as a dielectric that '
                    'also reflects.', 'WARN')
-    return _convert_dielectric(export_ctx, node)
+    return _convert_dielectric(export_ctx, ref)
 
 
 @node_converter('BSDF_TRANSPARENT')
-def convert_transparent(export_ctx, node):
-    result = resolve(export_ctx, node.inputs['Color'])
+def convert_transparent(export_ctx, ref):
+    node = ref.node
+    result = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if isinstance(result, Constant):
         color = result.value[:3]
     else:
@@ -145,14 +150,15 @@ def convert_transparent(export_ctx, node):
 
 
 @node_converter('BSDF_TRANSLUCENT')
-def convert_translucent(export_ctx, node):
+def convert_translucent(export_ctx, ref):
     # Mitsuba has no standalone diffuse transmitter; principledthin with
     # full diffuse transmission is the closest match
+    node = ref.node
     export_ctx.log(f'Approximating Translucent node "{node.name}" with a '
                    'thin principled BSDF.', 'WARN')
     bsdf = {
         'type': 'principledthin',
-        'base_color': eval_color(export_ctx, node.inputs['Color']),
+        'base_color': eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
         'diff_trans': 2.0,
     }
-    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
+    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack=ref.stack)

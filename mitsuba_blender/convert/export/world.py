@@ -23,9 +23,9 @@ ENVMAP_COORDINATE_MAT = Matrix(((0, 0, 1, 0),
                                 (0, 0, 0, 1)))
 
 
-def _constant_vector(export_ctx, socket):
+def _constant_vector(export_ctx, socket, stack=()):
     '''Fold a vector socket to a constant, or fail.'''
-    result = _eval.resolve(export_ctx, socket)
+    result = _eval.resolve(export_ctx, socket, stack)
     if not isinstance(result, _eval.Constant):
         raise ConversionError(f'input "{socket.name}" of node '
                               f'"{socket.node.name}" does not fold to a '
@@ -36,17 +36,17 @@ def _constant_vector(export_ctx, socket):
     return Vector(value[:3])
 
 
-def _mapping_transform(export_ctx, vector_socket):
+def _mapping_transform(export_ctx, vector_socket, stack=()):
     '''The world transform of an environment texture, from an optional
     Mapping node feeding its Vector input.'''
-    node, _ = _eval.trace_source(vector_socket)
+    node, _, _= _eval.trace_source(vector_socket, stack)
     if node is None:
         return Matrix()
     if node.type != 'MAPPING':
         raise ConversionError(f'node "{node.name}" of type {node.type} '
                               'cannot drive an environment texture; only '
                               'a Mapping node is supported')
-    coord_node, coord_socket = _eval.trace_source(node.inputs['Vector'])
+    coord_node, coord_socket , stack = _eval.trace_source(node.inputs['Vector'])
     if coord_node is None or coord_node.type != 'TEX_COORD' \
             or coord_socket.name != 'Generated':
         raise ConversionError('the Mapping node must be driven by the '
@@ -66,8 +66,10 @@ def _mapping_transform(export_ctx, vector_socket):
                           'supported; use "Point" or "Texture"')
 
 
-def _convert_envmap(export_ctx, node, strength):
-    params = convert_environment_texture(export_ctx, node)
+def _convert_envmap(export_ctx, ref, strength):
+    '''Convert a `TEX_ENVIRONMENT` Blender node into an `envmap` emitter.'''
+    node = ref.node
+    params = convert_environment_texture(export_ctx, ref=ref)
     to_world = _mapping_transform(export_ctx, node.inputs['Vector'])
     params['scale'] = strength
     params['to_world'] = export_ctx.transform_matrix(
@@ -86,6 +88,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
     '''Convert a Blender world into a Mitsuba emitter dict. Returns None
     when there is nothing to export; raises ConversionError for
     unsupported node setups.'''
+    #ignore_background = False
     if b_world is None:
         export_ctx.log('No Blender world to export.', 'INFO')
         return None
@@ -99,7 +102,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
     output = b_world.node_tree.get_output_node('CYCLES')
     if output is None:
         raise ConversionError('cannot find the world output node')
-    node, _ = _eval.trace_source(output.inputs['Surface'])
+    node, _, stack = _eval.trace_source(output.inputs['Surface'])
     if node is None:
         return None
     if node.type not in ('BACKGROUND', 'EMISSION'):
@@ -107,7 +110,8 @@ def convert_world(export_ctx, b_world, ignore_background=True):
                               'not supported as the world surface; only '
                               'Background and Emission nodes are')
 
-    strength = _eval.eval_float(export_ctx, node.inputs['Strength'])
+    strength = _eval.eval_float(export_ctx, node.inputs['Strength'],
+                                stack=stack)
     if not isinstance(strength, (int, float)):
         raise ConversionError('the world strength must be a constant')
     if strength == 0.0:
@@ -115,9 +119,13 @@ def convert_world(export_ctx, b_world, ignore_background=True):
         return None
 
     color_socket = node.inputs['Color']
-    source, _ = _eval.trace_source(color_socket)
-    if source is not None and source.type == 'TEX_ENVIRONMENT':
-        return _convert_envmap(export_ctx, source, strength)
+    env_node, _, env_stack = _eval.trace_source(color_socket, stack)
+    if env_node is not None and env_node.type == 'TEX_ENVIRONMENT':
+        return _convert_envmap(export_ctx,
+                               _eval.NodeRef(env_node, env_stack), strength)
+
+    result = _eval.resolve(export_ctx, color_socket, stack)
+
 
     result = _eval.resolve(export_ctx, color_socket)
     if not isinstance(result, _eval.Constant):

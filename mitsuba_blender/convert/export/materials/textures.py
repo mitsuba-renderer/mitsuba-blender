@@ -152,20 +152,27 @@ def _to_uv_param(matrix):
     return ScalarTransform4f([list(row) for row in matrix])
 
 
-def _constant_input(export_ctx, socket, description):
-    result = resolve(export_ctx, socket)
+from ._eval import Constant, NodeRef, Texture, eval_color, resolve, trace_source
+
+
+def _constant_input(export_ctx, socket, description, stack):
+    result = resolve(export_ctx, socket, stack=stack)
     if not isinstance(result, Constant):
         raise ConversionError(f'{description} must be a constant value')
     return result.value
 
 
-def _mapping_matrix(export_ctx, node):
+def _mapping_matrix(export_ctx, ref):
+    node, stack = ref.node, ref.stack
     location = _constant_input(export_ctx, node.inputs['Location'],
-                               f'the location of mapping node "{node.name}"')
+                               f'the location of mapping node "{node.name}"',
+                               stack)
     rotation = _constant_input(export_ctx, node.inputs['Rotation'],
-                               f'the rotation of mapping node "{node.name}"')
+                               f'the rotation of mapping node "{node.name}"',
+                               stack)
     scale = _constant_input(export_ctx, node.inputs['Scale'],
-                            f'the scale of mapping node "{node.name}"')
+                            f'the scale of mapping node "{node.name}"',
+                            stack)
     if abs(rotation[0]) > 1e-6 or abs(rotation[1]) > 1e-6:
         raise ConversionError(f'mapping node "{node.name}" rotates out of '
                               'the UV plane')
@@ -185,10 +192,10 @@ def _mapping_matrix(export_ctx, node):
     return matrix
 
 
-def _uv_chain_matrix(export_ctx, socket):
+def _uv_chain_matrix(export_ctx, socket, stack):
     '''The Blender-UV-space transform of the chain feeding a texture Vector
     input. Only UV sources are supported.'''
-    node, source = trace_source(socket)
+    node, source, node_stack = trace_source(socket, stack)
     if node is None:
         return Matrix.Identity(4)
     if node.type == 'TEX_COORD':
@@ -204,17 +211,18 @@ def _uv_chain_matrix(export_ctx, socket):
                 'but only the active render UV layer is exported.', 'WARN')
         return Matrix.Identity(4)
     if node.type == 'MAPPING':
-        return _mapping_matrix(export_ctx, node) \
-            @ _uv_chain_matrix(export_ctx, node.inputs['Vector'])
+        return _mapping_matrix(export_ctx, NodeRef(node, node_stack)) \
+            @ _uv_chain_matrix(export_ctx, node.inputs['Vector'], node_stack)
     raise ConversionError(f'node "{node.name}" of type {node.type} feeding '
                           'a texture Vector input is not supported')
 
 
-def _vector_to_uv(export_ctx, node):
+def _vector_to_uv(export_ctx, ref):
     '''The to_uv parameter for a texture node, or None for identity. Chains
     that cannot be converted produce a warning and are ignored.'''
+    node = ref.node
     try:
-        matrix = _uv_chain_matrix(export_ctx, node.inputs['Vector'])
+        matrix = _uv_chain_matrix(export_ctx, node.inputs['Vector'], ref.stack)
     except ConversionError as e:
         export_ctx.log(f'{e}; ignoring the texture mapping of node '
                        f'"{node.name}"', 'WARN')
@@ -229,7 +237,8 @@ def _vector_to_uv(export_ctx, node):
 ##########################
 
 @texture_converter('TEX_IMAGE')
-def convert_image_texture(export_ctx, node, out_socket):
+def convert_image_texture(export_ctx, ref, out_socket):
+    node = ref.node
     image = node.image
     if image is None:
         raise ConversionError(f'image texture node "{node.name}" has no '
@@ -268,23 +277,26 @@ def convert_image_texture(export_ctx, node, out_socket):
     elif node.extension == 'MIRROR':
         params['wrap_mode'] = 'mirror'
 
-    to_uv = _vector_to_uv(export_ctx, node)
+    to_uv = _vector_to_uv(export_ctx, ref)
     if to_uv is not None:
         params['to_uv'] = to_uv
     return params
 
 
 @texture_converter('TEX_CHECKER')
-def convert_checker_texture(export_ctx, node, out_socket):
+def convert_checker_texture(export_ctx, ref, out_socket):
+    node = ref.node
     params = {
         'type': 'checkerboard',
         # Once the UV flip is folded into to_uv below, Blender's Color1
         # cells land exactly on Mitsuba's color1 cells
-        'color1': eval_color(export_ctx, node.inputs['Color1']),
-        'color0': eval_color(export_ctx, node.inputs['Color2']),
+        'color1': eval_color(export_ctx, node.inputs['Color1'],
+                             stack=ref.stack),
+        'color0': eval_color(export_ctx, node.inputs['Color2'],
+                             stack=ref.stack),
     }
 
-    scale_input = resolve(export_ctx, node.inputs['Scale'])
+    scale_input = resolve(export_ctx, node.inputs['Scale'], stack=ref.stack)
     if isinstance(scale_input, Constant):
         scale = float(scale_input.value)
     else:
@@ -297,7 +309,7 @@ def convert_checker_texture(export_ctx, node, out_socket):
                        'coordinates, which are approximated by UV '
                        'coordinates.', 'WARN')
     try:
-        matrix = _uv_chain_matrix(export_ctx, node.inputs['Vector'])
+        matrix = _uv_chain_matrix(export_ctx, node.inputs['Vector'], ref.stack)
     except ConversionError as e:
         export_ctx.log(f'{e}; ignoring the texture mapping of node '
                        f'"{node.name}"', 'WARN')
@@ -311,7 +323,8 @@ def convert_checker_texture(export_ctx, node, out_socket):
 
 
 @texture_converter('VERTEX_COLOR')
-def convert_vertex_color(export_ctx, node, out_socket):
+def convert_vertex_color(export_ctx, ref, out_socket):
+    node = ref.node
     if out_socket.name == 'Alpha':
         raise ConversionError(f'the Alpha output of color attribute node '
                               f'"{node.name}" is not supported')
@@ -330,8 +343,8 @@ def convert_vertex_color(export_ctx, node, out_socket):
 ##  Normal and bump map  ##
 ###########################
 
-def _texture_input(export_ctx, socket, description):
-    result = resolve(export_ctx, socket)
+def _texture_input(export_ctx, socket, stack):
+    result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Texture):
         return result.params
     if isinstance(result, Constant):
@@ -339,19 +352,20 @@ def _texture_input(export_ctx, socket, description):
     raise ConversionError(result.reason)
 
 
-def _wrap_normalmap(export_ctx, node, bsdf):
+def _wrap_normalmap(export_ctx, ref, bsdf):
+    node = ref.node
     if node.space != 'TANGENT':
         raise ConversionError(f'normal map node "{node.name}" uses '
                               f'{node.space} space; only tangent space is '
                               'supported')
     strength = _constant_input(export_ctx, node.inputs['Strength'],
-                               f'the strength of normal map "{node.name}"')
+                               f'the strength of normal map "{node.name}"',
+                               ref.stack)
     if abs(strength - 1.0) > 1e-6:
         export_ctx.log(f'Mitsuba normal maps have no strength parameter; '
                        f'ignoring the strength of node "{node.name}".',
                        'WARN')
-    texture = _texture_input(export_ctx, node.inputs['Color'],
-                             f'normal map node "{node.name}"')
+    texture = _texture_input(export_ctx, node.inputs['Color'], ref.stack)
     if texture is None:
         export_ctx.log(f'The color of normal map node "{node.name}" is '
                        'constant and has no effect; ignoring it.', 'WARN')
@@ -370,19 +384,22 @@ def _wrap_normalmap(export_ctx, node, bsdf):
     }
 
 
-def _wrap_bumpmap(export_ctx, node, bsdf):
+def _wrap_bumpmap(export_ctx, ref, bsdf):
+    node = ref.node
     # A chained perturbation on the Normal input applies before the bump
-    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
-    texture = _texture_input(export_ctx, node.inputs['Height'],
-                             f'bump node "{node.name}"')
+    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf,
+                                ref.stack)
+    texture = _texture_input(export_ctx, node.inputs['Height'], ref.stack)
     if texture is None:
         export_ctx.log(f'The height of bump node "{node.name}" is constant '
                        'and has no effect; ignoring it.', 'WARN')
         return bsdf
     strength = _constant_input(export_ctx, node.inputs['Strength'],
-                               f'the strength of bump node "{node.name}"')
+                               f'the strength of bump node "{node.name}"',
+                               ref.stack)
     distance = _constant_input(export_ctx, node.inputs['Distance'],
-                               f'the distance of bump node "{node.name}"')
+                               f'the distance of bump node "{node.name}"',
+                               ref.stack)
     scale = strength * distance
     if node.invert:
         scale = -scale
@@ -394,18 +411,19 @@ def _wrap_bumpmap(export_ctx, node, bsdf):
     }
 
 
-def convert_normal_input(export_ctx, socket, bsdf):
+def convert_normal_input(export_ctx, socket, bsdf, stack=()):
     '''Wrap a converted BSDF dict in Mitsuba normalmap/bumpmap plugins
     according to what feeds the given Normal input socket. Never raises:
     unsupported input produces a warning and the unwrapped BSDF.'''
     try:
-        node, _ = trace_source(socket)
+        node, _, node_stack = trace_source(socket, stack)
         if node is None:
             return bsdf
+        ref = NodeRef(node, node_stack)
         if node.type == 'NORMAL_MAP':
-            return _wrap_normalmap(export_ctx, node, bsdf)
+            return _wrap_normalmap(export_ctx, ref, bsdf)
         if node.type == 'BUMP':
-            return _wrap_bumpmap(export_ctx, node, bsdf)
+            return _wrap_bumpmap(export_ctx, ref, bsdf)
         raise ConversionError(f'node "{node.name}" of type {node.type} is '
                               'not supported as a normal input')
     except ConversionError as e:
@@ -418,10 +436,11 @@ def convert_normal_input(export_ctx, socket, bsdf):
 ##  Environment texture  ##
 ###########################
 
-def convert_environment_texture(export_ctx, node):
+def convert_environment_texture(export_ctx, ref):
     '''Convert a TEX_ENVIRONMENT node into a partial envmap emitter dict
     holding the image reference; the world exporter adds scale and
     to_world.'''
+    node = ref.node
     image = node.image
     if image is None:
         raise ConversionError(f'environment texture node "{node.name}" has '

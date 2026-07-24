@@ -11,9 +11,9 @@ from ._eval import Constant, Texture, Unsupported, eval_color, eval_float, \
 from .textures import convert_normal_input
 
 
-def _constant_float(export_ctx, socket):
+def _constant_float(export_ctx, socket, stack):
     '''Resolve a socket that Mitsuba only accepts as a constant float.'''
-    result = resolve(export_ctx, socket)
+    result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
         return result.value
     if isinstance(result, Unsupported):
@@ -25,12 +25,13 @@ def _constant_float(export_ctx, socket):
     return float(socket.default_value)
 
 
-def _spec_tint(export_ctx, node):
+def _spec_tint(export_ctx, ref):
     '''Blender tints the specular highlight with a color (white means
     untinted) while Mitsuba blends from white toward the base color hue,
     so the distance from white becomes the tint amount.'''
+    node = ref.node
     socket = node.inputs['Specular Tint']
-    result = resolve(export_ctx, socket)
+    result = resolve(export_ctx, socket, stack=ref.stack)
     if isinstance(result, Constant):
         return 1.0 - min(result.value[:3])
     export_ctx.log(f'Specular Tint of node "{node.name}" only supports '
@@ -38,12 +39,15 @@ def _spec_tint(export_ctx, node):
     return 0.0
 
 
-def _emitter(export_ctx, node):
+def _emitter(export_ctx, ref):
     '''Build an area emitter dict from the emission inputs, or None.'''
-    strength = _constant_float(export_ctx, node.inputs['Emission Strength'])
+    node = ref.node
+    strength = _constant_float(export_ctx, node.inputs['Emission Strength'],
+                               ref.stack)
     if strength <= 0.0:
         return None
-    result = resolve(export_ctx, node.inputs['Emission Color'])
+    result = resolve(export_ctx, node.inputs['Emission Color'],
+                     stack=ref.stack)
     if isinstance(result, Texture):
         if strength != 1.0:
             export_ctx.log(f'Cannot scale the textured emission color of '
@@ -61,21 +65,32 @@ def _emitter(export_ctx, node):
 
 
 @node_converter('BSDF_PRINCIPLED')
-def convert_principled(export_ctx, node):
+def convert_principled(export_ctx, ref):
+    node = ref.node
+    stack = ref.stack
     params = {
         'type': 'principled',
-        'base_color': eval_color(export_ctx, node.inputs['Base Color']),
-        'roughness': eval_float(export_ctx, node.inputs['Roughness']),
-        'metallic': eval_float(export_ctx, node.inputs['Metallic']),
-        'anisotropic': eval_float(export_ctx, node.inputs['Anisotropic']),
-        'spec_tint': _spec_tint(export_ctx, node),
+        'base_color': eval_color(export_ctx, node.inputs['Base Color'],
+                                 stack=stack),
+        'roughness': eval_float(export_ctx, node.inputs['Roughness'],
+                                stack=stack),
+        'metallic': eval_float(export_ctx, node.inputs['Metallic'],
+                               stack=stack),
+        'anisotropic': eval_float(export_ctx, node.inputs['Anisotropic'],
+                                  stack=stack),
+        'spec_tint': _spec_tint(export_ctx, ref),
         'spec_trans': eval_float(export_ctx,
-                                 node.inputs['Transmission Weight']),
-        'sheen': eval_float(export_ctx, node.inputs['Sheen Weight']),
-        'sheen_tint': eval_float(export_ctx, node.inputs['Sheen Tint']),
-        'clearcoat': eval_float(export_ctx, node.inputs['Coat Weight']),
+                                 node.inputs['Transmission Weight'],
+                                 stack=stack),
+        'sheen': eval_float(export_ctx, node.inputs['Sheen Weight'],
+                            stack=stack),
+        'sheen_tint': eval_float(export_ctx, node.inputs['Sheen Tint'],
+                                 stack=stack),
+        'clearcoat': eval_float(export_ctx, node.inputs['Coat Weight'],
+                                stack=stack),
         'clearcoat_gloss':
-            1.0 - _constant_float(export_ctx, node.inputs['Coat Roughness']),
+            1.0 - _constant_float(export_ctx, node.inputs['Coat Roughness'],
+                                  stack),
     }
 
     spec_trans = params['spec_trans']
@@ -83,19 +98,19 @@ def convert_principled(export_ctx, node):
         # Blender drives transmission with the IOR input; Mitsuba shares a
         # single eta between reflection and refraction. Transmissive
         # materials must stay one-sided.
-        ior = _constant_float(export_ctx, node.inputs['IOR'])
+        ior = _constant_float(export_ctx, node.inputs['IOR'], stack)
         params['eta'] = max(ior, 1.0 + 1e-3)
         bsdf = params
     else:
         specular = _constant_float(export_ctx,
-                                   node.inputs['Specular IOR Level'])
+                                   node.inputs['Specular IOR Level'], stack)
         params['specular'] = max(specular, 1e-3)
         bsdf = {'type': 'twosided', 'bsdf': params}
 
-    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf)
+    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack)
 
-    alpha = eval_float(export_ctx, node.inputs['Alpha'])
+    alpha = eval_float(export_ctx, node.inputs['Alpha'], stack=stack)
     if isinstance(alpha, dict) or alpha < 1.0:
         bsdf = {'type': 'mask', 'opacity': alpha, 'bsdf': bsdf}
 
-    return {'bsdf': bsdf, 'emitter': _emitter(export_ctx, node)}
+    return {'bsdf': bsdf, 'emitter': _emitter(export_ctx, ref)}
