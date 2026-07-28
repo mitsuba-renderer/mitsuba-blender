@@ -7,7 +7,7 @@ from . import node_converter
 from ._eval import Constant, eval_color, eval_float, resolve
 from .textures import convert_normal_input
 
-# Should add comments here about MULTI_GGC -> ggx mapping
+# Mapping from MULTI_GGX is an approximation which diverges with high roughness
 _DISTRIBUTIONS = {
     'BECKMANN': 'beckmann',
     'GGX': 'ggx',
