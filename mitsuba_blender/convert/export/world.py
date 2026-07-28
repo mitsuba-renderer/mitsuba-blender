@@ -36,26 +36,28 @@ def _constant_vector(export_ctx, socket, stack=()):
     return Vector(value[:3])
 
 
-def _mapping_transform(export_ctx, vector_socket, stack=()):
+def _envmap_world_transform(export_ctx, vector_socket, stack=()):
     '''The world transform of an environment texture, from an optional
     Mapping node feeding its Vector input.'''
-    node, _, _= _eval.trace_source(vector_socket, stack)
+    node, _, stack = _eval.trace_source(vector_socket, stack)
     if node is None:
         return Matrix()
     if node.type != 'MAPPING':
         raise ConversionError(f'node "{node.name}" of type {node.type} '
                               'cannot drive an environment texture; only '
                               'a Mapping node is supported')
-    coord_node, coord_socket , stack = _eval.trace_source(node.inputs['Vector'])
+
+    # checking the input of the Mapping node
+    coord_node, coord_socket, _ = _eval.trace_source(node.inputs['Vector'], stack)
     if coord_node is None or coord_node.type != 'TEX_COORD' \
             or coord_socket.name != 'Generated':
         raise ConversionError('the Mapping node must be driven by the '
                               '"Generated" output of a Texture Coordinate '
                               'node')
     matrix = Matrix.LocRotScale(
-        _constant_vector(export_ctx, node.inputs['Location']),
-        Euler(_constant_vector(export_ctx, node.inputs['Rotation'])),
-        _constant_vector(export_ctx, node.inputs['Scale']))
+        _constant_vector(export_ctx, node.inputs['Location'], stack),
+        Euler(_constant_vector(export_ctx, node.inputs['Rotation'], stack=stack)),
+        _constant_vector(export_ctx, node.inputs['Scale'], stack))
     if node.vector_type == 'TEXTURE':
         # Texture mappings look up the texture at the inverse-transformed
         # coordinate, matching Mitsuba's to_world convention directly
@@ -68,9 +70,8 @@ def _mapping_transform(export_ctx, vector_socket, stack=()):
 
 def _convert_envmap(export_ctx, ref, strength):
     '''Convert a `TEX_ENVIRONMENT` Blender node into an `envmap` emitter.'''
-    node = ref.node
     params = convert_environment_texture(export_ctx, ref=ref)
-    to_world = _mapping_transform(export_ctx, node.inputs['Vector'])
+    to_world = _envmap_world_transform(export_ctx, ref.node.inputs['Vector'])
     params['scale'] = strength
     params['to_world'] = export_ctx.transform_matrix(
         to_world @ ENVMAP_COORDINATE_MAT)
@@ -126,8 +127,6 @@ def convert_world(export_ctx, b_world, ignore_background=True):
 
     result = _eval.resolve(export_ctx, color_socket, stack)
 
-
-    result = _eval.resolve(export_ctx, color_socket)
     if not isinstance(result, _eval.Constant):
         reason = result.reason if isinstance(result, _eval.Unsupported) \
             else 'only environment textures and constant colors are supported'
