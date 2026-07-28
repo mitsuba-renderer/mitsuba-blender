@@ -515,3 +515,94 @@ def test_fold_link_cycle_terminates(ev, tree, probe):
     tree.links.new(b.outputs['Value'], a.inputs[0])
     result = fold_float(ev, tree, probe, b.outputs['Value'])
     assert isinstance(result, (ev.Constant, ev.Unsupported))
+
+
+
+
+
+def _make_group(name='TestGroup'):
+    '''A shader node group with one Value input and one Value output,
+    wired straight through: Group Input -> Group Output.'''
+    group = bpy.data.node_groups.new(name, 'ShaderNodeTree')
+    group.interface.new_socket('Amount', in_out='INPUT',
+                               socket_type='NodeSocketFloat')
+    group.interface.new_socket('Result', in_out='OUTPUT',
+                               socket_type='NodeSocketFloat')
+    g_in = group.nodes.new('NodeGroupInput')
+    g_out = group.nodes.new('NodeGroupOutput')
+    group.links.new(g_in.outputs['Amount'], g_out.inputs['Result'])
+    return group, g_in, g_out
+ 
+ 
+def test_group_passthrough(ev, tree, probe):
+    '''A value linked into a group comes back out of it.'''
+    group, _, _ = _make_group()
+    node = tree.nodes.new('ShaderNodeValue')
+    node.outputs['Value'].default_value = 7.0
+    group_node = tree.nodes.new('ShaderNodeGroup')
+    group_node.node_tree = group
+    tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
+    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    assert constant(result) == 7.0
+ 
+ 
+ 
+def test_group_inner_math(ev, tree, probe):
+    '''The interior is converted, not just passed through.'''
+    group, g_in, g_out = _make_group('MathGroup')
+    mul = group.nodes.new('ShaderNodeMath')
+    mul.operation = 'MULTIPLY'
+    mul.inputs[1].default_value = 3.0
+    group.links.new(g_in.outputs['Amount'], mul.inputs[0])
+    group.links.new(mul.outputs['Value'], g_out.inputs['Result'])
+ 
+    node = tree.nodes.new('ShaderNodeValue')
+    node.outputs['Value'].default_value = 2.0
+    group_node = tree.nodes.new('ShaderNodeGroup')
+    group_node.node_tree = group
+    tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
+    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    assert constant(result) == 6.0
+ 
+ 
+def test_nested_groups(ev, tree, probe):
+    '''Group inside a group: the ascend step needs a stack, not a single
+    saved node.'''
+    inner, i_in, i_out = _make_group('Inner')
+    outer, o_in, o_out = _make_group('Outer')
+    inner_node = outer.nodes.new('ShaderNodeGroup')
+    inner_node.node_tree = inner
+    outer.links.new(o_in.outputs['Amount'], inner_node.inputs['Amount'])
+    outer.links.new(inner_node.outputs['Result'], o_out.inputs['Result'])
+ 
+    node = tree.nodes.new('ShaderNodeValue')
+    node.outputs['Value'].default_value = 9.0
+    group_node = tree.nodes.new('ShaderNodeGroup')
+    group_node.node_tree = outer
+    tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
+    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    assert constant(result) == 9.0
+ 
+ 
+def test_group_unsupported_node_inside(ev, tree, probe):
+    '''An unsupported node inside a group is reported as unsupported --
+    not as "GROUP is not supported".'''
+    group, g_in, g_out = _make_group('NoiseGroup')
+    noise = group.nodes.new('ShaderNodeTexNoise')
+    group.links.new(noise.outputs['Fac'], g_out.inputs['Result'])
+ 
+    group_node = tree.nodes.new('ShaderNodeGroup')
+    group_node.node_tree = group
+    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    assert isinstance(result, ev.Unsupported)
+    assert 'TEX_NOISE' in result.reason
+ 
+ 
+def test_group_with_no_tree(ev, tree, probe):
+    '''A group node with no node_tree assigned must not crash.'''
+    group_node = tree.nodes.new('ShaderNodeGroup')   # node_tree stays None
+    probe.inputs['Strength'].default_value = 0.25
+    tree.links.new(group_node.outputs[0], probe.inputs['Strength']) \
+        if group_node.outputs else None
+    result = ev.resolve(None, probe.inputs['Strength'])
+    assert constant(result) == 0.25

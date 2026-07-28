@@ -11,9 +11,21 @@ import numpy as np
 import pytest
 from mathutils import Matrix
 
+
 # The v -> 1 - v flip the mesh exporter applies to UV coordinates
 FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
     @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
+
+
+@pytest.fixture(scope='session')
+def eval_mod(mi_addon):
+    return importlib.import_module(
+        f'{mi_addon}.convert.export.materials._eval')
+
+
+@pytest.fixture(scope='session')
+def ref(eval_mod):
+    return lambda node, stack=(): eval_mod.NodeRef(node, stack)
 
 
 @pytest.fixture(scope='session')
@@ -505,18 +517,18 @@ def make_environment_node(tmp_path=None):
 
 
 def test_environment_texture_file(fresh_scene, export_ctx, textures,
-                                  tmp_path):
+                                  tmp_path, ref):
     node = make_environment_node(tmp_path)
-    params = textures.convert_environment_texture(export_ctx, node)
+    params = textures.convert_environment_texture(export_ctx, ref(node))
     assert params == {'type': 'envmap', 'filename': 'textures/env.png'}
     assert (tmp_path / 'textures' / 'env.png').exists()
 
 
-def test_environment_texture_render(fresh_scene, export_ctx, textures):
+def test_environment_texture_render(fresh_scene, export_ctx, textures, ref):
     import mitsuba as mi
     export_ctx.render = True
     node = make_environment_node()
-    params = textures.convert_environment_texture(export_ctx, node)
+    params = textures.convert_environment_texture(export_ctx, ref(node))
     assert params['type'] == 'envmap'
     assert isinstance(params['bitmap'], mi.Bitmap)
     assert mi.load_dict(params) is not None
