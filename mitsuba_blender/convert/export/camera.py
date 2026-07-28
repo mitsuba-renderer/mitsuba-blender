@@ -151,6 +151,8 @@ def convert_camera(export_ctx, b_camera, b_scene, matrix_world=None):
             export_ctx.log(f'Camera "{b_camera.name_full}" of type '
                            f'"{data.type}" is not supported. Exporting it '
                            'as a perspective camera.', 'WARN')
+        loc, rot, _ = matrix_world.decompose()
+        matrix_world = Matrix.LocRotScale(loc, rot, (1.0, 1.0, 1.0))
         params = _convert_perspective(export_ctx, b_camera, matrix_world,
                                       res_x, res_y)
 
