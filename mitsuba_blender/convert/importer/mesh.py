@@ -151,20 +151,38 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
                               radius=radius)
 
     # edit UVs on the BMESH, before to_mesh
-    uv_layer = bl_bmesh.loops.layers.uv.verify() # get existing or create
-    for face in bl_bmesh.faces:
-        for loop in face.loops:
-            co = loop.vert.co.normalized()
-            # In order to match how sphere.cpp does it
-            phi = math.atan2(co.y, co.x)
-            if phi < 0:
-                phi += 2 * math.pi
-            u = phi / (2 * math.pi)
-            v = 1.0 - math.acos(co.z) / math.pi
-            loop[uv_layer].uv = (u, v)
-
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
+
+    me = bl_mesh
+
+    n_loops = len(me.loops)
+
+    vidx = np.empty(n_loops, dtype=np.int64)
+    me.loops.foreach_get('vertex_index', vidx)
+
+
+    n_verts = len(me.vertices)
+    co = np.empty(n_verts * 3, dtype=np.float64)
+    me.vertices.foreach_get('co', co)
+
+    co = co.reshape(n_verts, 3)[vidx]
+    co /= np.linalg.norm(co, axis=1, keepdims=True)
+    x, y, z = co[:, 0], co[:, 1], co[:, 2]
+
+    phi = np.arctan2(y, x)
+    phi[phi < 0] += 2 * np.pi
+
+    u = phi / (2 * np.pi)
+    v = 1.0 - np.arcos(np.clip(z, -1.0, 1.0)) / np.pi
+
+    uv = np.empty(n_loops * 2, dtype=np.float64)
+    uv[0::2] = u
+    uv[1::2] = v
+
+    uv_layer = me.uv_layers.new(name='UVMap') if not me.uv_layers else me.uv_layers.active
+    uv_layer.data.foreach_set('uv', uv)
+
 
     _set_bl_mesh_shading(bl_mesh, flat_shading=False,
                          flip_normals=mi_shape.get('flip_normals', False))
