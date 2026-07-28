@@ -3,24 +3,25 @@ Emission and Holdout.'''
 
 from ... import ConversionError
 from . import convert_shader_node, node_converter
-from ._eval import Constant, Texture, resolve, eval_float, trace_source
+from ._eval import Constant, NodeRef, Texture, resolve, eval_float, trace_source
 
 
-def _child_bsdf(export_ctx, node):
+def _child_bsdf(export_ctx, ref):
     '''Convert a nested shader node into a plain BSDF dict.'''
-    result = convert_shader_node(export_ctx, node)
+    result = convert_shader_node(export_ctx, ref)
     if result['emitter'] is not None:
-        export_ctx.log(f'Ignoring the emission of node "{node.name}": '
+        export_ctx.log(f'Ignoring the emission of node "{ref.node.name}": '
                        'emitters cannot be nested inside a BSDF.', 'WARN')
     if result['bsdf'] is None:
-        raise ConversionError(f'node "{node.name}" does not produce a BSDF')
+        raise ConversionError(f'node "{ref.node.name}" does not produce a BSDF')
     return result['bsdf']
 
 
-def _emission_radiance(export_ctx, node):
+def _emission_radiance(export_ctx, ref):
     '''Evaluate an Emission node into an RGB radiance list or a Mitsuba
     texture dict (the color scaled by the strength).'''
-    strength = resolve(export_ctx, node.inputs['Strength'])
+    node = ref.node
+    strength = resolve(export_ctx, node.inputs['Strength'], stack=ref.stack)
     if isinstance(strength, Constant):
         strength = strength.value
     else:
@@ -29,7 +30,7 @@ def _emission_radiance(export_ctx, node):
         export_ctx.log(f'{reason}; using the default value', 'WARN')
         strength = node.inputs['Strength'].default_value
 
-    color = resolve(export_ctx, node.inputs['Color'])
+    color = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if isinstance(color, Texture):
         if strength != 1.0:
             # Mitsuba has no texture-scaling plugin, so the strength is lost
@@ -62,25 +63,33 @@ def _emitter_result(export_ctx, radiance):
 
 
 @node_converter('EMISSION')
-def convert_emission(export_ctx, node):
-    return _emitter_result(export_ctx, _emission_radiance(export_ctx, node))
+def convert_emission(export_ctx, ref):
+    return _emitter_result(export_ctx, _emission_radiance(export_ctx, ref))
 
 
 @node_converter('HOLDOUT')
-def convert_holdout(export_ctx, node):
-    export_ctx.log(f'Holdout node "{node.name}" is approximated by a null '
-                   'BSDF.', 'WARN')
+def convert_holdout(export_ctx, ref):
+    export_ctx.log(f'Holdout node "{ref.node.name}" is approximated by a '
+                   'null BSDF.', 'WARN')
     return {'type': 'null'}
 
 
+def _shader_input(node, socket, stack):
+    '''Trace a shader input to the node feeding it, as a NodeRef.'''
+    child, _, child_stack = trace_source(socket, stack)
+    return NodeRef(child, child_stack) if child is not None else None
+
+
 @node_converter('ADD_SHADER')
-def convert_add(export_ctx, node):
-    a, _ = trace_source(node.inputs[0])
-    b, _ = trace_source(node.inputs[1])
+def convert_add(export_ctx, ref):
+    node = ref.node
+    a = _shader_input(node, node.inputs[0], ref.stack)
+    b = _shader_input(node, node.inputs[1], ref.stack)
     if a is None or b is None:
         raise ConversionError(f'Add Shader node "{node.name}" needs both '
                               'shader inputs linked')
-    a_emits, b_emits = a.type == 'EMISSION', b.type == 'EMISSION'
+    a_emits = a.node.type == 'EMISSION'
+    b_emits = b.node.type == 'EMISSION'
     if a_emits and b_emits:
         radiance_a = _emission_radiance(export_ctx, a)
         radiance_b = _emission_radiance(export_ctx, b)
@@ -105,31 +114,34 @@ def convert_add(export_ctx, node):
 
 
 @node_converter('MIX_SHADER')
-def convert_mix(export_ctx, node):
-    a, _ = trace_source(node.inputs[1])
-    b, _ = trace_source(node.inputs[2])
+def convert_mix(export_ctx, ref):
+    node = ref.node
+    a = _shader_input(node, node.inputs[1], ref.stack)
+    b = _shader_input(node, node.inputs[2], ref.stack)
     if a is None or b is None:
         raise ConversionError(f'Mix Shader node "{node.name}" needs both '
                               'shader inputs linked')
-    a_emits, b_emits = a.type == 'EMISSION', b.type == 'EMISSION'
+    a_emits = a.node.type == 'EMISSION'
+    b_emits = b.node.type == 'EMISSION'
     if a_emits and b_emits:
-        return _mix_emitters(export_ctx, node, a, b)
+        return _mix_emitters(export_ctx, ref, a, b)
     if a_emits or b_emits:
         raise ConversionError(f'Mix Shader node "{node.name}": mixing a '
                               'BSDF with an emitter is not supported; use '
                               'an Add Shader instead')
-    if a.type == 'BSDF_TRANSPARENT' or b.type == 'BSDF_TRANSPARENT':
-        return _mix_transparent(export_ctx, node, a, b)
+    if a.node.type == 'BSDF_TRANSPARENT' or b.node.type == 'BSDF_TRANSPARENT':
+        return _mix_transparent(export_ctx, ref, a, b)
     return {
         'type': 'blendbsdf',
-        'weight': eval_float(export_ctx, node.inputs['Fac']),
+        'weight': eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack),
         'bsdf1': _child_bsdf(export_ctx, a),
         'bsdf2': _child_bsdf(export_ctx, b),
     }
 
 
-def _mix_emitters(export_ctx, node, a, b):
-    fac = resolve(export_ctx, node.inputs['Fac'])
+def _mix_emitters(export_ctx, ref, a, b):
+    node = ref.node
+    fac = resolve(export_ctx, node.inputs['Fac'], stack=ref.stack)
     if not isinstance(fac, Constant):
         raise ConversionError(f'Mix Shader node "{node.name}": only a '
                               'constant factor is supported when mixing '
@@ -145,27 +157,29 @@ def _mix_emitters(export_ctx, node, a, b):
                      for x, y in zip(radiance_a, radiance_b)])
 
 
-def _warn_transparent_tint(export_ctx, node):
-    color = resolve(export_ctx, node.inputs['Color'])
+def _warn_transparent_tint(export_ctx, ref):
+    node = ref.node
+    color = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if not isinstance(color, Constant) or \
             any(c != 1.0 for c in color.value[:3]):
         export_ctx.log(f'Ignoring the tint of Transparent BSDF node '
                        f'"{node.name}" inside a Mix Shader.', 'WARN')
 
 
-def _mix_transparent(export_ctx, node, a, b):
+def _mix_transparent(export_ctx, ref, a, b):
     '''A Mix Shader with a Transparent BSDF on one side maps to a Mitsuba
     mask, whose opacity gives the weight of the nested BSDF.'''
-    if a.type == 'BSDF_TRANSPARENT' and b.type == 'BSDF_TRANSPARENT':
+    node = ref.node
+    if a.node.type == 'BSDF_TRANSPARENT' and b.node.type == 'BSDF_TRANSPARENT':
         _warn_transparent_tint(export_ctx, a)
         _warn_transparent_tint(export_ctx, b)
         return {'type': 'null'}
-    if a.type == 'BSDF_TRANSPARENT':
+    if a.node.type == 'BSDF_TRANSPARENT':
         transparent, opaque, invert = a, b, False
     else:
         transparent, opaque, invert = b, a, True
     _warn_transparent_tint(export_ctx, transparent)
-    opacity = eval_float(export_ctx, node.inputs['Fac'])
+    opacity = eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
     if invert:
         if isinstance(opacity, dict):
             # 1 - texture cannot be expressed; a blend against a null BSDF
