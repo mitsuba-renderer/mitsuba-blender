@@ -135,7 +135,6 @@ def mi_mesh_to_bl_shape(mi_context, mi_shape):
 ######################
 
 def mi_sphere_to_bl_shape(mi_context, mi_shape):
-    import math
     bl_mesh = bpy.data.meshes.new(mi_shape.id())
     bl_bmesh = bmesh.new()
 
@@ -146,43 +145,22 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     world_matrix = mi_context.mi_space_to_bl_space(
         to_world @ Matrix.Translation(center))
 
-    # calc_uvs produces no UV layer  therefore the calc_uvs=True is useless
+    # create_uvsphare's calc_uvs produces no UV layer (measured), so UVs are built explicitly
     bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16,
                               radius=radius)
 
-    # edit UVs on the BMESH, before to_mesh
+    # bmesh has no foreach_get; UVs are build on the MESH after to_mesh
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
-    me = bl_mesh
+    co = _loop_coords(bl_mesh)
 
-    n_loops = len(me.loops)
-
-    vidx = np.empty(n_loops, dtype=np.int64)
-    me.loops.foreach_get('vertex_index', vidx)
-
-
-    n_verts = len(me.vertices)
-    co = np.empty(n_verts * 3, dtype=np.float64)
-    me.vertices.foreach_get('co', co)
-
-    co = co.reshape(n_verts, 3)[vidx]
     co /= np.linalg.norm(co, axis=1, keepdims=True)
     x, y, z = co[:, 0], co[:, 1], co[:, 2]
 
     phi = np.arctan2(y, x)
     phi[phi < 0] += 2 * np.pi
-
-    u = phi / (2 * np.pi)
-    v = 1.0 - np.arcos(np.clip(z, -1.0, 1.0)) / np.pi
-
-    uv = np.empty(n_loops * 2, dtype=np.float64)
-    uv[0::2] = u
-    uv[1::2] = v
-
-    uv_layer = me.uv_layers.new(name='UVMap') if not me.uv_layers else me.uv_layers.active
-    uv_layer.data.foreach_set('uv', uv)
-
+    _set_uvs(bl_mesh, phi / (2 * np.pi), 1.0 - np.arccos(np.clip(z, -1.0, 1.0)) / np.pi)
 
     _set_bl_mesh_shading(bl_mesh, flat_shading=False,
                          flip_normals=mi_shape.get('flip_normals', False))
@@ -202,6 +180,21 @@ _analytic_ops = {
     #TODO: create a new mapping for other shape
 }
 
+def _loop_coords(me):
+    """Per-loop vertex coordinates, shape (n_loops, 3)."""
+    n_loops = len(me.loops)
+    vidx = np.empty(n_loops, dtype=np.int64)
+    me.loops.foreach_get('vertex_index', vidx)
+    co = np.empty(len(me.vertices) * 3, dtype=np.float64)
+    me.vertices.foreach_get('co', co)
+    return co.reshape(-1, 3)[vidx]
+
+def _set_uvs(me, u, v):
+    uv = np.empty(len(me.loops) * 2, dtype=np.float64)
+    uv[0::2] = u
+    uv[1::2] = v
+    layer = me.uv_layers.active or me.uv_layers.new(name='UVMap')
+    layer.data.foreach_set('uv', uv)
 
 def _analytic_to_bl_shape(mi_context, mi_shape):
     op_name, kwargs = _analytic_ops[mi_shape.plugin_name()]
@@ -216,17 +209,20 @@ def _analytic_to_bl_shape(mi_context, mi_shape):
     # UVs; their Mitsuba parameterizations need to be matched the way mi_sphere_to_bl_shape
     #matches sphere.cpp.
     op(bl_bmesh, **kwargs)
-    if mi_shape.plugin_name() == "rectangle":
-        uv_layer = bl_bmesh.loops.layers.uv.verify() # get existing or create
-        for face in bl_bmesh.faces:
-            for loop in face.loops:
-                co = loop.vert.co
-                loop[uv_layer].uv = ((co.x + 1) / 2, (co.y + 1) / 2)
-
-    #TODO: create the uv mapping for other shapes
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
+    co = _loop_coords(bl_mesh)
+    name = mi_shape.plugin_name()
+
+    if name == "rectangle":
+        _set_uvs(bl_mesh, (co[:, 0] + 1.0) / 2.0, (co[:, 1] + 1.0) / 2.0)
+    elif name == 'disk':
+        phi = np.arctan2(co[:, 1], co[:, 0])
+        phi[phi < 0] += 2 * np.pi
+        _set_uvs(bl_mesh, phi / (2 * np.pi), np.hypot(co[:, 0], co[:, 1]))
+
+    #TODO: create the uv mapping for other shapes
     _set_bl_mesh_shading(bl_mesh,
                          flip_normals=mi_shape.get('flip_normals', False))
 
