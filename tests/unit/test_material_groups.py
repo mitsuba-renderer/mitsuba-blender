@@ -146,6 +146,6 @@ def test_shader_socket_crosses_group_boundary(fresh_scene, export_ctx,
     result = registry.convert_material(export_ctx, b_mat)
     # The BSDF came from outside the group, the emitter from inside
     assert result['bsdf'] is not None
-    assert result['bsdf'] != registry.FALLBACK_BSDF
+    assert result['bsdf'] != registry.ERROR_BSDF
     assert result['emitter'] is not None
     assert result['emitter']['type'] == 'area'

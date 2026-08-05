@@ -6,8 +6,8 @@ where `ref` is a _eval.NodeRef pairing the shader node with the group
 instance path it was reached through, and returns either a Mitsuba BSDF
 dict, or a {'bsdf': dict|None, 'emitter': dict|None} pair when the node
 (also) emits light. Converters signal failure by raising ConversionError;
-convert_material catches everything and substitutes a gray diffuse
-fallback, so a broken material never aborts an export.
+convert_material catches everything and substitutes an error BSDF, so a
+broken material never aborts an export.
 
 Texture-producing nodes register with @texture_converter('<node.type>')
 instead and are picked up by the socket resolver in _eval.
@@ -35,11 +35,12 @@ def node_converter(*node_types):
     return decorator
 
 
-FALLBACK_BSDF = {
+ERROR_COLOR = [1.0, 0.0, 0.3]
+ERROR_BSDF = {
     'type': 'twosided',
     'bsdf': {
         'type': 'diffuse',
-        'reflectance': {'type': 'rgb', 'value': [0.5, 0.5, 0.5]},
+        'reflectance': {'type': 'rgb', 'value': ERROR_COLOR},
     },
 }
 
@@ -96,8 +97,8 @@ def convert_material(export_ctx, b_mat):
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
         export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
-                       'Exporting a gray diffuse fallback.', 'WARN')
-        return {'bsdf': copy.deepcopy(FALLBACK_BSDF), 'emitter': None}
+                       'Exporting an ERROR diffuse fallback.', 'WARN')
+        return {'bsdf': copy.deepcopy(ERROR_BSDF), 'emitter': None}
 
 def add_material_to_dict(export_ctx, mat_id, bsdf, emitter):
     '''Store a converted BSDF/emitter pair in the scene dict, in the layout

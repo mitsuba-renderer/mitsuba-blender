@@ -14,9 +14,9 @@ what feeds an input socket:
 import colorsys
 import math
 from typing import NamedTuple
-
 from ... import ConversionError
 
+ERROR_COLOR = [1.0, 0.0, 0.3, 1.0]
 
 class Constant:
     '''A folded constant: a float, or a tuple for vectors and colors.'''
@@ -212,7 +212,7 @@ def eval_color(export_ctx, socket, default=None, stack=()):
     export_ctx.log(f'{result.reason}; using the default value', 'WARN')
     if default is None:
         default = socket_default(socket)
-    return export_ctx.spectrum(list(_to_color(default)))
+    return export_ctx.spectrum(ERROR_COLOR)
 
 
 #############################

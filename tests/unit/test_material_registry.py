@@ -106,8 +106,8 @@ def test_unlinked_surface_exports_fallback(fresh_scene, exporter, tmp_path,
 
     converter = exporter(tmp_path)
     entry = converter.export_ctx.data_get('mat-Unlinked')
-    assert entry == registry.FALLBACK_BSDF
-    assert entry is not registry.FALLBACK_BSDF
+    assert entry == registry.ERROR_BSDF
+    assert entry is not registry.ERROR_BSDF
 
 
 def test_converter_error_boundary(fresh_scene, exporter, tmp_path, registry):
@@ -126,7 +126,7 @@ def test_converter_error_boundary(fresh_scene, exporter, tmp_path, registry):
 
         converter = exporter(tmp_path)
         entry = converter.export_ctx.data_get('mat-Toon')
-        assert entry == registry.FALLBACK_BSDF
+        assert entry == registry.ERROR_BSDF
     finally:
         del registry._node_converters['BSDF_TOON']
 

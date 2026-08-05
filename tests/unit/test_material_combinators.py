@@ -210,7 +210,7 @@ def test_add_two_bsdfs_falls_back(fresh_scene, exporter, tmp_path, registry):
     assign_material(b_mat)
 
     ctx = exporter(tmp_path).export_ctx
-    assert ctx.data_get('mat-TwoBsdfs') == registry.FALLBACK_BSDF
+    assert ctx.data_get('mat-TwoBsdfs') == registry.ERROR_BSDF
 
 
 ###################
@@ -286,7 +286,7 @@ def test_mix_bsdf_with_emission_falls_back(fresh_scene, exporter, tmp_path,
     assign_material(b_mat)
 
     ctx = exporter(tmp_path).export_ctx
-    assert ctx.data_get('mat-BadMix') == registry.FALLBACK_BSDF
+    assert ctx.data_get('mat-BadMix') == registry.ERROR_BSDF
 
 
 def test_mix_transparent_first_exports_mask(fresh_scene, exporter, tmp_path):
