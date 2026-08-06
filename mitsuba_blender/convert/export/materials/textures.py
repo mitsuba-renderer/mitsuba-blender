@@ -390,7 +390,7 @@ def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
     return params
 
 
-@texture_converter("HUE_SATURATION")
+@texture_converter("HUE_SAT")
 def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_socket):
     node = ref.node
 
