@@ -52,6 +52,9 @@ def _init_mitsuba():
                 sys.path.insert(0, path)
         import mitsuba
         mitsuba.set_variant('scalar_rgb')
+        from .plugins import register_plugins
+        register_plugins()
+
         mitsuba_version = mitsuba.__version__
         return True
     except Exception as e:

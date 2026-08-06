@@ -1,0 +1,153 @@
+
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+import drjit as dr
+from numpy import result_type
+
+if TYPE_CHECKING:
+    import mitsuba as mi
+    import drjit as dr
+# Math texture operations
+
+def _clamp(v, lo=0.0, hi=1.0):
+    return dr.clip(v, lo, hi)
+
+def _safe_divide(a, b):
+    return dr.select(b != 0.0, a / dr.select(b != 0.0, b, 1.0), 0.0)
+
+
+def _safe_power(a, b):
+    is_int_exp = dr.floor(b) == b
+    valid = (a >= 0.0) | is_int_exp
+    mag = dr.power(dr.abs(a), b)
+    odd = is_int_exp & (dr.floor(b * 0.5) * 2.0 != b)
+    signed = dr.select((a < 0.0) & odd, -mag, mag)
+    return dr.select(valid, signed, 0.0)
+
+def _safe_log(a, b):
+    valid = (a > 0.0) & (b > 0.0) & (b != 1.0)
+    sa = dr.select(a > 0.0, a, 1.0)
+    sb = dr.select((b > 0.0) & (b != 1.0), b, 2.0)
+    return dr.select(valid, dr.log(sa) / dr.log(sb), 0.0)
+
+def _fract(a):
+    return a - dr.floor(a)
+
+def _wrap(a, b, c):
+    rng = b - c
+    safe = dr.select(rng != 0.0, rng, 1.0)
+    return dr.select(rng != 0.0, a - rng * dr.floor((a - c) / safe), c)
+
+def _pingpong(a, b):
+    sb = dr.select(b != 0.0, b, 1.0)
+    val = dr.abs(_fract((a - sb) / (sb * 2.0)) * sb * 2.0 - sb)
+    return dr.select(b != 0.0, val, 0.0)
+
+def _smooth_min(a, b, k):
+    sk = dr.select(k != 0.0, k, 1.0)
+    h = dr.maximum(sk - dr.abs(a - b), 0.0) / sk
+    return dr.select(k != 0.0,
+                     dr.minimum(a, b) - h*h*h*sk*(1.0/6.0),
+                     dr.minimum(a, b))
+
+
+_MATH_OPS = {
+    'ADD':            lambda a, b, c: a + b,
+    'SUBTRACT':       lambda a, b, c: a - b,
+    'MULTIPLY':       lambda a, b, c: a * b,
+    'DIVIDE':         lambda a, b, c: _safe_divide(a, b),
+    'MULTIPLY_ADD':   lambda a, b, c: a * b + c,
+    'POWER':          lambda a, b, c: _safe_power(a, b),
+    'LOGARITHM':      lambda a, b, c: _safe_log(a, b),
+    'SQRT':           lambda a, b, c: dr.select(a >= 0.0, dr.sqrt(dr.maximum(a, 0.0)), 0.0),
+    'INVERSE_SQRT':   lambda a, b, c: dr.select(a > 0.0, 1.0 / dr.sqrt(dr.maximum(a, 1e-30)), 0.0),
+    'ABSOLUTE':       lambda a, b, c: dr.abs(a),
+    'EXPONENT':       lambda a, b, c: dr.exp(a),
+    'MINIMUM':        lambda a, b, c: dr.minimum(a, b),
+    'MAXIMUM':        lambda a, b, c: dr.maximum(a, b),
+    'LESS_THAN':      lambda a, b, c: dr.select(a < b, 1.0, 0.0),
+    'GREATER_THAN':   lambda a, b, c: dr.select(a > b, 1.0, 0.0),
+    'SIGN':           lambda a, b, c: dr.select(a > 0.0, 1.0,
+                                       dr.select(a < 0.0, -1.0, 0.0)),
+    'COMPARE':        lambda a, b, c: dr.select(
+                          dr.abs(a - b) <= dr.maximum(c, 1e-5), 1.0, 0.0),
+    'SMOOTH_MIN':     lambda a, b, c: _smooth_min(a, b, c),
+    'SMOOTH_MAX':     lambda a, b, c: -_smooth_min(-a, -b, c),
+    'ROUND':          lambda a, b, c: dr.floor(a + 0.5),
+    'FLOOR':          lambda a, b, c: dr.floor(a),
+    'CEIL':           lambda a, b, c: dr.ceil(a),
+    'TRUNC':          lambda a, b, c: dr.trunc(a),
+    'FRACT':          lambda a, b, c: _fract(a),
+    'MODULO':         lambda a, b, c: dr.select(
+                          b != 0.0,
+                          a - dr.trunc(a / dr.select(b != 0.0, b, 1.0))
+                            * dr.select(b != 0.0, b, 1.0), 0.0),
+    'FLOORED_MODULO': lambda a, b, c: dr.select(
+                          b != 0.0,
+                          a - dr.floor(a / dr.select(b != 0.0, b, 1.0))
+                            * dr.select(b != 0.0, b, 1.0), 0.0),
+    'WRAP':           lambda a, b, c: _wrap(a, b, c),
+    'SNAP':           lambda a, b, c: dr.floor(_safe_divide(a, b)) * b,
+    'PINGPONG':       lambda a, b, c: _pingpong(a, b),
+    'SINE':           lambda a, b, c: dr.sin(a),
+    'COSINE':         lambda a, b, c: dr.cos(a),
+    'TANGENT':        lambda a, b, c: dr.tan(a),
+    'ARCSINE':        lambda a, b, c: dr.asin(_clamp(a, -1.0, 1.0)),
+    'ARCCOSINE':      lambda a, b, c: dr.acos(_clamp(a, -1.0, 1.0)),
+    'ARCTANGENT':     lambda a, b, c: dr.atan(a),
+    'ARCTAN2':        lambda a, b, c: dr.atan2(a, b),
+    'SINH':           lambda a, b, c: dr.sinh(a),
+    'COSH':           lambda a, b, c: dr.cosh(a),
+    'TANH':           lambda a, b, c: dr.tanh(a),
+    'RADIANS':        lambda a, b, c: a * (dr.pi / 180.0),
+    'DEGREES':        lambda a, b, c: a * (180.0 / dr.pi),
+}
+
+
+def register(mi, dr):
+
+    class Math(mi.Texture):
+        def __init__(self, props: mi.Properties) -> None:
+            super().__init__(props)
+
+            self.a : mi.Texture = props.get_texture('child_0', 0.0)
+            self.b : mi.Texture = props.get_texture('child_1', 0.0)
+            self.c : mi.Texture = props.get_texture('child_2', 0.0)
+            self.use_clamp = props.get('use_clamp', False) 
+
+            self.op_fn = _MATH_OPS[props.get('op')]
+
+        def _process(self, a, b, c):
+            import drjit as dr
+            result = self.op_fn(a, b, c)
+            if self.use_clamp:
+                return dr.clip(result, 0.0, 1.0)
+
+            return result
+
+
+        def eval_1(self, si: mi.SurfaceInteraction3f, active=True) -> mi.Float:
+            return mi.Float(self._process(self.a.eval_1(si, active),
+                                          self.b.eval_1(si, active),
+                                          self.c.eval_1(si, active)))
+
+        def eval(self, si: mi.SurfaceInteraction3f, active=True) -> mi.UnpolarizedSpectrum:
+            return mi.UnpolarizedSpectrum(self._process(self.a.eval(si, active),
+                                                         self.b.eval(si, active),
+                                                         self.c.eval(si, active)))
+
+
+        def eval_3(self, si: mi.SurfaceInteraction3f, active=True) -> mi.Color3f:
+            return mi.Color3f(self._process(self.a.eval_3(si, active),
+                                            self.b.eval_3(si, active),
+                                            self.c.eval_3(si, active)))
+        def mean(self):
+            return 0.5
+
+        def traverse(self, cb: mi.TraversalCallback) -> None:
+            cb.put('child_0', self.a, +mi.ParamFlags.Differentiable)
+            cb.put('child_1', self.b, +mi.ParamFlags.Differentiable)
+            cb.put('child_2', self.c, +mi.ParamFlags.Differentiable)
+
+    mi.register_texture('math', Math)

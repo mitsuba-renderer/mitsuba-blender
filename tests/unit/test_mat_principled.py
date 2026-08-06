@@ -225,6 +225,7 @@ def test_export_textured_coat_roughness_falls_back(fresh_scene, exporter,
 
 
 def test_export_folds_input_graph(fresh_scene, exporter, tmp_path):
+    import mitsuba as mi, drjit as dr
     node = principled_node()
     tree = node.id_data
     math_node = tree.nodes.new('ShaderNodeMath')
@@ -232,9 +233,10 @@ def test_export_folds_input_graph(fresh_scene, exporter, tmp_path):
     math_node.inputs[0].default_value = 0.25
     math_node.inputs[1].default_value = 2.0
     tree.links.new(math_node.outputs['Value'], node.inputs['Metallic'])
-
     _, entry = exported_entry(exporter, tmp_path)
-    assert entry['bsdf']['metallic'] == pytest.approx(0.5)
+
+    tex = mi.load_dict(entry['bsdf']['metallic'])
+    assert tex.eval_1(dr.zeros(mi.SurfaceInteraction3f)) == pytest.approx(0.5)
 
 
 ######################

@@ -27,6 +27,17 @@ def export_ctx(mi_addon, tmp_path):
     ctx.directory = str(tmp_path)
     return ctx
 
+def texture(result):
+    assert result.__class__.__name__ == 'Texture', repr(result)
+    return result.params
+
+def eval_float_texture(result):
+    import mitsuba as mi, drjit as dr
+    tex = mi.load_dict(texture(result))
+    return tex.eval_1(dr.zeros(mi.SurfaceInteraction3f))
+
+
+
 def _float_group(name, factor=3.0):
     '''A node group computing Amount * factor, as a reusable tree.'''
     tree = bpy.data.node_groups.new(name, 'ShaderNodeTree')
@@ -76,8 +87,7 @@ def test_shared_tree_resolves_per_instance(fresh_scene, export_ctx, eval_mod):
     tree.links.new(add.outputs['Value'], emission.inputs['Strength'])
 
     result = eval_mod.resolve(export_ctx, emission.inputs['Strength'])
-    assert isinstance(result, eval_mod.Constant)
-    assert result.value == pytest.approx(21.0)   # 2*3 + 5*3
+    assert eval_float_texture(result) == pytest.approx(21.0)   # 2*3 + 5*3
 
 
 def test_nested_groups_unwind_in_order(fresh_scene, export_ctx, eval_mod):
@@ -108,8 +118,7 @@ def test_nested_groups_unwind_in_order(fresh_scene, export_ctx, eval_mod):
                    emission.inputs['Strength'])
 
     result = eval_mod.resolve(export_ctx, emission.inputs['Strength'])
-    assert isinstance(result, eval_mod.Constant)
-    assert result.value == pytest.approx(6.0)
+    assert eval_float_texture(result) == pytest.approx(6.0)
 
 
 def test_shader_socket_crosses_group_boundary(fresh_scene, export_ctx,

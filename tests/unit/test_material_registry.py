@@ -66,6 +66,7 @@ def test_diffuse_export(fresh_scene, exporter, tmp_path):
 
 
 def test_diffuse_export_folds_input_graph(fresh_scene, exporter, tmp_path):
+    import mitsuba as mi, drjit as dr
     b_mat = make_diffuse_material()
     tree = b_mat.node_tree
     diffuse = tree.nodes['Diffuse BSDF']
@@ -83,8 +84,11 @@ def test_diffuse_export_folds_input_graph(fresh_scene, exporter, tmp_path):
 
     converter = exporter(tmp_path)
     entry = converter.export_ctx.data_get('mat-Diffuse')
-    assert entry['bsdf']['reflectance']['value'] == \
-        pytest.approx([0.75, 0.0, 0.25])
+
+    tex = mi.load_dict(entry['bsdf']['reflectance'])
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert list(tex.eval_3(si)) == pytest.approx([0.75, 0.0, 0.25])
+
 
 
 def test_default_principled_material(fresh_scene, exporter, tmp_path):

@@ -94,3 +94,13 @@ def compare_images():
             f'RMSE {rmse:.6f} exceeds tolerance {rmse_tol}'
 
     return _compare
+
+
+
+@pytest.fixture
+def export_ctx(mi_addon, tmp_path):
+    import mitsuba as mi, sys
+    mi.set_variant('scalar_rgb')
+    converter = sys.modules[mi_addon].io.exporter.SceneConverter(render=False)
+    converter.export_ctx.directory = str(tmp_path)
+    return converter.export_ctx

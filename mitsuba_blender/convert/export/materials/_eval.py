@@ -209,7 +209,7 @@ def eval_color(export_ctx, socket, default=None, stack=()):
         return export_ctx.spectrum(list(_to_color(result.value)))
     if isinstance(result, Texture):
         return result.params
-    export_ctx.log(f'{result.reason}; using the default value', 'WARN')
+    export_ctx.log(f'{result.reason}; using the ERROR color', 'WARN')
     if default is None:
         default = socket_default(socket)
     return export_ctx.spectrum(ERROR_COLOR)

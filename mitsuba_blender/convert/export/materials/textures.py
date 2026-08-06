@@ -18,10 +18,12 @@ import shutil
 import bpy
 from mathutils import Euler, Matrix
 
+from ....io.exporter.export_context import ExportContext
+
 from ... import ConversionError
 from .. import sanitize_attribute_name
 from . import texture_converter
-from ._eval import Constant, Texture, eval_color, resolve, trace_source
+from ._eval import Constant, Texture, eval_color, eval_float, resolve, socket_default, trace_source
 
 
 ########################
@@ -338,6 +340,132 @@ def convert_vertex_color(export_ctx, ref, out_socket):
         'name': f'vertex_{sanitize_attribute_name(node.layer_name)}',
     }
 
+
+@texture_converter('VALTORGB')
+def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
+    node = ref.node
+    ramp = node.color_ramp
+    
+    params = {
+        'type': 'color_ramp',
+        'mode': ramp.interpolation.lower(),
+        'num_bands': len(ramp.elements),
+    }
+
+    fac = resolve(export_ctx, node.inputs['Fac'], stack=ref.stack)
+    if isinstance(fac, Constant):
+        params['input'] = float(fac.value)
+    elif isinstance(fac, Texture):
+        params['input'] = fac.params
+    else:
+        export_ctx.log(f'The Fac input of "{node.name}" is not supported; using the socket value.', 'WARN')
+        params['input'] = node.inputs['Fac'].default_value
+
+    for i, element in enumerate(ramp.elements):
+        params[f'pos{i}'] = element.position
+        params[f'color{i}'] = list(element.color[:3])
+
+    return params
+
+
+@texture_converter("MATH")
+def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    node = ref.node
+
+    params = {
+        'type': 'math',
+        'op': node.operation,
+        'use_clamp' : node.use_clamp
+    }
+
+    for i,  socket in enumerate(node.inputs):
+        result = resolve(export_ctx, socket, stack=ref.stack)
+        if isinstance(result, Constant):
+            params[f'child_{i}'] = float(result.value)
+        elif isinstance(result, Texture):
+            params[f'child_{i}'] = result.params
+        else:
+            export_ctx.log(f'Input {i} of math node {node.name} is not supported, using the socket default', 'WARN')
+            params[f'child_{i}'] = socket.default_value
+    return params
+
+
+@texture_converter("HUE_SATURATION")
+def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    node = ref.node
+
+    params = {
+        'type': 'hue_saturation_value',
+        'input': eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
+        'hue': eval_float(export_ctx, node.inputs['Hue']),
+        'saturation': eval_float(export_ctx, node.inputs['Saturation']),
+        'value' : eval_float(export_ctx, node.inputs['Value']),
+        'mix' : eval_float(export_ctx, node.inputs['Fac'])
+    }
+    return params
+
+@texture_converter('CURVE_RGB')
+def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    import numpy as np
+    import mitsuba as mi
+    node = ref.node
+
+    params = {
+        'type' : 'rgb_curve',
+        'fac' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack),
+        'color' : eval_color(export_ctx, node.inputs['Color'], stack=ref.stack)
+    }
+    N = 64
+    mapping = node.mapping
+    mapping.update()
+
+
+    for i, c in enumerate(['curve_c', 'curve_r', 'curve_g', 'curve_b']):
+        curve = mapping.curves[i]
+        row = np.array([mapping.evaluate(curve, j / (N -1)) for j in range(N)], dtype=np.float32)
+        arr = np.stack([row, row]).reshape(2, N, 1) # bitmaps need at least 2 x 2
+
+        params[c] = {
+            'type': 'bitmap',
+            'bitmap': mi.Bitmap(arr),
+            'raw': True,
+            'wrap_mode' : 'clamp'
+        }
+    return params
+
+def _socket(sockets, identifier):
+    return next(s for s in sockets if s.identifier == identifier)
+
+_SUPPORTED = ['MIX', 'ADD', 'MULTIPLY', 'SUBTRACT', 'SCREEN',
+              'DIVIDE', 'DIFFERENCE', 'DARKEN', 'LIGHTEN', 'OVERLAY']
+
+@texture_converter('MIX')
+def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    node = ref.node
+
+    if node.blend_type not in _SUPPORTED:
+        raise ConversionError(f'Operation {node.blend_type} over a MIX node is not supported')
+
+    data_type = node.data_type
+    params = {
+        'type': 'mix',
+        'clamp_factor': node.clamp_factor,
+        'clamp_result': node.clamp_result,
+        'factor': eval_float(export_ctx, _socket(node.inputs, 'Factor_Float')),
+    }
+
+    if data_type == 'FLOAT':
+        params['blend_type'] = 'MIX'
+        params['a'] = eval_float(export_ctx, _socket(node.inputs, 'A_Float'))
+        params['b'] = eval_float(export_ctx, _socket(node.inputs, 'B_Float'))
+    elif data_type == 'RGBA':
+        params['blend_type'] = node.blend_type
+        params['a'] = eval_color(export_ctx, _socket(node.inputs, 'A_Color'))
+        params['b'] = eval_color(export_ctx, _socket(node.inputs, 'B_Color'))
+    else:
+        raise ConversionError(f'Mix node "{node.name}": data type {data_type} is not supported')
+
+    return params
 
 ###########################
 ##  Normal and bump map  ##

@@ -27,18 +27,35 @@ def probe(tree):
     return tree.nodes.new('ShaderNodeEmission')
 
 
+def texture(result):
+    assert result.__class__.__name__ == 'Texture', repr(result)
+    return result.params
+
+
 def by_id(sockets, identifier):
     return next(s for s in sockets if s.identifier == identifier)
 
 
-def fold_float(ev, tree, probe, out_socket):
+def eval_texture(export_ctx, result, ctx):
+    import mitsuba as mi, drjit as dr
+    assert result.__class__.__name__ == 'Texture', repr(result)
+    tex = mi.load_dict(result.params)
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    return tex
+
+def eval_float_texture(result):
+    import mitsuba as mi, drjit as dr
+    tex = mi.load_dict(texture(result))
+    return tex.eval_1(dr.zeros(mi.SurfaceInteraction3f))
+
+def fold_float(export_ctx, ev, tree, probe, out_socket):
     tree.links.new(out_socket, probe.inputs['Strength'])
-    return ev.resolve(None, probe.inputs['Strength'])
+    return ev.resolve(export_ctx, probe.inputs['Strength'])
 
 
-def fold_color(ev, tree, probe, out_socket):
+def fold_color(export_ctx, ev, tree, probe, out_socket):
     tree.links.new(out_socket, probe.inputs['Color'])
-    return ev.resolve(None, probe.inputs['Color'])
+    return ev.resolve(export_ctx, probe.inputs['Color'])
 
 
 def constant(result):
@@ -55,32 +72,32 @@ def math_node(tree, operation, a, b=0.0, c=0.0):
     return node
 
 
-def test_unlinked_float_socket(ev, probe):
+def test_unlinked_float_socket(export_ctx, ev, probe):
     probe.inputs['Strength'].default_value = 0.25
-    result = ev.resolve(None, probe.inputs['Strength'])
+    result = ev.resolve(export_ctx, probe.inputs['Strength'])
     assert constant(result) == 0.25
 
 
-def test_unlinked_color_socket(ev, probe):
+def test_unlinked_color_socket(export_ctx, ev, probe):
     probe.inputs['Color'].default_value = (0.1, 0.2, 0.3, 1.0)
-    value = constant(ev.resolve(None, probe.inputs['Color']))
+    value = constant(ev.resolve(export_ctx, probe.inputs['Color']))
     assert value == pytest.approx((0.1, 0.2, 0.3, 1.0))
 
 
-def test_value_node(ev, tree, probe):
+def test_value_node(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeValue')
     node.outputs['Value'].default_value = 2.5
-    result = fold_float(ev, tree, probe, node.outputs['Value'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Value'])
     assert constant(result) == 2.5
 
 
-def test_rgb_node_reads_output_socket(ev, tree, probe):
+def test_rgb_node_reads_output_socket(export_ctx, ev, tree, probe):
     # The color of an RGB node lives on its output socket; node.color is
     # the unrelated header color
     node = tree.nodes.new('ShaderNodeRGB')
     node.outputs['Color'].default_value = (0.8, 0.6, 0.4, 1.0)
     node.color = (0.9, 0.9, 0.9)
-    value = constant(fold_color(ev, tree, probe, node.outputs['Color']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
     assert value == pytest.approx((0.8, 0.6, 0.4, 1.0))
 
 
@@ -123,25 +140,30 @@ def test_rgb_node_reads_output_socket(ev, tree, probe):
     ('RADIANS', 180.0, 0.0, 0.0, math.pi),
     ('DEGREES', math.pi, 0.0, 0.0, 180.0),
 ])
-def test_math_operations(ev, tree, probe, operation, a, b, c, expected):
+
+def test_math_operations(export_ctx, ev, tree, probe, operation, a, b, c, expected):
+    import mitsuba as mi
+    import drjit as dr
     node = math_node(tree, operation, a, b, c)
-    result = fold_float(ev, tree, probe, node.outputs['Value'])
-    assert constant(result) == pytest.approx(expected)
+    result = fold_float(export_ctx, ev, tree,probe, node.outputs['Value'])
+    tex = mi.load_dict(result.params)
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert tex.eval_1(si) == pytest.approx(expected)
 
 
-def test_math_use_clamp(ev, tree, probe):
+def test_math_use_clamp(export_ctx, ev, tree, probe):
     node = math_node(tree, 'ADD', 2.0, 3.0)
     node.use_clamp = True
-    result = fold_float(ev, tree, probe, node.outputs['Value'])
-    assert constant(result) == 1.0
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Value'])
+    assert eval_float_texture(result) == 1.0
 
 
-def test_math_chain(ev, tree, probe):
+def test_math_chain(export_ctx, ev, tree, probe):
     add = math_node(tree, 'ADD', 3.0, 4.0)
     mul = math_node(tree, 'MULTIPLY', 0.0, 2.0)
     tree.links.new(add.outputs['Value'], mul.inputs[0])
-    result = fold_float(ev, tree, probe, mul.outputs['Value'])
-    assert constant(result) == 14.0
+    result = fold_float(export_ctx, ev, tree, probe, mul.outputs['Value'])
+    assert eval_float_texture(result) == 14.0
 
 
 def vector_math_node(tree, operation, a, b=(0.0, 0.0, 0.0)):
@@ -152,28 +174,28 @@ def vector_math_node(tree, operation, a, b=(0.0, 0.0, 0.0)):
     return node
 
 
-def test_vector_math_dot_product(ev, tree, probe):
+def test_vector_math_dot_product(export_ctx, ev, tree, probe):
     node = vector_math_node(tree, 'DOT_PRODUCT', (1, 2, 3), (4, 5, 6))
-    result = fold_float(ev, tree, probe, node.outputs['Value'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Value'])
     assert constant(result) == pytest.approx(32.0)
 
 
-def test_vector_math_scale(ev, tree, probe):
+def test_vector_math_scale(export_ctx, ev, tree, probe):
     node = vector_math_node(tree, 'SCALE', (1, 2, 3))
     node.inputs['Scale'].default_value = 2.0
-    value = constant(fold_color(ev, tree, probe, node.outputs['Vector']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Vector']))
     assert value == pytest.approx((2.0, 4.0, 6.0, 1.0))
 
 
-def test_vector_math_cross_product(ev, tree, probe):
+def test_vector_math_cross_product(export_ctx, ev, tree, probe):
     node = vector_math_node(tree, 'CROSS_PRODUCT', (1, 0, 0), (0, 1, 0))
-    value = constant(fold_color(ev, tree, probe, node.outputs['Vector']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Vector']))
     assert value == pytest.approx((0.0, 0.0, 1.0, 1.0))
 
 
-def test_vector_math_normalize(ev, tree, probe):
+def test_vector_math_normalize(export_ctx, ev, tree, probe):
     node = vector_math_node(tree, 'NORMALIZE', (3, 0, 4))
-    value = constant(fold_color(ev, tree, probe, node.outputs['Vector']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Vector']))
     assert value == pytest.approx((0.6, 0.0, 0.8, 1.0))
 
 
@@ -188,24 +210,28 @@ def mix_node(tree, data_type, factor, a, b, blend_type='MIX'):
     return node, by_id(node.outputs, f'Result_{suffix}')
 
 
-def test_mix_float(ev, tree, probe):
+def test_mix_float(export_ctx, ev, tree, probe):
+    import mitsuba as mi, drjit as dr
     node, out = mix_node(tree, 'FLOAT', 0.25, 0.0, 8.0)
-    result = fold_float(ev, tree, probe, out)
-    assert constant(result) == pytest.approx(2.0)
+    result = fold_float(export_ctx, ev, tree, probe, out)
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert tex.eval_1(si) == pytest.approx(2.0)
 
 
-def test_mix_float_clamp_factor(ev, tree, probe):
+
+def test_mix_float_clamp_factor(export_ctx, ev, tree, probe):
     node, out = mix_node(tree, 'FLOAT', 2.0, 0.0, 8.0)
     node.clamp_factor = True
-    result = fold_float(ev, tree, probe, out)
-    assert constant(result) == pytest.approx(8.0)
+    result = fold_float(export_ctx, ev, tree, probe, out)
+    assert eval_float_texture(result) == pytest.approx(8.0)
 
 
-def test_mix_float_unclamped_factor(ev, tree, probe):
+def test_mix_float_unclamped_factor(export_ctx, ev, tree, probe):
     node, out = mix_node(tree, 'FLOAT', 2.0, 0.0, 8.0)
     node.clamp_factor = False
-    result = fold_float(ev, tree, probe, out)
-    assert constant(result) == pytest.approx(16.0)
+    result = fold_float(export_ctx, ev, tree, probe, out)
+    assert eval_float_texture(result) == pytest.approx(16.0)
 
 
 @pytest.mark.parametrize('blend_type,factor,expected', [
@@ -217,46 +243,47 @@ def test_mix_float_unclamped_factor(ev, tree, probe):
     ('DARKEN', 1.0, (0.2, 0.4, 0.25)),
     ('LIGHTEN', 1.0, (0.5, 0.5, 0.8)),
 ])
-def test_mix_color_blend(ev, tree, probe, blend_type, factor, expected):
+def test_mix_color_blend(export_ctx, ev, tree, probe, blend_type, factor, expected):
+    import mitsuba as mi, drjit as dr
     a = (0.2, 0.4, 0.8, 1.0)
     b = (0.5, 0.5, 0.25, 1.0)
     node, out = mix_node(tree, 'RGBA', factor, a, b, blend_type)
     node.clamp_result = False
-    value = constant(fold_color(ev, tree, probe, out))
-    assert value[:3] == pytest.approx(expected)
-    assert value[3] == 1.0
+    result = fold_color(export_ctx, ev, tree, probe, out)
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert list(tex.eval_3(si)) == pytest.approx(expected)
 
-
-def test_mix_color_unsupported_blend(ev, tree, probe):
+def test_mix_color_unsupported_blend(export_ctx, ev, tree, probe):
     _, out = mix_node(tree, 'RGBA', 0.5, (1, 0, 0, 1), (0, 1, 0, 1), 'BURN')
-    result = fold_color(ev, tree, probe, out)
+    result = fold_color(export_ctx, ev, tree, probe, out)
     assert isinstance(result, ev.Unsupported)
     assert 'BURN' in result.reason
 
 
-def test_invert(ev, tree, probe):
+def test_invert(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeInvert')
     node.inputs['Fac'].default_value = 0.5
     node.inputs['Color'].default_value = (0.2, 0.4, 1.0, 1.0)
-    value = constant(fold_color(ev, tree, probe, node.outputs['Color']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
     assert value == pytest.approx((0.5, 0.5, 0.5, 1.0))
 
 
-def test_gamma(ev, tree, probe):
+def test_gamma(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeGamma')
     node.inputs['Color'].default_value = (0.25, 0.0, 1.0, 1.0)
     node.inputs['Gamma'].default_value = 0.5
-    value = constant(fold_color(ev, tree, probe, node.outputs['Color']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
     assert value == pytest.approx((0.5, 0.0, 1.0, 1.0))
 
 
-def test_brightness_contrast(ev, tree, probe):
+def test_brightness_contrast(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeBrightContrast')
     node.inputs['Color'].default_value = (0.5, 0.0, 1.0, 1.0)
     node.inputs['Bright'].default_value = 0.1
     node.inputs['Contrast'].default_value = 0.2
     # gain = 1.2, offset = 0.1 - 0.1 = 0, clamped at zero from below
-    value = constant(fold_color(ev, tree, probe, node.outputs['Color']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
     assert value == pytest.approx((0.6, 0.0, 1.2, 1.0))
 
 
@@ -283,95 +310,95 @@ def map_range_node(tree, value, interpolation='LINEAR', clamp=True,
     (15.0, 'SMOOTHERSTEP', False, 1.0),
     (5.0, 'STEPPED', True, 0.5),
 ])
-def test_map_range(ev, tree, probe, value, interpolation, clamp, expected):
+def test_map_range(export_ctx, ev, tree, probe, value, interpolation, clamp, expected):
     node = map_range_node(tree, value, interpolation, clamp)
-    result = fold_float(ev, tree, probe, node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Result'])
     assert constant(result) == pytest.approx(expected)
 
 
-def test_clamp_minmax(ev, tree, probe):
+def test_clamp_minmax(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeClamp')
     node.inputs['Value'].default_value = 2.0
     node.inputs['Min'].default_value = 0.5
     node.inputs['Max'].default_value = 1.5
-    result = fold_float(ev, tree, probe, node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Result'])
     assert constant(result) == 1.5
 
 
-def test_clamp_range_swapped(ev, tree, probe):
+def test_clamp_range_swapped(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeClamp')
     node.clamp_type = 'RANGE'
     node.inputs['Value'].default_value = 0.4
     node.inputs['Min'].default_value = 1.0
     node.inputs['Max'].default_value = 0.0
-    result = fold_float(ev, tree, probe, node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Result'])
     assert constant(result) == pytest.approx(0.4)
 
 
-def test_separate_combine_xyz(ev, tree, probe):
+def test_separate_combine_xyz(export_ctx, ev, tree, probe):
     comb = tree.nodes.new('ShaderNodeCombineXYZ')
     comb.inputs['X'].default_value = 1.0
     comb.inputs['Y'].default_value = 2.0
     comb.inputs['Z'].default_value = 3.0
     sep = tree.nodes.new('ShaderNodeSeparateXYZ')
     tree.links.new(comb.outputs['Vector'], sep.inputs['Vector'])
-    result = fold_float(ev, tree, probe, sep.outputs['Y'])
+    result = fold_float(export_ctx, ev, tree, probe, sep.outputs['Y'])
     assert constant(result) == 2.0
 
 
-def test_separate_color_hsv(ev, tree, probe):
+def test_separate_color_hsv(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeSeparateColor')
     node.mode = 'HSV'
     node.inputs['Color'].default_value = (0.5, 0.0, 0.0, 1.0)
-    result = fold_float(ev, tree, probe, node.outputs['Green'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Green'])
     assert constant(result) == pytest.approx(1.0)  # saturation
-    result = fold_float(ev, tree, probe, node.outputs['Blue'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Blue'])
     assert constant(result) == pytest.approx(0.5)  # value
 
 
-def test_combine_color_hsv(ev, tree, probe):
+def test_combine_color_hsv(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeCombineColor')
     node.mode = 'HSV'
     node.inputs['Red'].default_value = 0.0    # hue
     node.inputs['Green'].default_value = 1.0  # saturation
     node.inputs['Blue'].default_value = 1.0   # value
-    value = constant(fold_color(ev, tree, probe, node.outputs['Color']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
     assert value == pytest.approx((1.0, 0.0, 0.0, 1.0))
 
 
-def test_rgb_to_bw(ev, tree, probe):
+def test_rgb_to_bw(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeRGBToBW')
     node.inputs['Color'].default_value = (1.0, 0.0, 0.0, 1.0)
-    result = fold_float(ev, tree, probe, node.outputs['Val'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Val'])
     assert constant(result) == pytest.approx(0.2126)
 
 
-def test_float_to_color_conversion(ev, tree, probe):
+def test_float_to_color_conversion(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeValue')
     node.outputs['Value'].default_value = 0.5
-    value = constant(fold_color(ev, tree, probe, node.outputs['Value']))
+    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Value']))
     assert value == pytest.approx((0.5, 0.5, 0.5, 1.0))
 
 
-def test_color_to_float_conversion(ev, tree, probe):
+def test_color_to_float_conversion(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeRGB')
     node.outputs['Color'].default_value = (1.0, 0.0, 0.0, 1.0)
-    result = fold_float(ev, tree, probe, node.outputs['Color'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Color'])
     assert constant(result) == pytest.approx(0.2126)
 
 
-def test_reroute_chain(ev, tree, probe):
+def test_reroute_chain(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeValue')
     node.outputs['Value'].default_value = 4.0
     reroute_a = tree.nodes.new('NodeReroute')
     reroute_b = tree.nodes.new('NodeReroute')
     tree.links.new(node.outputs['Value'], reroute_a.inputs[0])
     tree.links.new(reroute_a.outputs[0], reroute_b.inputs[0])
-    result = fold_float(ev, tree, probe, reroute_b.outputs[0])
+    result = fold_float(export_ctx, ev, tree, probe, reroute_b.outputs[0])
     assert constant(result) == 4.0
 
 
-def test_muted_node_passthrough(ev, tree, probe):
+def test_muted_node_passthrough(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeValue')
     node.outputs['Value'].default_value = 3.0
     add = math_node(tree, 'ADD', 0.0, 100.0)
@@ -380,34 +407,34 @@ def test_muted_node_passthrough(ev, tree, probe):
     add.mute = True
     # Blender computes the pass-through links of muted nodes on update
     bpy.context.view_layer.update()
-    result = ev.resolve(None, probe.inputs['Strength'])
+    result = ev.resolve(export_ctx, probe.inputs['Strength'])
     assert constant(result) == 3.0
 
 
-def test_muted_link_is_unlinked(ev, tree, probe):
+def test_muted_link_is_unlinked(export_ctx, ev, tree, probe):
     probe.inputs['Strength'].default_value = 0.75
     node = tree.nodes.new('ShaderNodeValue')
     node.outputs['Value'].default_value = 3.0
     link = tree.links.new(node.outputs['Value'], probe.inputs['Strength'])
     link.is_muted = True
-    result = ev.resolve(None, probe.inputs['Strength'])
+    result = ev.resolve(export_ctx, probe.inputs['Strength'])
     assert constant(result) == 0.75
 
 
-def test_unsupported_node(ev, tree, probe):
+def test_unsupported_node(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeTexNoise')
-    result = fold_float(ev, tree, probe, node.outputs['Fac'])
+    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Fac'])
     assert isinstance(result, ev.Unsupported)
     assert node.name in result.reason
     assert 'TEX_NOISE' in result.reason
     assert 'Strength' in result.reason
 
 
-def test_unsupported_node_inside_fold(ev, tree, probe):
+def test_unsupported_node_inside_fold(export_ctx, ev, tree, probe):
     noise = tree.nodes.new('ShaderNodeTexNoise')
     add = math_node(tree, 'ADD', 0.0, 1.0)
     tree.links.new(noise.outputs['Fac'], add.inputs[0])
-    result = fold_float(ev, tree, probe, add.outputs['Value'])
+    result = fold_float(export_ctx, ev, tree, probe, add.outputs['Value'])
     assert isinstance(result, ev.Unsupported)
     assert noise.name in result.reason
 
@@ -428,42 +455,29 @@ def override_checker(ev):
         ev._texture_converters['TEX_CHECKER'] = previous
 
 
-def test_texture_converter_registry(ev, tree, probe, override_checker):
+def test_texture_converter_registry(export_ctx, ev, tree, probe, override_checker):
     override_checker(lambda export_ctx, node, out_socket:
                      {'type': 'checkerboard'})
 
     node = tree.nodes.new('ShaderNodeTexChecker')
-    result = fold_color(ev, tree, probe, node.outputs['Color'])
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
     assert isinstance(result, ev.Texture)
     assert result.params == {'type': 'checkerboard'}
 
 
-def test_texture_converter_error_is_unsupported(ev, tree, probe,
+def test_texture_converter_error_is_unsupported(export_ctx, ev, tree, probe,
                                                 override_checker):
     def convert_checker(export_ctx, node, out_socket):
         raise ev.ConversionError('checker says no')
     override_checker(convert_checker)
 
     node = tree.nodes.new('ShaderNodeTexChecker')
-    result = fold_color(ev, tree, probe, node.outputs['Color'])
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
     assert isinstance(result, ev.Unsupported)
     assert result.reason == 'checker says no'
 
 
-def test_texture_node_inside_fold_is_unsupported(ev, tree, probe,
-                                                 override_checker):
-    override_checker(lambda export_ctx, node, out_socket:
-                     {'type': 'checkerboard'})
-
-    checker = tree.nodes.new('ShaderNodeTexChecker')
-    add = math_node(tree, 'ADD', 0.0, 1.0)
-    tree.links.new(checker.outputs['Color'], add.inputs[0])
-    result = fold_float(ev, tree, probe, add.outputs['Value'])
-    assert isinstance(result, ev.Unsupported)
-    assert 'texture' in result.reason
-
-
-def test_eval_float_returns_default_on_unsupported(ev, tree, probe, mi_addon):
+def test_eval_float_returns_default_on_unsupported(export_ctx, ev, tree, probe, mi_addon):
     ctx_module = importlib.import_module(
         f'{mi_addon}.io.exporter.export_context')
     export_ctx = ctx_module.ExportContext()
@@ -473,7 +487,7 @@ def test_eval_float_returns_default_on_unsupported(ev, tree, probe, mi_addon):
                          default=0.125) == 0.125
 
 
-def test_eval_color_folds_spectrum(ev, tree, probe, mi_addon):
+def test_eval_color_folds_spectrum(export_ctx, ev, tree, probe, mi_addon):
     ctx_module = importlib.import_module(
         f'{mi_addon}.io.exporter.export_context')
     export_ctx = ctx_module.ExportContext()
@@ -485,36 +499,36 @@ def test_eval_color_folds_spectrum(ev, tree, probe, mi_addon):
     assert spectrum['value'] == pytest.approx((0.8, 0.6, 0.4))
 
 
-def test_reroute_link_cycle_terminates(ev, tree, probe):
+def test_reroute_link_cycle_terminates(export_ctx, ev, tree, probe):
     # Blender permits link cycles made purely of reroutes; resolving one
     # must terminate instead of spinning forever
     r1 = tree.nodes.new('NodeReroute')
     r2 = tree.nodes.new('NodeReroute')
     tree.links.new(r1.outputs[0], r2.inputs[0])
     tree.links.new(r2.outputs[0], r1.inputs[0])
-    result = fold_float(ev, tree, probe, r2.outputs[0])
+    result = fold_float(export_ctx, ev, tree, probe, r2.outputs[0])
     assert isinstance(result, (ev.Constant, ev.Unsupported))
 
 
-def test_muted_node_link_cycle_terminates(ev, tree, probe):
+def test_muted_node_link_cycle_terminates(export_ctx, ev, tree, probe):
     a = math_node(tree, 'ADD', 0.0, 0.0)
     b = math_node(tree, 'ADD', 0.0, 0.0)
     tree.links.new(a.outputs['Value'], b.inputs[0])
     tree.links.new(b.outputs['Value'], a.inputs[0])
     a.mute = True
     b.mute = True
-    result = fold_float(ev, tree, probe, b.outputs['Value'])
+    result = fold_float(export_ctx, ev, tree, probe, b.outputs['Value'])
     assert isinstance(result, (ev.Constant, ev.Unsupported))
 
 
-def test_fold_link_cycle_terminates(ev, tree, probe):
+def test_fold_link_cycle_terminates(export_ctx, ev, tree, probe):
     # A cycle through foldable nodes must not recurse without bound
     a = math_node(tree, 'ADD', 0.0, 0.0)
     b = math_node(tree, 'ADD', 0.0, 0.0)
     tree.links.new(a.outputs['Value'], b.inputs[0])
     tree.links.new(b.outputs['Value'], a.inputs[0])
-    result = fold_float(ev, tree, probe, b.outputs['Value'])
-    assert isinstance(result, (ev.Constant, ev.Unsupported))
+    result = fold_float(export_ctx, ev, tree, probe, b.outputs['Value'])
+    assert isinstance(result, (ev.Texture, ev.Unsupported))
 
 
 
@@ -534,7 +548,7 @@ def _make_group(name='TestGroup'):
     return group, g_in, g_out
  
  
-def test_group_passthrough(ev, tree, probe):
+def test_group_passthrough(export_ctx, ev, tree, probe):
     '''A value linked into a group comes back out of it.'''
     group, _, _ = _make_group()
     node = tree.nodes.new('ShaderNodeValue')
@@ -542,12 +556,12 @@ def test_group_passthrough(ev, tree, probe):
     group_node = tree.nodes.new('ShaderNodeGroup')
     group_node.node_tree = group
     tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
-    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, group_node.outputs['Result'])
     assert constant(result) == 7.0
  
  
  
-def test_group_inner_math(ev, tree, probe):
+def test_group_inner_math(export_ctx, ev, tree, probe):
     '''The interior is converted, not just passed through.'''
     group, g_in, g_out = _make_group('MathGroup')
     mul = group.nodes.new('ShaderNodeMath')
@@ -561,11 +575,11 @@ def test_group_inner_math(ev, tree, probe):
     group_node = tree.nodes.new('ShaderNodeGroup')
     group_node.node_tree = group
     tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
-    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
-    assert constant(result) == 6.0
+    result = fold_float(export_ctx, ev, tree, probe, group_node.outputs['Result'])
+    assert eval_float_texture(result) == 6.0
  
  
-def test_nested_groups(ev, tree, probe):
+def test_nested_groups(export_ctx, ev, tree, probe):
     '''Group inside a group: the ascend step needs a stack, not a single
     saved node.'''
     inner, i_in, i_out = _make_group('Inner')
@@ -580,11 +594,11 @@ def test_nested_groups(ev, tree, probe):
     group_node = tree.nodes.new('ShaderNodeGroup')
     group_node.node_tree = outer
     tree.links.new(node.outputs['Value'], group_node.inputs['Amount'])
-    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, group_node.outputs['Result'])
     assert constant(result) == 9.0
  
  
-def test_group_unsupported_node_inside(ev, tree, probe):
+def test_group_unsupported_node_inside(export_ctx, ev, tree, probe):
     '''An unsupported node inside a group is reported as unsupported --
     not as "GROUP is not supported".'''
     group, g_in, g_out = _make_group('NoiseGroup')
@@ -593,16 +607,16 @@ def test_group_unsupported_node_inside(ev, tree, probe):
  
     group_node = tree.nodes.new('ShaderNodeGroup')
     group_node.node_tree = group
-    result = fold_float(ev, tree, probe, group_node.outputs['Result'])
+    result = fold_float(export_ctx, ev, tree, probe, group_node.outputs['Result'])
     assert isinstance(result, ev.Unsupported)
     assert 'TEX_NOISE' in result.reason
  
  
-def test_group_with_no_tree(ev, tree, probe):
+def test_group_with_no_tree(export_ctx, ev, tree, probe):
     '''A group node with no node_tree assigned must not crash.'''
     group_node = tree.nodes.new('ShaderNodeGroup')   # node_tree stays None
     probe.inputs['Strength'].default_value = 0.25
     tree.links.new(group_node.outputs[0], probe.inputs['Strength']) \
         if group_node.outputs else None
-    result = ev.resolve(None, probe.inputs['Strength'])
+    result = ev.resolve(export_ctx, probe.inputs['Strength'])
     assert constant(result) == 0.25

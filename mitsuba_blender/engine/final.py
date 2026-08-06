@@ -90,6 +90,8 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         from mitsuba import set_variant
         b_scene = depsgraph.scene
         set_variant(b_scene.mitsuba.variant)
+        from ..plugins import register_plugins
+        register_plugins()
 
         scale = b_scene.render.resolution_percentage / 100.0
         self.size_x = int(b_scene.render.resolution_x * scale)
