@@ -92,7 +92,14 @@ def test_roundtrip_multi_material(mi_addon, fresh_scene, tmp_path):
     # The default point light would come back as an emissive sphere mesh
     bpy.data.objects.remove(bpy.data.objects['Light'])
     b_obj = bpy.data.objects['Cube']
+    # Identical materials are deduplicated when the scene is written, so
+    # the second one needs a distinct color to survive the roundtrip
     second = bpy.data.materials.new('Second')
+    if second.node_tree is None:
+        # Blender releases before 5.0 start without a node tree
+        second.use_nodes = True
+    second.node_tree.nodes['Principled BSDF'] \
+        .inputs['Base Color'].default_value = (1.0, 0.0, 0.0, 1.0)
     b_obj.data.materials.append(second)
     for face in b_obj.data.polygons[:2]:
         face.material_index = 1
@@ -133,12 +140,11 @@ def test_import_degenerate_face_with_uvs(mi_addon, fresh_scene, tmp_path):
     # longer match the loop count and crashed the whole import
     import mitsuba as mi
     mi.set_variant('scalar_rgb')
-    mesh = mi.Mesh('degen', 4, 2, has_vertex_texcoords=True)
-    params = mi.traverse(mesh)
-    params['vertex_positions'] = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]
-    params['vertex_texcoords'] = [0, 0, 1, 0, 1, 1, 0, 1]
-    params['faces'] = [0, 1, 2, 1, 1, 3]
-    params.update()
+    mesh = mi.Mesh('degen')
+    mesh.from_fields(
+        faces=mi.TensorXu([[0, 1, 2], [1, 1, 3]]),
+        positions=mi.TensorXf([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]]),
+        texcoords=mi.TensorXf([[0, 0], [1, 0], [1, 1], [0, 1]]))
     ply_file = str(tmp_path / 'degen.ply')
     mesh.write_ply(ply_file)
 
@@ -158,9 +164,9 @@ def test_import_degenerate_face_with_uvs(mi_addon, fresh_scene, tmp_path):
     assert imported.uv_layers
     uvs = np.empty(len(imported.loops) * 2, dtype=np.float32)
     imported.uv_layers[0].uv.foreach_get('vector', uvs)
-    # Mitsuba's V axis is flipped on import
+    # Texture coordinates port over verbatim
     assert np.allclose(sorted(uvs.reshape(-1, 2).tolist()),
-                       [[0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+                       [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]])
 
 
 def test_merge_shapes_import(mi_addon, fresh_scene, tmp_path):

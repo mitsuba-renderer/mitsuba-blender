@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict
 
 from mathutils import Matrix
@@ -10,6 +11,9 @@ class ExportContext:
     # Subfolders of the export directory receiving meshes and textures
     MESHES_FOLDER = 'meshes'
     TEXTURES_FOLDER = 'textures'
+    # Every exported mesh is appended to this one file, and the shapes
+    # reference their sub-mesh by index
+    SERIALIZED_NAME = 'meshes.serialized'
 
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
@@ -22,10 +26,48 @@ class ExportContext:
         self.export_ids = False # Export Object IDs in the XML file
         self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
         self.bsdf_objects = {} # Instantiated BSDFs, by material id (render mode)
+        # Let Blender split the polygons of a mesh instead of Mitsuba
+        self.blender_triangulation = False
+        # Shared .serialized output and the file offset of each sub-mesh
+        self.serialized_stream = None
+        self.serialized_offsets = []
         # All the args defined below are set in the Converter
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
         self.deg = None # Dependency graph
+
+    def add_serialized_mesh(self, mi_mesh):
+        '''Append a mesh to the scene's shared .serialized file, returning
+        the sub-mesh index that a shape entry references it by.'''
+        import mitsuba as mi
+        if self.serialized_stream is None:
+            folder = os.path.join(self.directory, self.MESHES_FOLDER)
+            os.makedirs(folder, exist_ok=True)
+            self.serialized_stream = mi.FileStream(
+                os.path.join(folder, self.SERIALIZED_NAME),
+                mi.FileStream.ETruncReadWrite)
+        self.serialized_offsets.append(self.serialized_stream.tell())
+        mi_mesh.write_serialized(self.serialized_stream)
+        return len(self.serialized_offsets) - 1
+
+    def finalize_serialized(self):
+        '''Close the shared file with the end-of-file dictionary that lets
+        the serialized plugin seek to a sub-mesh: one uint64 offset per
+        mesh, followed by their count.'''
+        if self.serialized_stream is None:
+            return
+        import mitsuba as mi
+        stream = self.serialized_stream
+        stream.set_byte_order(mi.FileStream.ELittleEndian)
+        for offset in self.serialized_offsets:
+            stream.write_uint64(offset)
+        stream.write_uint32(len(self.serialized_offsets))
+        stream.close()
+        self.serialized_stream = None
+
+    def serialized_filename(self):
+        '''Relative path that the shape entries reference.'''
+        return f'{self.MESHES_FOLDER}/{self.SERIALIZED_NAME}'
 
     def sanitize(self, name):
         '''

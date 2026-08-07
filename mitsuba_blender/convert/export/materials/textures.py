@@ -137,16 +137,9 @@ def export_image(export_ctx, image):
 ##  UV coordinates  ##
 ######################
 
-# The mesh exporter writes v -> 1 - v; conjugating a Blender UV transform
-# with this flip yields the equivalent Mitsuba to_uv transform.
+# Blender addresses the first image row at v = 1, Mitsuba at v = 0
 _FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
     @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
-
-
-def _is_identity(matrix):
-    identity = Matrix.Identity(4)
-    return all(abs(matrix[i][j] - identity[i][j]) < 1e-8
-               for i in range(4) for j in range(4))
 
 
 def _to_uv_param(matrix):
@@ -228,10 +221,8 @@ def _vector_to_uv(export_ctx, ref):
     except ConversionError as e:
         export_ctx.log(f'{e}; ignoring the texture mapping of node '
                        f'"{node.name}"', 'WARN')
-        return None
-    if _is_identity(matrix):
-        return None
-    return _to_uv_param(_FLIP @ matrix @ _FLIP)
+        matrix = Matrix.Identity(4)
+    return _to_uv_param(_FLIP @ matrix)
 
 
 ##########################
@@ -279,9 +270,13 @@ def convert_image_texture(export_ctx, ref, out_socket):
     elif node.extension == 'MIRROR':
         params['wrap_mode'] = 'mirror'
 
+<<<<<<< HEAD
     to_uv = _vector_to_uv(export_ctx, ref)
     if to_uv is not None:
         params['to_uv'] = to_uv
+=======
+    params['to_uv'] = _vector_to_uv(export_ctx, node)
+>>>>>>> 863e63a (Port the add-on to the rewritten Mitsuba ``Mesh``)
     return params
 
 
@@ -290,12 +285,18 @@ def convert_checker_texture(export_ctx, ref, out_socket):
     node = ref.node
     params = {
         'type': 'checkerboard',
+<<<<<<< HEAD
         # Once the UV flip is folded into to_uv below, Blender's Color1
         # cells land exactly on Mitsuba's color1 cells
         'color1': eval_color(export_ctx, node.inputs['Color1'],
                              stack=ref.stack),
         'color0': eval_color(export_ctx, node.inputs['Color2'],
                              stack=ref.stack),
+=======
+        # Both patterns start their first cell at the UV origin
+        'color0': eval_color(export_ctx, node.inputs['Color1']),
+        'color1': eval_color(export_ctx, node.inputs['Color2']),
+>>>>>>> 863e63a (Port the add-on to the rewritten Mitsuba ``Mesh``)
     }
 
     scale_input = resolve(export_ctx, node.inputs['Scale'], stack=ref.stack)
@@ -320,7 +321,7 @@ def convert_checker_texture(export_ctx, ref, out_socket):
     # A Mitsuba checkerboard has 2x2 cells per to_uv period, a Blender one
     # has scale x scale cells per UV unit
     checker = Matrix.Diagonal((scale / 2.0, scale / 2.0, 1.0, 1.0)) @ matrix
-    params['to_uv'] = _to_uv_param(_FLIP @ checker @ _FLIP)
+    params['to_uv'] = _to_uv_param(checker)
     return params
 
 

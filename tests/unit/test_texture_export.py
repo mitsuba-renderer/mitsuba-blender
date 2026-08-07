@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 from mathutils import Matrix
 
-
 # The v -> 1 - v flip the mesh exporter applies to UV coordinates
 FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
     @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
@@ -124,7 +123,11 @@ def test_image_texture_file_export(fresh_scene, exporter, tmp_path):
     export_dir.mkdir()
     converter = exporter(export_dir)
     params = reflectance_of(converter, 'mat-Textured')
-    assert params == {'type': 'bitmap', 'filename': 'textures/tex.png'}
+    assert set(params) == {'type', 'filename', 'to_uv'}
+    assert params['type'] == 'bitmap'
+    assert params['filename'] == 'textures/tex.png'
+    assert np.allclose(np.array(params['to_uv'].matrix), np.array(FLIP),
+                       atol=1e-6)
 
     # The source file is copied verbatim and the datablock is untouched
     assert filecmp.cmp(source_dir / 'tex.png',
@@ -288,9 +291,8 @@ def test_mapping_chain_to_uv(fresh_scene, exporter, tmp_path):
     blender = Matrix.Translation((0.1, 0.2, 0.0)) \
         @ Euler((0.0, 0.0, math.pi / 2)).to_matrix().to_4x4() \
         @ Matrix.Diagonal((2.0, 3.0, 1.0, 1.0))
-    expected = FLIP @ blender @ FLIP
     assert np.allclose(np.array(params['to_uv'].matrix),
-                       np.array(expected), atol=1e-6)
+                       np.array(FLIP @ blender), atol=1e-6)
 
 
 def test_mapping_texture_mode_is_inverse(fresh_scene, exporter, tmp_path):
@@ -309,9 +311,8 @@ def test_mapping_texture_mode_is_inverse(fresh_scene, exporter, tmp_path):
     converter = exporter(tmp_path)
     params = reflectance_of(converter, 'mat-Textured')
     blender = Matrix.Diagonal((0.5, 0.25, 1.0, 1.0))
-    expected = FLIP @ blender @ FLIP
     assert np.allclose(np.array(params['to_uv'].matrix),
-                       np.array(expected), atol=1e-6)
+                       np.array(FLIP @ blender), atol=1e-6)
 
 
 def test_unsupported_mapping_chain_is_ignored(fresh_scene, exporter,
@@ -326,7 +327,9 @@ def test_unsupported_mapping_chain_is_ignored(fresh_scene, exporter,
 
     converter = exporter(tmp_path)
     params = reflectance_of(converter, 'mat-Textured')
-    assert 'to_uv' not in params
+    # The mapping is dropped, but the row convention still has to survive
+    assert np.allclose(np.array(params['to_uv'].matrix), np.array(FLIP),
+                       atol=1e-6)
 
 
 ###############
@@ -345,11 +348,11 @@ def test_checker_export(fresh_scene, exporter, tmp_path):
     converter = exporter(tmp_path)
     params = reflectance_of(converter, 'mat-Textured')
     assert params['type'] == 'checkerboard'
-    assert params['color1'] == {'type': 'rgb',
-                                'value': pytest.approx([1.0, 0.0, 0.0])}
     assert params['color0'] == {'type': 'rgb',
+                                'value': pytest.approx([1.0, 0.0, 0.0])}
+    assert params['color1'] == {'type': 'rgb',
                                 'value': pytest.approx([0.0, 0.0, 1.0])}
-    expected = [[2, 0, 0, 0], [0, 2, 0, -1], [0, 0, 1, 0], [0, 0, 0, 1]]
+    expected = [[2, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     assert np.allclose(np.array(params['to_uv'].matrix), expected,
                        atol=1e-6)
     assert mi.load_dict(params) is not None
@@ -374,7 +377,7 @@ def test_checker_matches_blender_pattern(fresh_scene, exporter, tmp_path):
             # Blender shows Color1 where the cell parity is even
             expected = (math.floor(scale * u) + math.floor(scale * v)) \
                 % 2 == 0
-            si.uv = [u, 1.0 - v]  # the mesh exporter flips v
+            si.uv = [u, v]  # texture coordinates port over verbatim
             value = texture.eval(si)[0]
             assert (value > 0.5) == expected, (u, v)
 

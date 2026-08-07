@@ -54,34 +54,43 @@ def _buffers_to_bl_mesh(name, mi_mesh):
     vertex_count = mi_mesh.vertex_count()
     face_count = mi_mesh.face_count()
 
-    positions = np.array(params['vertex_positions'], dtype=np.float32)
+    def per_vertex(key):
+        '''Mitsuba stores each field at the coarsest level at which it is
+        constant, so an optional index map expands it back to one record
+        per vertex.'''
+        values = np.asarray(params[key], dtype=np.float32)
+        index_key = f'{key[:-1]}_index'
+        if index_key not in params:
+            return values
+        index = np.asarray(params[index_key], dtype=np.int64)
+        return values[index] if index.size else values
+
+    positions = per_vertex('positions')
     faces = np.array(params['faces'], dtype=np.int32)
 
     bl_mesh = bpy.data.meshes.new(name)
     bl_mesh.vertices.add(vertex_count)
-    bl_mesh.vertices.foreach_set('co', positions)
+    # The parameters are (n, dim) tensors, while foreach_set wants the flat
+    # buffer that ravel() produces
+    bl_mesh.vertices.foreach_set('co', positions.ravel())
     bl_mesh.loops.add(face_count * 3)
-    bl_mesh.loops.foreach_set('vertex_index', faces)
+    bl_mesh.loops.foreach_set('vertex_index', faces.ravel())
     bl_mesh.polygons.add(face_count)
     bl_mesh.polygons.foreach_set(
         'loop_start', np.arange(0, 3 * face_count, 3, dtype=np.int32))
     bl_mesh.polygons.foreach_set(
         'loop_total', np.full(face_count, 3, dtype=np.int32))
-    has_normals = mi_mesh.has_vertex_normals()
+    has_normals = mi_mesh.has_normals()
     bl_mesh.polygons.foreach_set(
         'use_smooth', np.full(face_count, has_normals, dtype=bool))
     bl_mesh.update(calc_edges=True)
     bl_mesh.validate()
 
     if has_normals:
-        normals = np.array(params['vertex_normals'],
-                           dtype=np.float32).reshape(-1, 3)
-        bl_mesh.normals_split_custom_set_from_vertices(normals)
+        bl_mesh.normals_split_custom_set_from_vertices(per_vertex('normals'))
 
-    if mi_mesh.has_vertex_texcoords():
-        uvs = np.array(params['vertex_texcoords'],
-                       dtype=np.float32).reshape(-1, 2)
-        uvs[:, 1] = 1.0 - uvs[:, 1]
+    if mi_mesh.has_texcoords():
+        uvs = np.asarray(params['texcoords'], dtype=np.float32)
         uv_layer = bl_mesh.uv_layers.new(name='UVMap')
         # validate() may have deleted invalid faces, so per-loop data
         # cannot be indexed with the pre-validate face buffer
@@ -89,10 +98,10 @@ def _buffers_to_bl_mesh(name, mi_mesh):
         bl_mesh.loops.foreach_get('vertex_index', loop_vertices)
         uv_layer.uv.foreach_set('vector', uvs[loop_vertices].ravel())
 
-    # Extra per-vertex attributes (e.g. vertex colors)
-    reserved = {'vertex_positions', 'vertex_normals', 'vertex_texcoords'}
+    # Extra per-vertex attributes (e.g. vertex colors), which are the only
+    # parameters carrying the 'vertex_' prefix
     for key in params.keys():
-        if not key.startswith('vertex_') or key in reserved:
+        if not key.startswith('vertex_'):
             continue
         values = np.array(params[key], dtype=np.float32).ravel()
         dim = values.size // vertex_count

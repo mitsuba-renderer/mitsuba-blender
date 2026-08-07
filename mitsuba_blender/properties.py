@@ -360,6 +360,12 @@ class MitsubaRenderSettings(PropertyGroup):
 
     available_integrators: PointerProperty(type=MitsubaAvailableIntegrators)
 
+    blender_triangulation: BoolProperty(
+        name='Triangulate non-triangular faces in Blender',
+        description="Mitsuba's triangulation algorithm is much faster but "
+                    'does not handle all corner cases.',
+        default=False)
+
     custom_integrator: StringProperty(
         name='Custom Integrator (dict)',
         description='Python dict literal used verbatim as the integrator, '

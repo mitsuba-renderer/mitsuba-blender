@@ -101,6 +101,8 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         # survive until the scene has been loaded.
         with tempfile.TemporaryDirectory() as export_dir:
             self.converter.export_ctx.directory = export_dir
+            self.converter.export_ctx.blender_triangulation = \
+                b_scene.mitsuba.blender_triangulation
             self.converter.scene_to_dict(depsgraph)
             mts_scene = self.converter.dict_to_scene()
 

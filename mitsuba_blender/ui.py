@@ -63,6 +63,7 @@ def draw_device(self, context):
     layout.use_property_split = True
     layout.use_property_decorate = False
     layout.column().prop(context.scene.mitsuba, 'variant')
+    layout.column().prop(context.scene.mitsuba, 'blender_triangulation')
 
 
 def get_compatible_panels():

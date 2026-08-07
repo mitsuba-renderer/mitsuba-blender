@@ -123,6 +123,13 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    blender_triangulation: BoolProperty(
+            name = "Triangulate non-triangular faces in Blender",
+            description = "Mitsuba's triangulation algorithm is much faster "
+                          "but does not handle all corner cases.",
+            default = False
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -146,6 +153,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.converter.export_ctx.axis_mat = axis_mat
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
+        self.converter.export_ctx.blender_triangulation = self.blender_triangulation
         # Meshes and textures are written to subfolders of the target directory
         self.converter.export_ctx.directory = os.path.dirname(self.filepath)
 

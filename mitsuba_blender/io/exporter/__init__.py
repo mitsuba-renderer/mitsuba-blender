@@ -99,6 +99,9 @@ class SceneConverter:
 
     def dict_to_xml(self, filename):
         import mitsuba as mi
+        # The shapes reference sub-meshes of the shared file, which is only
+        # readable once its end-of-file dictionary is in place
+        self.export_ctx.finalize_serialized()
         config = mi.parser.ParserConfig(mi.variant())
         state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
         # Reorder the plugins so they are written in a legible order
@@ -109,6 +112,7 @@ class SceneConverter:
 
     def dict_to_scene(self):
         import mitsuba as mi
+        self.export_ctx.finalize_serialized()
         # A resources entry resolves the relative file references against
         # the export directory; it must precede the entries that use them
         data = {'type': 'scene',

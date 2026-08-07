@@ -67,7 +67,12 @@ def test_import_bitmap(mi_addon, fresh_scene, tmp_path):
     assert tex.image.colorspace_settings.name == 'Non-Color'
     assert tex.extension == 'EXTEND'
     assert tex.interpolation == 'Closest'
-    assert not tex.inputs['Vector'].is_linked
+    # The mapping node carries the differing image row convention
+    mapping = source_node(tex.inputs['Vector'])
+    assert tuple(mapping.inputs['Location'].default_value) == \
+        pytest.approx((0.0, 1.0, 0.0))
+    assert tuple(mapping.inputs['Scale'].default_value) == \
+        pytest.approx((1.0, -1.0, 1.0))
 
 
 def test_import_bitmap_missing_file(mi_addon, fresh_scene, tmp_path):
@@ -83,6 +88,7 @@ def test_import_bitmap_missing_file(mi_addon, fresh_scene, tmp_path):
 
 
 def test_import_bitmap_to_uv(mi_addon, fresh_scene, tmp_path):
+    # The Mapping node composes the to_uv transform with the mirrored v axis
     write_png(tmp_path / 'tex.png')
     diffuse = diffuse_with_reflectance(tmp_path, '''
         <texture type="bitmap" name="reflectance">
@@ -94,11 +100,27 @@ def test_import_bitmap_to_uv(mi_addon, fresh_scene, tmp_path):
     mapping = source_node(tex.inputs['Vector'])
     assert mapping.bl_idname == 'ShaderNodeMapping'
     assert tuple(mapping.inputs['Location'].default_value) == \
-        pytest.approx((0.0, -1.0, 0.0))
+        pytest.approx((0.0, 1.0, 0.0))
     assert tuple(mapping.inputs['Scale'].default_value) == \
-        pytest.approx((2.0, 2.0, 1.0))
+        pytest.approx((2.0, -2.0, 1.0))
     coords = source_node(mapping.inputs['Vector'])
     assert coords.bl_idname == 'ShaderNodeTexCoord'
+
+
+def test_import_bitmap_mirroring_to_uv(mi_addon, fresh_scene, tmp_path):
+    # A to_uv that already mirrors v cancels against the row convention, so
+    # no Mapping node is needed at all
+    write_png(tmp_path / 'tex.png')
+    diffuse = diffuse_with_reflectance(tmp_path, '''
+        <texture type="bitmap" name="reflectance">
+            <string name="filename" value="tex.png"/>
+            <transform name="to_uv">
+                <matrix value="1 0 0 0 -1 1 0 0 1"/>
+            </transform>
+        </texture>''')
+
+    tex = source_node(diffuse.inputs['Color'])
+    assert not tex.inputs['Vector'].is_linked
 
 
 def test_import_bitmap_is_cached(mi_addon, fresh_scene, tmp_path):
@@ -141,9 +163,9 @@ def test_import_checkerboard(mi_addon, fresh_scene, tmp_path):
     checker = source_node(diffuse.inputs['Color'])
     assert checker.bl_idname == 'ShaderNodeTexChecker'
     assert tuple(checker.inputs['Color1'].default_value) == \
-        pytest.approx((1.0, 0.0, 0.0, 1.0))
-    assert tuple(checker.inputs['Color2'].default_value) == \
         pytest.approx((0.0, 0.0, 1.0, 1.0))
+    assert tuple(checker.inputs['Color2'].default_value) == \
+        pytest.approx((1.0, 0.0, 0.0, 1.0))
     assert checker.inputs['Scale'].default_value == pytest.approx(4.0)
     assert not checker.inputs['Vector'].is_linked
 
@@ -154,13 +176,10 @@ def test_import_checkerboard_general_to_uv(mi_addon, fresh_scene, tmp_path):
             <transform name="to_uv"><scale x="1.5" y="1.5"/></transform>
         </texture>''')
 
+    # An isotropic, unshifted pattern needs no Mapping node at all
     checker = source_node(diffuse.inputs['Color'])
-    assert checker.inputs['Scale'].default_value == pytest.approx(1.0)
-    mapping = source_node(checker.inputs['Vector'])
-    assert tuple(mapping.inputs['Scale'].default_value) == \
-        pytest.approx((3.0, 3.0, 1.0))
-    assert tuple(mapping.inputs['Location'].default_value) == \
-        pytest.approx((0.0, -1.0, 0.0))
+    assert checker.inputs['Scale'].default_value == pytest.approx(3.0)
+    assert not checker.inputs['Vector'].is_linked
 
 
 #############

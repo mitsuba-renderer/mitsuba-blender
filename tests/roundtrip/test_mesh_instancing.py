@@ -47,7 +47,7 @@ def test_linked_duplicates_share_a_shapegroup(fresh_scene, exporter, tmp_path):
     group = next(v for v in converter.export_ctx.scene_data.values()
                  if isinstance(v, dict) and v.get('type') == 'shapegroup')
     parts = [v for v in group.values()
-             if isinstance(v, dict) and v.get('type') == 'ply']
+             if isinstance(v, dict) and v.get('type') == 'serialized']
     assert len(parts) == 1
 
     scene = converter.dict_to_scene()
@@ -67,7 +67,7 @@ def test_material_override_prevents_instancing(fresh_scene, exporter, tmp_path):
     assert count_types(converter, 'shapegroup') == 0
     assert count_types(converter, 'instance') == 0
     plys = [v for v in converter.export_ctx.scene_data.values()
-            if isinstance(v, dict) and v.get('type') == 'ply']
+            if isinstance(v, dict) and v.get('type') == 'serialized']
     assert sorted(p['bsdf']['id'] for p in plys) \
         == ['mat-Material', 'mat-Override']
 
@@ -112,7 +112,7 @@ def test_vertex_instancer_prototype_is_hidden(fresh_scene, exporter, tmp_path):
     assert count_types(converter, 'shapegroup') == 1
     assert count_types(converter, 'instance') == 4
     # The plane itself is still a plain top-level shape
-    assert count_types(converter, 'ply') == 1
+    assert count_types(converter, 'serialized') == 1
 
 
 def test_particle_instances(fresh_scene, exporter, tmp_path):

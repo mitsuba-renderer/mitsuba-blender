@@ -6,12 +6,13 @@ import os
 
 import bpy
 import numpy as np
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 from ... import ConversionError
 from . import material_converter, texture_converter
 
-# The inverse of the v -> 1 - v flip the mesh porters apply to UVs
+# Mirrors the v axis about 0.5, the difference between the two image row
+# conventions
 _FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
     @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
 
@@ -49,30 +50,40 @@ def _multiply(builder, source, value):
 ##  UV coordinates  ##
 ######################
 
+def _is_identity(matrix):
+    return all(abs(matrix[i][j] - (i == j)) < 1e-8
+               for i in range(4) for j in range(4))
+
+
 def _uv_matrix(mi_props):
-    '''The to_uv transform expressed in Blender UV space, or None.'''
+    '''The to_uv transform as a Blender UV mapping, or None for identity.'''
     if 'to_uv' not in mi_props:
         return None
-    to_uv = Matrix(np.array(mi_props['to_uv'].matrix).tolist())
-    matrix = _FLIP @ to_uv @ _FLIP
-    if all(abs(matrix[i][j] - (i == j)) < 1e-8
-           for i in range(4) for j in range(4)):
-        return None
-    return matrix
+    matrix = Matrix(np.array(mi_props['to_uv'].matrix).tolist())
+    return None if _is_identity(matrix) else matrix
 
 
 def _decompose(matrix):
     '''Split a UV-plane transform into (location, z rotation, scale), or
     return None when it contains shear or out-of-plane components.'''
-    location, rotation, scale = matrix.decompose()
+    # A mirrored transform would otherwise decompose into a rotation out of
+    # the UV plane, which a Mapping node cannot express. Take the mirror out
+    # first and give it back as a negative v scale.
+    mirrored = (matrix[0][0] * matrix[1][1] -
+                matrix[0][1] * matrix[1][0]) < 0.0
+    m = matrix @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0)) if mirrored else matrix
+
+    location, rotation, scale = m.decompose()
     euler = rotation.to_euler()
     if abs(euler.x) > 1e-5 or abs(euler.y) > 1e-5:
         return None
     rebuilt = Matrix.Translation(location) @ euler.to_matrix().to_4x4() \
         @ Matrix.Diagonal((*scale, 1.0))
-    if any(abs(rebuilt[i][j] - matrix[i][j]) > 1e-4
+    if any(abs(rebuilt[i][j] - m[i][j]) > 1e-4
            for i in range(4) for j in range(4)):
         return None
+    if mirrored:
+        scale = Vector((scale.x, -scale.y, scale.z))
     return location, euler.z, scale
 
 
@@ -141,8 +152,11 @@ def convert_bitmap(builder, mi_props):
         node.extension = 'MIRROR'
     if mi_props.get('filter_type', 'bilinear') == 'nearest':
         node.interpolation = 'Closest'
+
+    # Blender addresses the first image row at v = 1, Mitsuba at v = 0
     matrix = _uv_matrix(mi_props)
-    if matrix is not None:
+    matrix = _FLIP @ (matrix if matrix is not None else Matrix.Identity(4))
+    if not _is_identity(matrix):
         _link_mapping(builder, node.inputs['Vector'], matrix)
     return node.outputs['Color']
 
@@ -150,12 +164,11 @@ def convert_bitmap(builder, mi_props):
 @texture_converter('checkerboard')
 def convert_checkerboard(builder, mi_props):
     node = builder.node('ShaderNodeTexChecker')
-    # The UV flip folded into to_uv puts Mitsuba's color1 cells where
-    # Blender shows Color1
-    builder.set_color(node.inputs['Color1'], mi_props, 'color1',
-                      default=(0.2, 0.2, 0.2))
-    builder.set_color(node.inputs['Color2'], mi_props, 'color0',
+    # Both patterns start their first cell at the UV origin
+    builder.set_color(node.inputs['Color1'], mi_props, 'color0',
                       default=(0.4, 0.4, 0.4))
+    builder.set_color(node.inputs['Color2'], mi_props, 'color1',
+                      default=(0.2, 0.2, 0.2))
 
     # A Mitsuba checkerboard has 2x2 cells per to_uv period, a Blender one
     # has scale x scale cells per UV unit
