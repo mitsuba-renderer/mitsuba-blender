@@ -405,6 +405,23 @@ def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_so
     }
     return params
 
+
+def _write_curve_table(export_ctx, node, name, arr):
+    '''Write a sampled curve table beside the scene and return its path.
+
+    The XML writer cannot serialise an in-memory bitmap, so file export
+    stores the tables as images like any other texture.
+    '''
+    import mitsuba as mi
+    directory = os.path.join(export_ctx.directory, 'textures')
+    os.makedirs(directory, exist_ok=True)
+    filename = f'{bpy.path.clean_name(node.name)}-{name}.exr'
+    mi.Bitmap(arr).write(os.path.join(directory, filename))
+    return f'textures/{filename}'
+
+
+
+
 @texture_converter('CURVE_RGB')
 def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
     import numpy as np
@@ -426,12 +443,16 @@ def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
         row = np.array([mapping.evaluate(curve, j / (N -1)) for j in range(N)], dtype=np.float32)
         arr = np.stack([row, row]).reshape(2, N, 1) # bitmaps need at least 2 x 2
 
-        params[c] = {
+        table = {
             'type': 'bitmap',
-            'bitmap': mi.Bitmap(arr),
             'raw': True,
-            'wrap_mode' : 'clamp'
+            'wrap_mode': 'clamp',
         }
+        if export_ctx.render:
+            table['bitmap'] = mi.Bitmap(arr)
+        else:
+            table['filename'] = _write_curve_table(export_ctx, node, c, arr)
+        params[c] = table
     return params
 
 def _socket(sockets, identifier):
