@@ -35,7 +35,7 @@ def register(mi, dr):
             if blend_type == 'SCREEN':
                 return 1.0 - (facm + t * (1.0 - b)) * (1.0 - a)
             if blend_type == 'DIVIDE':
-                return dr.select(dr.neq(b, 0.0), facm * a + t * a / b, a)
+                return dr.select(b != 0.0, facm * a + t * a / dr.select(b != 0.0, b, 1.0), a)
             if blend_type == 'DIFFERENCE':
                 return facm * a + t * dr.abs(a - b)
             if blend_type == 'DARKEN':
