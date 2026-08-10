@@ -237,31 +237,20 @@ def parse_mitsuba_scene(filepath, merge_shapes, merge_plugins):
     ''' Parse a Mitsuba XML file and resolve all references. Raises on
     malformed input, so callers can parse before touching the Blender scene.
 
-    Returns the parser state and the list of directories that <path> tags
-    added during the parse. parse_file prepends them to the session-global
-    file resolver, so the parse runs under a save/restore that keeps the
-    resolver clean and hands the directories to the converters instead.
+    The returned state carries a file resolver covering the scene directory
+    and any <path> directories, which the converters use to locate files.
     '''
     import mitsuba as mi
-    from ...convert import saved_file_resolver
     config = mi.parser.ParserConfig(mi.variant())
     config.merge_meshes = merge_shapes
     config.merge_equivalent = merge_plugins
-    with saved_file_resolver() as fr:
-        before = {str(path) for path in fr}
-        mi_state = mi.parser.parse_file(config, filepath)
-        # Resolve all references and merge equivalent plugins if enabled
-        mi.parser.transform_all(config, mi_state)
-        search_paths = [str(path) for path in fr if str(path) not in before]
-    # Mitsuba builds with the resolver-leak fix keep the resolver clean and
-    # expose the <path> directories on the parser state instead
-    for path in getattr(mi_state, 'resource_paths', ()):
-        if str(path) not in search_paths:
-            search_paths.append(str(path))
-    return mi_state, search_paths
+    mi_state = mi.parser.parse_file(config, filepath)
+    # Resolve all references and merge equivalent plugins if enabled
+    mi.parser.transform_all(config, mi_state)
+    return mi_state
 
 def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shapes, merge_plugins,
-                       import_render_settings=False, mi_state=None, search_paths=()):
+                       import_render_settings=False, mi_state=None):
     ''' Load a Mitsuba scene from an XML file into a Blender scene.
 
     Params
@@ -276,8 +265,6 @@ def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shap
         reconstruction filter and film settings to the Mitsuba render properties
     mi_state: Parser state from parse_mitsuba_scene; the file is parsed here
         when omitted
-    search_paths: Directories added by <path> tags, as returned by
-        parse_mitsuba_scene together with mi_state
 
     Returns
     -------
@@ -286,9 +273,9 @@ def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shap
     #TODO: progress bar
     start_time = time.time()
     if mi_state is None:
-        mi_state, search_paths = parse_mitsuba_scene(filepath, merge_shapes, merge_plugins)
+        mi_state = parse_mitsuba_scene(filepath, merge_shapes, merge_plugins)
     mi_context = common.MitsubaSceneImportContext(bl_scene, bl_collection, filepath, mi_state, global_mat,
-                                                  import_render_settings, search_paths)
+                                                  import_render_settings)
 
     # Select the Mitsuba variant used for rendering
     renderer.init_mitsuba_variant(mi_context)

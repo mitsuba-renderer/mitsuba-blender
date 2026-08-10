@@ -3,13 +3,17 @@ import os
 class MitsubaSceneImportContext:
     ''' Define a context for the Mitsuba scene importer '''
     def __init__(self, bl_scene, bl_collection, filepath, mi_state, axis_matrix,
-                 import_render_settings=False, search_paths=()):
+                 import_render_settings=False):
         self.bl_scene = bl_scene
         self.bl_collection = bl_collection
         self.filepath = filepath
         self.directory, _ = os.path.split(self.filepath)
-        self.search_paths = list(search_paths)
         self.mi_state = mi_state
+        # The parser's search paths, plus the scene directory as a last resort
+        # since states built from a dictionary do not know about it
+        import mitsuba as mi
+        self.resolver = mi.FileResolver(mi_state.resolver)
+        self.resolver.append(self.directory)
         self.axis_matrix = axis_matrix
         self.import_render_settings = import_render_settings
         self.axis_matrix_inv = axis_matrix.inverted()
@@ -50,14 +54,8 @@ class MitsubaSceneImportContext:
         return self.axis_matrix_inv @ matrix
 
     def resolve_scene_relative_path(self, path):
-        '''Resolve a filename against the scene directory, then against
-        the <path> directories of the XML file. Returns None when the
-        file does not exist; the caller reports the failure.'''
-        if os.path.isabs(path):
-            return path if os.path.exists(path) else None
-        for directory in (self.directory, *self.search_paths):
-            abs_path = os.path.join(directory, path)
-            if os.path.exists(abs_path):
-                return abs_path
-        return None
+        '''Resolve a filename with the scene's search paths. Returns None when
+        the file does not exist; the caller reports the failure.'''
+        resolved = str(self.resolver.resolve(path))
+        return resolved if os.path.exists(resolved) else None
 
