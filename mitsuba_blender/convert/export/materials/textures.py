@@ -48,33 +48,6 @@ _SAVE_FORMATS = {
 # Color spaces whose pixel values Mitsuba should use as-is
 _DATA_COLORSPACES = {'Non-Color', 'Raw', 'Linear', 'Linear Rec.709'}
 
-
-def image_to_bitmap(export_ctx, image):
-    '''Convert a Blender image into an in-memory mi.Bitmap. Byte buffers in
-    a color space keep their sRGB encoding, which is recorded on the bitmap
-    so that Mitsuba linearizes the values like Cycles does; float buffers
-    and data color spaces are scene-linear already.'''
-    import mitsuba as mi
-    import numpy as np
-
-    width, height = image.size
-    if width == 0 or height == 0:
-        raise ConversionError(f'image "{image.name}" contains no pixel data')
-    pixels = np.empty(width * height * image.channels, dtype=np.float32)
-    image.pixels.foreach_get(pixels)
-    pixels = pixels.reshape(height, width, image.channels)
-    # Blender stores rows bottom-up, Mitsuba expects them top-down
-    bitmap = mi.Bitmap(np.ascontiguousarray(pixels[::-1]))
-    colorspace = image.colorspace_settings.name
-    if not image.is_float and colorspace not in _DATA_COLORSPACES:
-        if colorspace != 'sRGB':
-            export_ctx.log(f'Color space "{colorspace}" of image '
-                           f'"{image.name}" is not supported; treating the '
-                           'pixel data as sRGB.', 'WARN')
-        bitmap.set_srgb_gamma(True)
-    return bitmap
-
-
 def _unique_name(cache, name):
     used = {os.path.basename(path) for path in cache.values()}
     if name not in used:
@@ -140,8 +113,7 @@ def export_image(export_ctx, image):
 ######################
 
 # Blender addresses the first image row at v = 1, Mitsuba at v = 0
-_FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
-    @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
+_FLIP = Matrix.Translation((0.0, 1.0, 0.0)) @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
 
 
 def _to_uv_param(matrix):
@@ -173,8 +145,8 @@ def _mapping_matrix(export_ctx, ref):
     if abs(rotation[0]) > 1e-6 or abs(rotation[1]) > 1e-6:
         raise ConversionError(f'mapping node "{node.name}" rotates out of '
                               'the UV plane')
-    matrix = Euler(rotation).to_matrix().to_4x4() \
-        @ Matrix.Diagonal((*scale, 1.0))
+    matrix = Euler(rotation).to_matrix().to_4x4() @ Matrix.Diagonal((*scale, 1.0))
+
     if node.vector_type == 'POINT':
         matrix = Matrix.Translation(location) @ matrix
     elif node.vector_type == 'TEXTURE':
@@ -208,8 +180,8 @@ def _uv_chain_matrix(export_ctx, socket, stack):
                 'but only the active render UV layer is exported.', 'WARN')
         return Matrix.Identity(4)
     if node.type == 'MAPPING':
-        return _mapping_matrix(export_ctx, NodeRef(node, node_stack)) \
-            @ _uv_chain_matrix(export_ctx, node.inputs['Vector'], node_stack)
+        return _mapping_matrix(export_ctx, NodeRef(node, node_stack)) @ _uv_chain_matrix(export_ctx, node.inputs['Vector'], node_stack)
+
     raise ConversionError(f'node "{node.name}" of type {node.type} feeding '
                           'a texture Vector input is not supported')
 
@@ -242,20 +214,15 @@ def convert_image_texture(export_ctx, ref, out_socket):
         raise ConversionError(f'the Alpha output of image texture node '
                               f'"{node.name}" is not supported')
 
-    params = {'type': 'bitmap'}
+    params: dict[str, object] = {'type': 'bitmap'}
     colorspace = image.colorspace_settings.name
-    if export_ctx.render:
-        bitmap = image_to_bitmap(export_ctx, image)
-        params['bitmap'] = bitmap
-        params['raw'] = not bitmap.srgb_gamma()
-    else:
-        params['filename'] = export_image(export_ctx, image)
-        if colorspace in _DATA_COLORSPACES:
-            params['raw'] = True
-        elif colorspace != 'sRGB':
-            export_ctx.log(
-                f'Color space "{colorspace}" of image "{image.name}" is not '
-                'supported; Mitsuba will interpret the file as sRGB.', 'WARN')
+    params['filename'] = export_image(export_ctx, image)
+    if colorspace in _DATA_COLORSPACES:
+        params['raw'] = True
+    elif colorspace != 'sRGB':
+        export_ctx.log(
+            f'Color space "{colorspace}" of image "{image.name}" is not '
+            'supported; Mitsuba will interpret the file as sRGB.', 'WARN')
 
     if node.interpolation == 'Closest':
         params['filter_type'] = 'nearest'
@@ -620,14 +587,10 @@ def convert_environment_texture(export_ctx, ref):
         raise ConversionError(f'projection {node.projection} of environment '
                               f'texture node "{node.name}" is not supported')
     params = {'type': 'envmap'}
-    if export_ctx.render:
-        # The envmap plugin linearizes according to the bitmap's gamma flag
-        params['bitmap'] = image_to_bitmap(export_ctx, image)
-    else:
-        params['filename'] = export_image(export_ctx, image)
-        colorspace = image.colorspace_settings.name
-        if colorspace != 'sRGB' and colorspace not in _DATA_COLORSPACES:
-            export_ctx.log(
-                f'Color space "{colorspace}" of image "{image.name}" is not '
-                'supported; Mitsuba will interpret the file as sRGB.', 'WARN')
+    params['filename'] = export_image(export_ctx, image)
+    colorspace = image.colorspace_settings.name
+    if colorspace != 'sRGB' and colorspace not in _DATA_COLORSPACES:
+        export_ctx.log(
+            f'Color space "{colorspace}" of image "{image.name}" is not '
+            'supported; Mitsuba will interpret the file as sRGB.', 'WARN')
     return params
