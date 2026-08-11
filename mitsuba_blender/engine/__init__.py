@@ -1,6 +1,6 @@
 import bpy
 
-from .final import MitsubaRenderEngine
+from .final import MitsubaRenderEngine, clear_texture_cache
 
 
 def register():
@@ -9,3 +9,5 @@ def register():
 
 def unregister():
     bpy.utils.unregister_class(MitsubaRenderEngine)
+    clear_texture_cache()
+

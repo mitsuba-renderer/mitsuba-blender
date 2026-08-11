@@ -3,7 +3,30 @@ import threading
 
 import bpy
 import numpy as np
+import shutil
+import tempfile
 from ..io.exporter import SceneConverter
+
+
+_texture_cache_dir = None
+_texture_cache = {}
+
+
+def get_texture_cache():
+    """Directory and index of textures written for F12 renders, kept
+    across renders so repeated F12 does not rewrite every image. Not
+    used by XML export, which writes into the user's directory."""
+    global _texture_cache_dir
+    if _texture_cache_dir is None:
+        _texture_cache_dir = tempfile.mkdtemp(prefix='mitsuba-blender-')
+    return _texture_cache_dir, _texture_cache
+
+def clear_texture_cache():
+    global _texture_cache_dir
+    if _texture_cache_dir is not None:
+        shutil.rmtree(_texture_cache_dir, ignore_errors=True)
+        _texture_cache_dir = None
+    _texture_cache.clear()
 
 
 def _make_progress_appender():
@@ -99,12 +122,12 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
 
         # Temporary files (meshes, textures) written during the export must
         # survive until the scene has been loaded.
-        with tempfile.TemporaryDirectory() as export_dir:
-            self.converter.export_ctx.directory = export_dir
-            self.converter.export_ctx.blender_triangulation = \
-                b_scene.mitsuba.blender_triangulation
-            self.converter.scene_to_dict(depsgraph)
-            mts_scene = self.converter.dict_to_scene()
+        export_dir, cache = get_texture_cache()
+        self.converter.export_ctx.directory = export_dir
+        self.converter.export_ctx.exported_images = cache
+        self.converter.export_ctx.blender_triangulation = b_scene.mitsuba.blender_triangulation
+        self.converter.scene_to_dict(depsgraph)
+        mts_scene = self.converter.dict_to_scene()
 
         sensor = mts_scene.sensors()[0]
         self.update_stats('', 'Rendering with Mitsuba')
@@ -146,8 +169,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
                 padding = np.zeros((*pixels.shape[:2],
                                     len(channels) - pixels.shape[2]))
                 pixels = np.dstack((pixels, padding))
-            layer.passes[name].rect = \
-                np.flip(pixels, 0).reshape((self.size_x * self.size_y, -1))
+            layer.passes[name].rect = np.flip(pixels, 0).reshape((self.size_x * self.size_y, -1))
         self.end_result(blender_result)
 
 
