@@ -41,7 +41,7 @@ def _wrap(a, b, c):
 
 def _pingpong(a, b):
     sb = dr.select(b != 0.0, b, 1.0)
-    val = dr.abs(_fract((a - sb) / (sb * 2.0)) * sb * 2.0 - sb)
+    val = dr.abs(_fract((a - sb) / (dr.maximum(sb * 2.0, 1e-8))) * sb * 2.0 - sb)
     return dr.select(b != 0.0, val, 0.0)
 
 def _smooth_min(a, b, k):
@@ -61,7 +61,7 @@ _MATH_OPS = {
     'POWER':          lambda a, b, c: _safe_power(a, b),
     'LOGARITHM':      lambda a, b, c: _safe_log(a, b),
     'SQRT':           lambda a, b, c: dr.select(a >= 0.0, dr.sqrt(dr.maximum(a, 0.0)), 0.0),
-    'INVERSE_SQRT':   lambda a, b, c: dr.select(a > 0.0, 1.0 / dr.sqrt(dr.maximum(a, 1e-30)), 0.0),
+    'INVERSE_SQRT':   lambda a, b, c: dr.select(a > 0.0, 1.0 / dr.sqrt(dr.maximum(a, 1e-8)), 0.0),
     'ABSOLUTE':       lambda a, b, c: dr.abs(a),
     'EXPONENT':       lambda a, b, c: dr.exp(a),
     'MINIMUM':        lambda a, b, c: dr.minimum(a, b),

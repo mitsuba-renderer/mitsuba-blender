@@ -106,7 +106,7 @@ def register(mi, dr):
             col = mi.Color3f(self.band_col[0], self.band_col[1], self.band_col[2])
             for i in range(1, len(self.band_pos)):
                 lo, hi = self.band_pos[i-1], self.band_pos[i]
-                t = dr.clip((input_pos - lo) / max(hi - lo, 1e-9), 0.0, 1.0)
+                t = dr.clip((input_pos - lo) / max(hi - lo, 1e-8), 0.0, 1.0)
                 c0 = mi.Color3f(*self.band_col[3*(i-1):3*i])
                 c1 = mi.Color3f(*self.band_col[3*i:3*(i+1)])
                 col = dr.select(input_pos >= lo, dr.lerp(c0, c1, t), col)
