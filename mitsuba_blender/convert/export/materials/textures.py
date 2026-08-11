@@ -16,6 +16,8 @@ import os
 import shutil
 
 import bpy
+from bpy.types import Node
+from drjit import stack
 from mathutils import Euler, Matrix
 
 from ....io.exporter.export_context import ExportContext
@@ -488,6 +490,25 @@ def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
         raise ConversionError(f'Mix node "{node.name}": data type {data_type} is not supported')
 
     return params
+
+
+@texture_converter('INVERT')
+def convert_invert(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    return {
+        'type': 'invert',
+        'color': eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
+        'fac' : eval_float(export_ctx, ref.node.inputs['Fac'], stack=ref.stack)
+    }
+
+
+@texture_converter('BRIGHTCONTRAST')
+def convert_brightness_contrast(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    return {
+        'type' : 'brightness_contrast',
+        'color' : eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
+        'brightness' : eval_float(export_ctx, ref.node.inputs['Bright'], stack=ref.stack),
+        'contrast' : eval_float(export_ctx, ref.node.inputs['Contrast'], stack=ref.stack)
+    }
 
 ###########################
 ##  Normal and bump map  ##
