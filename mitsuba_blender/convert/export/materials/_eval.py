@@ -355,98 +355,6 @@ def _mix(a, b, t):
 def _safe_divide(a, b):
     return a / b if b != 0.0 else 0.0
 
-
-def _safe_power(a, b):
-    try:
-        return math.pow(a, b)
-    except (ValueError, OverflowError):
-        return 0.0
-
-
-def _safe_log(a, b):
-    if a <= 0.0 or b <= 0.0 or b == 1.0:
-        return 0.0
-    return math.log(a, b)
-
-
-def _fract(a):
-    return a - math.floor(a)
-
-
-def _wrap(a, b, c):
-    rng = b - c
-    return a - rng * math.floor((a - c) / rng) if rng != 0.0 else c
-
-
-def _pingpong(a, b):
-    if b == 0.0:
-        return 0.0
-    return abs(_fract((a - b) / (b * 2.0)) * b * 2.0 - b)
-
-
-def _smooth_min(a, b, k):
-    if k != 0.0:
-        h = max(k - abs(a - b), 0.0) / k
-        return min(a, b) - h * h * h * k * (1.0 / 6.0)
-    return min(a, b)
-
-
-_MATH_OPS = {
-    'ADD': lambda a, b, c: a + b,
-    'SUBTRACT': lambda a, b, c: a - b,
-    'MULTIPLY': lambda a, b, c: a * b,
-    'DIVIDE': lambda a, b, c: _safe_divide(a, b),
-    'MULTIPLY_ADD': lambda a, b, c: a * b + c,
-    'POWER': lambda a, b, c: _safe_power(a, b),
-    'LOGARITHM': lambda a, b, c: _safe_log(a, b),
-    'SQRT': lambda a, b, c: math.sqrt(a) if a >= 0.0 else 0.0,
-    'INVERSE_SQRT': lambda a, b, c: 1.0 / math.sqrt(a) if a > 0.0 else 0.0,
-    'ABSOLUTE': lambda a, b, c: abs(a),
-    'EXPONENT': lambda a, b, c: math.exp(a),
-    'MINIMUM': lambda a, b, c: min(a, b),
-    'MAXIMUM': lambda a, b, c: max(a, b),
-    'LESS_THAN': lambda a, b, c: 1.0 if a < b else 0.0,
-    'GREATER_THAN': lambda a, b, c: 1.0 if a > b else 0.0,
-    'SIGN': lambda a, b, c: float((a > 0.0) - (a < 0.0)),
-    'COMPARE': lambda a, b, c: 1.0 if abs(a - b) <= max(c, 1e-5) else 0.0,
-    'SMOOTH_MIN': lambda a, b, c: _smooth_min(a, b, c),
-    'SMOOTH_MAX': lambda a, b, c: -_smooth_min(-a, -b, c),
-    'ROUND': lambda a, b, c: math.floor(a + 0.5),
-    'FLOOR': lambda a, b, c: math.floor(a),
-    'CEIL': lambda a, b, c: math.ceil(a),
-    'TRUNC': lambda a, b, c: float(math.trunc(a)),
-    'FRACT': lambda a, b, c: _fract(a),
-    'MODULO': lambda a, b, c: math.fmod(a, b) if b != 0.0 else 0.0,
-    'FLOORED_MODULO': lambda a, b, c:
-        a - math.floor(a / b) * b if b != 0.0 else 0.0,
-    'WRAP': lambda a, b, c: _wrap(a, b, c),
-    'SNAP': lambda a, b, c: math.floor(_safe_divide(a, b)) * b,
-    'PINGPONG': lambda a, b, c: _pingpong(a, b),
-    'SINE': lambda a, b, c: math.sin(a),
-    'COSINE': lambda a, b, c: math.cos(a),
-    'TANGENT': lambda a, b, c: math.tan(a),
-    'ARCSINE': lambda a, b, c: math.asin(_clamp(a, -1.0, 1.0)),
-    'ARCCOSINE': lambda a, b, c: math.acos(_clamp(a, -1.0, 1.0)),
-    'ARCTANGENT': lambda a, b, c: math.atan(a),
-    'ARCTAN2': lambda a, b, c: math.atan2(a, b),
-    'SINH': lambda a, b, c: math.sinh(a),
-    'COSH': lambda a, b, c: math.cosh(a),
-    'TANH': lambda a, b, c: math.tanh(a),
-    'RADIANS': lambda a, b, c: math.radians(a),
-    'DEGREES': lambda a, b, c: math.degrees(a),
-}
-
-
-def _fold_math(ref, out_socket):
-    node = ref.node
-    op = _MATH_OPS.get(node.operation)
-    if op is None:
-        raise _Unfoldable(f'node "{node.name}": Math operation '
-                          f'{node.operation} is not supported')
-    value = op(_float_in(ref, 0), _float_in(ref, 1), _float_in(ref, 2))
-    return _clamp(value) if node.use_clamp else value
-
-
 def _dot(a, b):
     return sum(x * y for x, y in zip(a, b))
 
@@ -501,67 +409,6 @@ def _fold_vector_math(ref, out_socket):
               _vector_in(ref, 'Vector_002'), _float_in(ref, 'Scale'))
 
 
-def _blend_color(blend_type, a, b, t):
-    '''Blend two RGB tuples with factor t, following Blender's ramp_blend.'''
-    facm = 1.0 - t
-    if blend_type == 'MIX':
-        return tuple(_mix(x, y, t) for x, y in zip(a, b))
-    if blend_type == 'ADD':
-        return tuple(x + t * y for x, y in zip(a, b))
-    if blend_type == 'MULTIPLY':
-        return tuple(x * (facm + t * y) for x, y in zip(a, b))
-    if blend_type == 'SUBTRACT':
-        return tuple(x - t * y for x, y in zip(a, b))
-    if blend_type == 'SCREEN':
-        return tuple(1.0 - (facm + t * (1.0 - y)) * (1.0 - x)
-                     for x, y in zip(a, b))
-    if blend_type == 'DIVIDE':
-        return tuple(facm * x + t * x / y if y != 0.0 else x
-                     for x, y in zip(a, b))
-    if blend_type == 'DIFFERENCE':
-        return tuple(facm * x + t * abs(x - y) for x, y in zip(a, b))
-    if blend_type == 'DARKEN':
-        return tuple(_mix(x, min(x, y), t) for x, y in zip(a, b))
-    if blend_type == 'LIGHTEN':
-        return tuple(max(x, t * y) for x, y in zip(a, b))
-    return None
-
-
-def _fold_mix(ref, out_socket):
-    node = ref.node
-    data_type = node.data_type
-    if data_type == 'FLOAT':
-        t = _float_in(ref, 'Factor_Float')
-        if node.clamp_factor:
-            t = _clamp(t)
-        return _mix(_float_in(ref, 'A_Float'), _float_in(ref, 'B_Float'), t)
-    if data_type == 'VECTOR':
-        if node.factor_mode == 'NON_UNIFORM':
-            t = _vector_in(ref, 'Factor_Vector')
-        else:
-            t = (_float_in(ref, 'Factor_Float'),) * 3
-        if node.clamp_factor:
-            t = tuple(_clamp(x) for x in t)
-        return tuple(_mix(x, y, f) for x, y, f in
-                     zip(_vector_in(ref, 'A_Vector'),
-                         _vector_in(ref, 'B_Vector'), t))
-    if data_type == 'RGBA':
-        t = _float_in(ref, 'Factor_Float')
-        if node.clamp_factor:
-            t = _clamp(t)
-        a = _color_in(ref, 'A_Color')
-        b = _color_in(ref, 'B_Color')
-        rgb = _blend_color(node.blend_type, a[:3], b[:3], t)
-        if rgb is None:
-            raise _Unfoldable(f'node "{node.name}": Mix blend type '
-                              f'{node.blend_type} is not supported')
-        if node.clamp_result:
-            rgb = tuple(_clamp(x) for x in rgb)
-        return rgb + (a[3],)
-    raise _Unfoldable(f'node "{node.name}": Mix data type {data_type} is '
-                      'not supported')
-
-
 ####################
 ##  Simple nodes  ##
 ####################
@@ -577,25 +424,10 @@ def _fold_value(ref, out_socket):
     return float(node.outputs['Value'].default_value)
 
 
-def _fold_invert(ref, out_socket):
-    fac = _float_in(ref, 'Fac')
-    color = _color_in(ref, 'Color')
-    return tuple(_mix(x, 1.0 - x, fac) for x in color[:3]) + (color[3],)
-
-
 def _fold_gamma(ref, out_socket):
     color = _color_in(ref, 'Color')
     gamma = _float_in(ref, 'Gamma')
     return tuple(math.pow(x, gamma) if x > 0.0 else x
-                 for x in color[:3]) + (color[3],)
-
-
-def _fold_bright_contrast(ref, out_socket):
-    color = _color_in(ref, 'Color')
-    contrast = _float_in(ref, 'Contrast')
-    gain = 1.0 + contrast
-    offset = _float_in(ref, 'Bright') - contrast * 0.5
-    return tuple(max(gain * x + offset, 0.0)
                  for x in color[:3]) + (color[3],)
 
 
@@ -680,14 +512,10 @@ def _fold_rgb_to_bw(ref, out_socket):
 
 
 _FOLDERS = {
-    'MATH': _fold_math,
     'VECT_MATH': _fold_vector_math,
-    'MIX': _fold_mix,
     'RGB': _fold_rgb,
     'VALUE': _fold_value,
-    'INVERT': _fold_invert,
     'GAMMA': _fold_gamma,
-    'BRIGHTCONTRAST': _fold_bright_contrast,
     'MAP_RANGE': _fold_map_range,
     'CLAMP': _fold_clamp,
     'SEPXYZ': _fold_separate_xyz,
