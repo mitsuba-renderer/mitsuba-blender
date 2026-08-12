@@ -488,6 +488,33 @@ def convert_rgb_to_bw(export_ctx: ExportContext, ref: NodeRef, out_socket):
         'color' : eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
     }
 
+
+@texture_converter('GAMMA')
+def convert_gamma(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    return _math('POWER',
+                 eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
+                 eval_float(export_ctx, ref.node.inputs['Gamma'], stack=ref.stack))
+
+
+@texture_converter('CLAMP')
+def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    node, stack = ref.node, ref.stack
+    value = eval_float(export_ctx, node.inputs['Value'], stack=stack)
+    lo = eval_float(export_ctx, node.inputs['Min'], stack=stack)
+    hi = eval_float(export_ctx, node.inputs['Max'], stack=stack)
+
+    if node.clamp_type == 'RANGE':
+        # Blender's Range mode tolerates min > max by using the smaller
+        # bound as the lower one
+        lo, hi = (_math('MINIMUM', lo, hi), _math('MAXIMUM', lo, hi))
+
+    return _math('MINIMUM', _math('MAXIMUM', value, lo), hi)
+
+
+def _math(op, a, b):
+    return {'type': 'math', 'op': op, 'use_clamp': False,
+            'child_0': a, 'child_1': b}
+
 ###########################
 ##  Normal and bump map  ##
 ###########################

@@ -2,6 +2,7 @@
 
 import importlib
 import math
+import mitsuba as mi, drjit  as dr
 
 import bpy
 import pytest
@@ -37,14 +38,12 @@ def by_id(sockets, identifier):
 
 
 def eval_texture(export_ctx, result, ctx):
-    import mitsuba as mi, drjit as dr
     assert result.__class__.__name__ == 'Texture', repr(result)
     tex = mi.load_dict(result.params)
     si = dr.zeros(mi.SurfaceInteraction3f)
     return tex
 
 def eval_float_texture(result):
-    import mitsuba as mi, drjit as dr
     tex = mi.load_dict(texture(result))
     return tex.eval_1(dr.zeros(mi.SurfaceInteraction3f))
 
@@ -142,8 +141,6 @@ def test_rgb_node_reads_output_socket(export_ctx, ev, tree, probe):
 ])
 
 def test_math_operations(export_ctx, ev, tree, probe, operation, a, b, c, expected):
-    import mitsuba as mi
-    import drjit as dr
     node = math_node(tree, operation, a, b, c)
     result = fold_float(export_ctx, ev, tree,probe, node.outputs['Value'])
     tex = mi.load_dict(result.params)
@@ -211,7 +208,6 @@ def mix_node(tree, data_type, factor, a, b, blend_type='MIX'):
 
 
 def test_mix_float(export_ctx, ev, tree, probe):
-    import mitsuba as mi, drjit as dr
     node, out = mix_node(tree, 'FLOAT', 0.25, 0.0, 8.0)
     result = fold_float(export_ctx, ev, tree, probe, out)
     tex = mi.load_dict(texture(result))
@@ -244,7 +240,6 @@ def test_mix_float_unclamped_factor(export_ctx, ev, tree, probe):
     ('LIGHTEN', 1.0, (0.5, 0.5, 0.8)),
 ])
 def test_mix_color_blend(export_ctx, ev, tree, probe, blend_type, factor, expected):
-    import mitsuba as mi, drjit as dr
     a = (0.2, 0.4, 0.8, 1.0)
     b = (0.5, 0.5, 0.25, 1.0)
     node, out = mix_node(tree, 'RGBA', factor, a, b, blend_type)
@@ -262,7 +257,6 @@ def test_mix_color_unsupported_blend(export_ctx, ev, tree, probe):
 
 
 def test_invert(export_ctx, ev, tree, probe):
-    import mitsuba as mi, drjit  as dr
     node = tree.nodes.new('ShaderNodeInvert')
     node.inputs['Fac'].default_value = 0.5
     node.inputs['Color'].default_value = (0.2, 0.4, 1.0, 1.0)
@@ -276,12 +270,13 @@ def test_gamma(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeGamma')
     node.inputs['Color'].default_value = (0.25, 0.0, 1.0, 1.0)
     node.inputs['Gamma'].default_value = 0.5
-    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
-    assert value == pytest.approx((0.5, 0.0, 1.0, 1.0))
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert list(tex.eval_3(si)) == pytest.approx((0.5, 0.0, 1.0))
 
 
 def test_brightness_contrast(export_ctx, ev, tree, probe):
-    import mitsuba as mi, drjit as dr
     node = tree.nodes.new('ShaderNodeBrightContrast')
     node.inputs['Color'].default_value = (0.5, 0.0, 1.0, 1.0)
     node.inputs['Bright'].default_value = 0.1
@@ -328,7 +323,9 @@ def test_clamp_minmax(export_ctx, ev, tree, probe):
     node.inputs['Min'].default_value = 0.5
     node.inputs['Max'].default_value = 1.5
     result = fold_float(export_ctx, ev, tree, probe, node.outputs['Result'])
-    assert constant(result) == 1.5
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert tex.eval_1(si) == 1.5
 
 
 def test_clamp_range_swapped(export_ctx, ev, tree, probe):
@@ -338,7 +335,9 @@ def test_clamp_range_swapped(export_ctx, ev, tree, probe):
     node.inputs['Min'].default_value = 1.0
     node.inputs['Max'].default_value = 0.0
     result = fold_float(export_ctx, ev, tree, probe, node.outputs['Result'])
-    assert constant(result) == pytest.approx(0.4)
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert tex.eval_1(si) == pytest.approx(0.4)
 
 
 def test_separate_combine_xyz(export_ctx, ev, tree, probe):
@@ -376,7 +375,9 @@ def test_rgb_to_bw(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeRGBToBW')
     node.inputs['Color'].default_value = (1.0, 0.0, 0.0, 1.0)
     result = fold_float(export_ctx, ev, tree, probe, node.outputs['Val'])
-    assert constant(result) == pytest.approx(0.2126)
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert tex.eval_1(si) == pytest.approx(0.2126)
 
 
 def test_float_to_color_conversion(export_ctx, ev, tree, probe):

@@ -465,12 +465,6 @@ def _fold_value(ref, out_socket):
     return float(node.outputs['Value'].default_value)
 
 
-def _fold_gamma(ref, out_socket):
-    color = _color_in(ref, 'Color')
-    gamma = _float_in(ref, 'Gamma')
-    return tuple(math.pow(x, gamma) if x > 0.0 else x
-                 for x in color[:3]) + (color[3],)
-
 
 def _fold_map_range(ref, out_socket):
     node = ref.node
@@ -496,15 +490,6 @@ def _fold_map_range(ref, out_socket):
     if node.clamp and interpolation in ('LINEAR', 'STEPPED'):
         result = _clamp(result, min(to_min, to_max), max(to_min, to_max))
     return result
-
-
-def _fold_clamp(ref, out_socket):
-    node = ref.node
-    lo = _float_in(ref, 'Min')
-    hi = _float_in(ref, 'Max')
-    if node.clamp_type == 'RANGE' and lo > hi:
-        lo, hi = hi, lo
-    return _clamp(_float_in(ref, 'Value'), lo, hi)
 
 
 def _fold_separate_xyz(ref, out_socket):
@@ -548,20 +533,13 @@ def _fold_combine_color(ref, out_socket):
     return rgb + (1.0,)
 
 
-def _fold_rgb_to_bw(ref, out_socket):
-    return _luminance(_color_in(ref, 'Color'))
-
-
 _FOLDERS = {
     'VECT_MATH': _fold_vector_math,
     'RGB': _fold_rgb,
     'VALUE': _fold_value,
-    'GAMMA': _fold_gamma,
     'MAP_RANGE': _fold_map_range,
-    'CLAMP': _fold_clamp,
     'SEPXYZ': _fold_separate_xyz,
     'COMBXYZ': _fold_combine_xyz,
     'SEPARATE_COLOR': _fold_separate_color,
     'COMBINE_COLOR': _fold_combine_color,
-    'RGBTOBW': _fold_rgb_to_bw,
 }
