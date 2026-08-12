@@ -69,16 +69,6 @@ def surface_ref(b_mat):
     return NodeRef(node, stack) if node is not None else None
 
 
-def has_converter(b_mat):
-    '''Whether this registry takes responsibility for the material.
-    Materials without a node tree are left to the caller. Materials without
-    a usable surface node are claimed so that convert_material can emit the
-    fallback instead of crashing.'''
-    if not uses_nodes(b_mat):
-        return False
-    ref = surface_ref(b_mat)
-    return ref is None or ref.node.type in _node_converters
-
 
 def convert_material(export_ctx, b_mat):
     '''Convert a Blender material into {'bsdf': dict|None,

@@ -262,11 +262,14 @@ def test_mix_color_unsupported_blend(export_ctx, ev, tree, probe):
 
 
 def test_invert(export_ctx, ev, tree, probe):
+    import mitsuba as mi, drjit  as dr
     node = tree.nodes.new('ShaderNodeInvert')
     node.inputs['Fac'].default_value = 0.5
     node.inputs['Color'].default_value = (0.2, 0.4, 1.0, 1.0)
-    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
-    assert value == pytest.approx((0.5, 0.5, 0.5, 1.0))
+    result =fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert list(tex.eval_3(si)) == pytest.approx((0.5, 0.5, 0.5))
 
 
 def test_gamma(export_ctx, ev, tree, probe):
@@ -278,13 +281,16 @@ def test_gamma(export_ctx, ev, tree, probe):
 
 
 def test_brightness_contrast(export_ctx, ev, tree, probe):
+    import mitsuba as mi, drjit as dr
     node = tree.nodes.new('ShaderNodeBrightContrast')
     node.inputs['Color'].default_value = (0.5, 0.0, 1.0, 1.0)
     node.inputs['Bright'].default_value = 0.1
     node.inputs['Contrast'].default_value = 0.2
     # gain = 1.2, offset = 0.1 - 0.1 = 0, clamped at zero from below
-    value = constant(fold_color(export_ctx, ev, tree, probe, node.outputs['Color']))
-    assert value == pytest.approx((0.6, 0.0, 1.2, 1.0))
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
+    tex = mi.load_dict(texture(result))
+    si = dr.zeros(mi.SurfaceInteraction3f)
+    assert list(tex.eval_3(si)) == pytest.approx((0.6, 0.0, 1.2))
 
 
 def map_range_node(tree, value, interpolation='LINEAR', clamp=True,

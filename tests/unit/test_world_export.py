@@ -224,6 +224,7 @@ def test_export_world_adds_entry(fresh_scene, export_ctx, world):
 
 def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
                                       tmp_path):
+    import mitsuba as mi
     # Render mode hands the pixels to Mitsuba in memory; values above 1
     # must survive and no files may be written
     b_world = make_env_world(tmp_path)
@@ -234,12 +235,15 @@ def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
     export_ctx.render = True
     params = world.convert_world(export_ctx, b_world)
     assert params['type'] == 'envmap'
-    assert 'filename' not in params
-    assert np.max(np.array(params['bitmap'])) == pytest.approx(5.0)
-    assert not os.path.isdir(os.path.join(str(tmp_path), 'textures'))
+    assert 'bitmap' not in params
+    path = tmp_path / params['filename']
+    assert path.suffix == '.exr'
+    bmp = mi.Bitmap(str(path))
+    assert np.max(np.array(bmp)) == pytest.approx(5.0)
 
-    import mitsuba as mi
-    assert mi.load_dict(params) is not None
+    from bl_ext.user_default.mitsuba_blender.convert.export.materials.textures import resolver_append
+    with resolver_append(export_ctx.directory):
+        assert mi.load_dict(params) is not None
 
 
 def test_envmap_export_leaves_image_datablock_alone(fresh_scene, export_ctx,

@@ -11,6 +11,12 @@ import pytest
 def registry(mi_addon):
     return importlib.import_module(f'{mi_addon}.convert.export.materials')
 
+def has_converter(b_mat, registry):
+    if not registry.uses_nodes(b_mat):
+        return False
+    ref = registry.surface_ref(b_mat)
+    return ref is None or ref.node.type in registry._node_converters 
+
 
 @pytest.fixture
 def exporter(mi_addon):
@@ -135,6 +141,8 @@ def test_converter_error_boundary(fresh_scene, exporter, tmp_path, registry):
         del registry._node_converters['BSDF_TOON']
 
 
+
+
 def test_has_converter(fresh_scene, registry):
     b_mat = make_diffuse_material('Sheen')
     tree = b_mat.node_tree
@@ -142,12 +150,12 @@ def test_has_converter(fresh_scene, registry):
     sheen = tree.nodes.new('ShaderNodeBsdfSheen')
     tree.links.new(sheen.outputs['BSDF'],
                    tree.nodes['Material Output'].inputs['Surface'])
-    assert not registry.has_converter(b_mat)
+    assert not has_converter(b_mat, registry)
 
-    assert registry.has_converter(make_diffuse_material('ForRegistry'))
+    assert has_converter(make_diffuse_material('ForRegistry'), registry)
 
     no_nodes = bpy.data.materials.new('NoNodes')
-    assert not registry.has_converter(no_nodes)
+    assert not has_converter(no_nodes, registry)
 
 
 def test_add_material_to_dict_layouts(mi_addon, registry):

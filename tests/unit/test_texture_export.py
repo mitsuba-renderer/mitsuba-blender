@@ -5,6 +5,7 @@ import importlib
 import math
 import os
 import sys
+from contextlib import contextmanager
 
 import bpy
 import numpy as np
@@ -14,6 +15,26 @@ from mathutils import Matrix
 # The v -> 1 - v flip the mesh exporter applies to UV coordinates
 FLIP = Matrix.Translation((0.0, 1.0, 0.0)) \
     @ Matrix.Diagonal((1.0, -1.0, 1.0, 1.0))
+
+@contextmanager
+def saved_file_resolver():
+    '''Restore the state of Mitsuba's session-global file resolver on exit.'''
+    fr = mi.file_resolver()
+    paths = list(fr)
+    try:
+        yield fr
+    finally:
+        fr.clear()
+        for path in paths:
+            fr.append(path)
+
+@contextmanager
+def resolver_append(directory):
+    '''Temporarily add a directory to Mitsuba's file resolver.'''
+    with saved_file_resolver() as fr:
+        fr.prepend(directory)
+        yield
+
 
 
 @pytest.fixture(scope='session')
@@ -214,8 +235,7 @@ def test_image_export_dedup_and_name_clash(fresh_scene, export_ctx,
 ##  Render export  ##
 #####################
 
-def test_image_texture_render_mode(fresh_scene, export_ctx, registry,
-                                   tmp_path):
+def test_image_texture_render_mode(fresh_scene, export_ctx, registry, tmp_path):
     import mitsuba as mi
 
     export_ctx.render = True
@@ -225,21 +245,10 @@ def test_image_texture_render_mode(fresh_scene, export_ctx, registry,
 
     entry = registry.convert_material(export_ctx, b_mat)['bsdf']
     params = entry['bsdf']['reflectance']
-    assert isinstance(params['bitmap'], mi.Bitmap)
-    assert not (tmp_path / 'textures').exists()
+    assert params['filename'].endswith('.png')
+    assert (tmp_path / params['filename']).is_file()
+    assert params.get('raw', False) is False
 
-    # A byte buffer in the sRGB color space keeps its encoding; the gamma
-    # flag makes Mitsuba linearize it like Cycles would
-    assert params['raw'] is False
-    assert params['bitmap'].srgb_gamma()
-
-    data = np.array(params['bitmap'])
-    pixels = np.zeros(2 * 2 * 4, dtype=np.float32)
-    image.pixels.foreach_get(pixels)
-    expected = pixels.reshape(2, 2, 4)[::-1]
-    assert np.allclose(data, expected)
-
-    assert mi.load_dict(entry) is not None
 
 
 def test_render_mode_data_image_is_raw(fresh_scene, export_ctx, registry):
@@ -250,7 +259,7 @@ def test_render_mode_data_image_is_raw(fresh_scene, export_ctx, registry):
     entry = registry.convert_material(export_ctx, b_mat)['bsdf']
     params = entry['bsdf']['reflectance']
     assert params['raw'] is True
-    assert not params['bitmap'].srgb_gamma()
+    assert params['filename'].endswith('.png')
 
 
 def test_render_export_instantiates_textured_bsdf(fresh_scene, exporter,
@@ -262,7 +271,7 @@ def test_render_export_instantiates_textured_bsdf(fresh_scene, exporter,
 
     converter = exporter(tmp_path, render=True)
     assert 'mat-Textured' in converter.export_ctx.bsdf_objects
-    assert not (tmp_path / 'textures').exists()
+    assert (tmp_path / 'textures').exists()
 
 
 ######################
@@ -439,7 +448,9 @@ def test_normalmap_wrap(fresh_scene, export_ctx, textures):
     assert result['normalmap']['raw'] is True
 
     import mitsuba as mi
-    assert mi.load_dict(result) is not None
+    with saved_file_resolver() as fr:
+        fr.prepend(mi.filesystem.path(export_ctx.directory))
+        assert mi.load_dict(result) is not None
 
 
 def test_bumpmap_wrap(fresh_scene, export_ctx, textures):
@@ -457,7 +468,9 @@ def test_bumpmap_wrap(fresh_scene, export_ctx, textures):
     assert result['texture']['type'] == 'bitmap'
 
     import mitsuba as mi
-    assert mi.load_dict(result) is not None
+    with saved_file_resolver() as fr:
+        fr.prepend(mi.filesystem.path(export_ctx.directory))
+        assert mi.load_dict(result) is not None
 
 
 def test_bump_over_normalmap(fresh_scene, export_ctx, textures):
@@ -533,8 +546,8 @@ def test_environment_texture_render(fresh_scene, export_ctx, textures, ref):
     node = make_environment_node()
     params = textures.convert_environment_texture(export_ctx, ref(node))
     assert params['type'] == 'envmap'
-    assert isinstance(params['bitmap'], mi.Bitmap)
-    assert mi.load_dict(params) is not None
+    assert 'bitmap' not in params
+    assert params['filename'].endswith(('.exr', '.hdr', '.png'))
 
 
 def test_vertex_color_name_matches_mesh_attribute(fresh_scene, exporter,

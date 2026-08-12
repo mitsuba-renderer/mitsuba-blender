@@ -16,7 +16,6 @@ import os
 import shutil
 
 import bpy
-from bpy.types import Node
 from drjit import stack
 from mathutils import Euler, Matrix
 
@@ -65,8 +64,10 @@ def export_image(export_ctx, image):
     image datablock is never modified.'''
     cache = export_ctx.__dict__.setdefault('exported_images', {})
     key = image.name_full
-    if key in cache:
-        return cache[key]
+    if key in cache and not image.is_dirty:
+        absolute = os.path.join(export_ctx.directory, cache[key])
+        if os.path.isfile(absolute):
+            return cache[key]
 
     folder = os.path.join(export_ctx.directory,
                           export_ctx.TEXTURES_FOLDER)
@@ -416,12 +417,10 @@ def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
             'type': 'bitmap',
             'raw': True,
             'wrap_mode': 'clamp',
+            'filename' : _write_curve_table(export_ctx, node, c, arr)
         }
-        if export_ctx.render:
-            table['bitmap'] = mi.Bitmap(arr)
-        else:
-            table['filename'] = _write_curve_table(export_ctx, node, c, arr)
         params[c] = table
+
     return params
 
 def _socket(sockets, identifier):

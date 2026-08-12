@@ -35,7 +35,7 @@ def register(mi, dr):
         def eval_1(self, si, active=True):
             return self._process(self.input.eval_1(si, active), si, active)
 
-        def eval_3(self, si, active):
+        def eval_3(self, si, active=True):
             return self._process(self.input.eval_3(si, active), si, active)
 
         def mean(self):

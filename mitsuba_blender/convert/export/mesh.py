@@ -14,15 +14,6 @@ import bpy
 import numpy as np
 
 from . import sanitize_attribute_name
-from .. import saved_file_resolver
-
-
-@contextmanager
-def resolver_append(directory):
-    '''Temporarily add a directory to Mitsuba's file resolver.'''
-    with saved_file_resolver() as fr:
-        fr.prepend(directory)
-        yield
 
 
 def read_attribute(b_mesh, name, prop, dtype, size, legacy=None):
@@ -239,41 +230,9 @@ def material_refs(export_ctx, b_mat):
 
 def default_bsdf_id(export_ctx):
     '''Return the id of the fallback material, adding it to the dict once.'''
-    if not export_ctx.render and export_ctx.data_get(DEFAULT_BSDF_ID) is None:
+    if export_ctx.data_get(DEFAULT_BSDF_ID) is None:
         export_ctx.data_add(dict(DEFAULT_BSDF), name=DEFAULT_BSDF_ID)
     return DEFAULT_BSDF_ID
-
-
-def instantiate_bsdf(export_ctx, bsdf_id):
-    '''Instantiate a BSDF from its exported dict, once per id (render mode).'''
-    import mitsuba as mi
-    cache = export_ctx.bsdf_objects
-    if bsdf_id not in cache:
-        if bsdf_id == DEFAULT_BSDF_ID:
-            bsdf_dict = DEFAULT_BSDF
-        else:
-            bsdf_dict = export_ctx.data_get(bsdf_id)
-            del export_ctx.scene_data[export_ctx.sanitize(bsdf_id)]
-        with resolver_append(export_ctx.directory):
-            cache[bsdf_id] = mi.load_dict(bsdf_dict)
-    return cache[bsdf_id]
-
-
-def shape_props(export_ctx, bsdf_id, emitter_dict, to_world=None):
-    '''Build the constructor properties of a shape (render mode).
-
-    A 'to_world' is baked into the geometry by Mesh.from_corners(), the same
-    way the file loaders apply it.'''
-    import mitsuba as mi
-    props = mi.Properties()
-    if to_world is not None:
-        props['to_world'] = to_world
-    props['bsdf'] = instantiate_bsdf(export_ctx, bsdf_id)
-    if emitter_dict is not None:
-        with resolver_append(export_ctx.directory):
-            props['emitter'] = mi.load_dict(emitter_dict)
-    return props
-
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
@@ -347,7 +306,7 @@ class GeometryExporter:
         for name, bsdf_id, emitter, mi_mesh in converted:
             name = name_clean if len(converted) == 1 else name
             entry = self.make_entry(name, bsdf_id, emitter, mi_mesh, to_world)
-            if export_ctx.render or export_ctx.export_ids:
+            if export_ctx.export_ids:
                 export_ctx.data_add(entry, name=f'mesh-{name}')
             else:
                 export_ctx.data_add(entry)
@@ -417,6 +376,7 @@ class GeometryExporter:
         if mesh_data.prim_count == 0:
             if b_object.type != 'MESH':
                 b_object.to_mesh_clear()
+
             return []
 
         # One entry per material slot: (name, bsdf_id, emitter_dict, prim_mask)
@@ -450,9 +410,7 @@ class GeometryExporter:
 
         converted = []
         for name, bsdf_id, emitter, prim_mask in parts:
-            props = shape_props(export_ctx, bsdf_id, emitter, to_world) \
-                if export_ctx.render else None
-            mi_mesh = make_mesh(mesh_data, name, prim_mask, props)
+            mi_mesh = make_mesh(mesh_data, name, prim_mask, None)
             if mi_mesh is not None:
                 converted.append((name, bsdf_id, emitter, mi_mesh))
 
@@ -463,9 +421,6 @@ class GeometryExporter:
     def make_entry(self, name, bsdf_id, emitter, mi_mesh, to_world=None):
         '''Return the scene dict entry of a converted mesh part.'''
         export_ctx = self.export_ctx
-        if export_ctx.render:
-            # The mesh is instantiated, so its transform is already baked
-            return mi_mesh
         # Every mesh goes into one shared .serialized file, addressed by the
         # index it was appended at
         entry = {

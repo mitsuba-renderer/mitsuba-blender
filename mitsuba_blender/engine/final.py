@@ -3,6 +3,7 @@ import threading
 
 import bpy
 import numpy as np
+import mitsuba as mi
 import shutil
 import tempfile
 from ..io.exporter import SceneConverter
@@ -32,7 +33,6 @@ def clear_texture_cache():
 def _make_progress_appender():
     '''Create a Mitsuba log appender that records the latest render
     progress fraction. Mitsuba reports progress through its logging API.'''
-    import mitsuba as mi
 
     class ProgressAppender(mi.Appender):
         def __init__(self):
@@ -57,8 +57,6 @@ def run_render(integrator, scene, sensor, test_break, update_progress,
     block or iteration boundary after Integrator.cancel(), so the film
     then holds the partial image accumulated up to that point.
     '''
-    import mitsuba as mi
-
     logger = mi.logger()
     appender = _make_progress_appender()
     old_level = logger.log_level()
