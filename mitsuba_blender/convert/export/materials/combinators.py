@@ -3,7 +3,7 @@ Emission and Holdout.'''
 
 from ... import ConversionError
 from . import convert_shader_node, node_converter
-from ._eval import Constant, NodeRef, Texture, resolve, eval_float, trace_source
+from ._eval import Constant, NodeRef, Texture, resolve, eval_float, trace_source, scalar_from_socket
 
 
 def _child_bsdf(export_ctx, ref):
@@ -21,15 +21,8 @@ def _emission_radiance(export_ctx, ref):
     '''Evaluate an Emission node into an RGB radiance list or a Mitsuba
     texture dict (the color scaled by the strength).'''
     node = ref.node
-    strength = resolve(export_ctx, node.inputs['Strength'], stack=ref.stack)
-    if isinstance(strength, Constant):
-        strength = strength.value
-    else:
-        reason = getattr(strength, 'reason',
-                         'textured emission strength is not supported')
-        export_ctx.log(f'{reason}; using the default value', 'WARN')
-        strength = node.inputs['Strength'].default_value
-
+    strength = scalar_from_socket(export_ctx, node.inputs['Strength'], stack=ref.stack)
+    
     color = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if isinstance(color, Texture):
         if strength != 1.0:

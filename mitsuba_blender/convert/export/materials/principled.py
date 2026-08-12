@@ -7,22 +7,8 @@ and the Normal input wraps it in normalmap/bumpmap adapters.
 
 from . import node_converter
 from ._eval import Constant, Texture, Unsupported, eval_color, eval_float, \
-    resolve
+    resolve, scalar_from_socket
 from .textures import convert_normal_input
-
-
-def _constant_float(export_ctx, socket, stack):
-    '''Resolve a socket that Mitsuba only accepts as a constant float.'''
-    result = resolve(export_ctx, socket, stack=stack)
-    if isinstance(result, Constant):
-        return result.value
-    if isinstance(result, Unsupported):
-        reason = result.reason
-    else:
-        reason = (f'socket "{socket.name}" of node "{socket.node.name}" '
-                  'only supports constant values')
-    export_ctx.log(f'{reason}; using the default value', 'WARN')
-    return float(socket.default_value)
 
 
 def _spec_tint(export_ctx, ref):
@@ -42,7 +28,7 @@ def _spec_tint(export_ctx, ref):
 def _emitter(export_ctx, ref):
     '''Build an area emitter dict from the emission inputs, or None.'''
     node = ref.node
-    strength = _constant_float(export_ctx, node.inputs['Emission Strength'],
+    strength = scalar_from_socket(export_ctx, node.inputs['Emission Strength'],
                                ref.stack)
     if strength <= 0.0:
         return None
@@ -89,7 +75,7 @@ def convert_principled(export_ctx, ref):
         'clearcoat': eval_float(export_ctx, node.inputs['Coat Weight'],
                                 stack=stack),
         'clearcoat_gloss':
-            1.0 - _constant_float(export_ctx, node.inputs['Coat Roughness'],
+            1.0 - scalar_from_socket(export_ctx, node.inputs['Coat Roughness'],
                                   stack),
     }
 
@@ -98,11 +84,11 @@ def convert_principled(export_ctx, ref):
         # Blender drives transmission with the IOR input; Mitsuba shares a
         # single eta between reflection and refraction. Transmissive
         # materials must stay one-sided.
-        ior = _constant_float(export_ctx, node.inputs['IOR'], stack)
+        ior = scalar_from_socket(export_ctx, node.inputs['IOR'], stack)
         params['eta'] = max(ior, 1.0 + 1e-3)
         bsdf = params
     else:
-        specular = _constant_float(export_ctx,
+        specular = scalar_from_socket(export_ctx,
                                    node.inputs['Specular IOR Level'], stack)
         params['specular'] = max(specular, 1e-3)
         bsdf = {'type': 'twosided', 'bsdf': params}

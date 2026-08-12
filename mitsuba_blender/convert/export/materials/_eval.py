@@ -13,7 +13,10 @@ what feeds an input socket:
 
 import colorsys
 import math
+import mitsuba as mi
+
 from typing import NamedTuple
+from ....io.exporter.export_context import ExportContext
 from ... import ConversionError
 
 ERROR_COLOR = [1.0, 0.0, 0.3, 1.0]
@@ -46,6 +49,44 @@ class Unsupported:
 
     def __repr__(self):
         return f'Unsupported({self.reason!r})'
+
+
+def _average(texture):
+    import drjit as dr
+    n = 5
+    if 'scalar' in mi.variant():
+        total = 0.0
+        for i in range(n):
+            for j in range(n):
+                si = dr.zeros(mi.SurfaceInteraction3f)
+                si.uv = mi.Point2f(i / (n - 1), j / (n - 1))
+                total += float(texture.eval_1(si))
+        return total / (n * n)
+    x = dr.linspace(mi.Float, 0.0, 1.0, n)
+    x, y = dr.meshgrid(x, x)
+    si = dr.zeros(mi.SurfaceInteraction3f, dr.width(x))
+    si.uv = mi.Point2f(x, y)
+    colors = texture.eval(si)
+
+    avg_color = dr.slice(dr.mean(colors, axis=None), 0)
+    print("AVG COLOR: ", avg_color)
+    return avg_color
+
+
+def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
+    '''
+    Average a subgraph down to a scalar for parameters Mitsuba reads as floats.
+    '''
+    import numpy as np
+    result = resolve(export_ctx, socket, stack=stack)
+    if isinstance(result, Constant):
+        v = result.value
+        return float(v) if np.isscalar(v) else float(np.mean(v))
+    if isinstance(result, Unsupported):
+        return socket_default(socket) 
+    # Texture: build it once and average over a UV grid
+    texture = mi.load_dict(result.params)
+    return _average(texture)
 
 
 _texture_converters = {}

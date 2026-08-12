@@ -27,6 +27,22 @@ def exporter(mi_addon):
 
     return _export
 
+@pytest.fixture
+def fake_uniform_texture(registry):
+    """Stand-in TEX_IMAGE converter returning a constant texture, so a
+    texture's average is exactly known regardless of the sampling grid."""
+    converters = registry._eval._texture_converters
+    previous = converters.get('TEX_IMAGE')
+
+    @registry.texture_converter('TEX_IMAGE')
+    def convert_fake_uniform(export_ctx, node, out_socket):
+        return {'type': 'uniform', 'value': 0.25}
+
+    yield {'type': 'uniform', 'value': 0.25}
+    if previous is None:
+        del converters['TEX_IMAGE']
+    else:
+        converters['TEX_IMAGE'] = previous
 
 @pytest.fixture
 def fake_image_texture(registry):
@@ -211,18 +227,14 @@ def test_export_constant_bump_ignored(fresh_scene, exporter, tmp_path):
     assert entry['type'] == 'twosided'
 
 
-def test_export_textured_coat_roughness_falls_back(fresh_scene, exporter,
-                                                   tmp_path,
-                                                   fake_image_texture):
+def test_textured_coat_roughness_is_averaged(fresh_scene, exporter, tmp_path, fake_uniform_texture):
     node = principled_node()
     tree = node.id_data
     tex = tree.nodes.new('ShaderNodeTexImage')
     tree.links.new(tex.outputs['Color'], node.inputs['Coat Roughness'])
 
     _, entry = exported_entry(exporter, tmp_path)
-    # Mitsuba only takes a constant gloss; the socket default is used
-    assert entry['bsdf']['clearcoat_gloss'] == pytest.approx(0.97)
-
+    assert entry['bsdf']['clearcoat_gloss'] == pytest.approx(0.75)
 
 def test_export_folds_input_graph(fresh_scene, exporter, tmp_path):
     import mitsuba as mi, drjit as dr

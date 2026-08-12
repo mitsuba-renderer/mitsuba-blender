@@ -217,16 +217,18 @@ def test_unsaved_image_written_without_side_effects(fresh_scene, exporter,
 def test_image_export_dedup_and_name_clash(fresh_scene, export_ctx,
                                            textures, tmp_path):
     image = make_image('Shared')
-    first = textures.export_image(export_ctx, image)
-    assert textures.export_image(export_ctx, image) == first
+    first , _ = textures.export_image(export_ctx, image)
+    second, _ =  textures.export_image(export_ctx, image) 
+    assert first == second
+
     assert os.listdir(tmp_path / 'textures') == ['Shared.png']
 
     # A different image saved under the same basename gets a fresh name
     other_dir = tmp_path / 'other'
     other_dir.mkdir()
     other = save_image(make_image('Other'), other_dir / 'Shared.png')
-    second = textures.export_image(export_ctx, other)
-    assert second != first
+    third, _ = textures.export_image(export_ctx, other)
+    assert third != first
     assert sorted(os.listdir(tmp_path / 'textures')) == \
         ['Shared-1.png', 'Shared.png']
 
@@ -270,8 +272,11 @@ def test_render_export_instantiates_textured_bsdf(fresh_scene, exporter,
     assign_material(b_mat)
 
     converter = exporter(tmp_path, render=True)
-    assert 'mat-Textured' in converter.export_ctx.bsdf_objects
+    assert 'mat-Textured' in converter.export_ctx.scene_data
     assert (tmp_path / 'textures').exists()
+    scene = converter.dict_to_scene()
+    assert len(scene.shapes()) > 0
+
 
 
 ######################

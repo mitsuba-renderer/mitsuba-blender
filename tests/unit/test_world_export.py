@@ -231,6 +231,11 @@ def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
     image = bpy.data.images['env']
     pixels = np.full(len(image.pixels), 5.0, dtype=np.float32)
     image.pixels.foreach_set(pixels)
+    chk = np.empty(len(image.pixels), dtype=np.float32)
+    image.pixels.foreach_get(chk)
+    print('is_dirty:', image.is_dirty)
+    print('buffer:', chk.min(), chk.max(), 'is_float:', image.is_float,
+          'source:', image.source, 'has_data:', image.has_data)
 
     export_ctx.render = True
     params = world.convert_world(export_ctx, b_world)
@@ -241,7 +246,7 @@ def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
     bmp = mi.Bitmap(str(path))
     assert np.max(np.array(bmp)) == pytest.approx(5.0)
 
-    from bl_ext.user_default.mitsuba_blender.convert.export.materials.textures import resolver_append
+    from test_texture_export import resolver_append
     with resolver_append(export_ctx.directory):
         assert mi.load_dict(params) is not None
 

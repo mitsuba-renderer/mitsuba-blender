@@ -4,7 +4,7 @@ Refraction, Transparent and Translucent.'''
 import math
 
 from . import node_converter
-from ._eval import Constant, eval_color, eval_float, resolve
+from ._eval import Constant, eval_color, eval_float, resolve, scalar_from_socket
 from .textures import convert_normal_input
 
 # Mapping from MULTI_GGX is an approximation which diverges with high roughness
@@ -14,19 +14,6 @@ _DISTRIBUTIONS = {
     'ASHIKHMIN_SHIRLEY': 'beckmann',
     'MULTI_GGX': 'ggx',
 }
-
-
-def _constant_float(export_ctx, socket, stack):
-    '''Resolve a socket that must be a constant float. Textures and
-    unsupported inputs fall back to the socket default with a warning.'''
-    result = resolve(export_ctx, socket, stack)
-    if isinstance(result, Constant):
-        return result.value
-    reason = getattr(result, 'reason',
-                     f'socket "{socket.name}" of node '
-                     f'"{socket.node.name}" does not support textures')
-    export_ctx.log(f'{reason}; using the default value', 'WARN')
-    return float(socket.default_value)
 
 
 def _eval_roughness(export_ctx, socket, stack):
@@ -57,7 +44,7 @@ def convert_diffuse(export_ctx, ref):
 def convert_glossy(export_ctx, ref):
     node = ref.node
     alpha = _eval_roughness(export_ctx, node.inputs['Roughness'], stack=ref.stack)
-    anisotropy = _constant_float(export_ctx, node.inputs['Anisotropy'], stack=ref.stack)
+    anisotropy = scalar_from_socket(export_ctx, node.inputs['Anisotropy'], stack=ref.stack)
     anisotropy = min(max(anisotropy, -0.99), 0.99)
     rotation = node.inputs['Rotation']
     if rotation.is_linked or rotation.default_value != 0.0:
@@ -95,7 +82,7 @@ def convert_glossy(export_ctx, ref):
 
 def _convert_dielectric(export_ctx, ref):
     node = ref.node
-    ior = _constant_float(export_ctx, node.inputs['IOR'], stack=ref.stack)
+    ior = scalar_from_socket(export_ctx, node.inputs['IOR'], stack=ref.stack)
     alpha = _eval_roughness(export_ctx, node.inputs['Roughness'], stack=ref.stack)
     if isinstance(alpha, float) and alpha == 0.0:
         params = {'type': 'thindielectric' if ior == 1.0 else 'dielectric'}
