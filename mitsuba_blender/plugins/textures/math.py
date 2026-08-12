@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import drjit as dr
-from numpy import result_type
 
 if TYPE_CHECKING:
     import mitsuba as mi

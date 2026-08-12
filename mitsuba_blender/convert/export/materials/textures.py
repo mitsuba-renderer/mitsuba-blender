@@ -48,7 +48,7 @@ _SAVE_FORMATS = {
 _DATA_COLORSPACES = {'Non-Color', 'Raw', 'Linear', 'Linear Rec.709'}
 
 def _unique_name(cache, name):
-    used = {os.path.basename(path) for path in cache.values()}
+    used = {os.path.basename(path) for path, _, _ in cache.values()}
     if name not in used:
         return name
     stem, ext = os.path.splitext(name)
@@ -64,16 +64,17 @@ def export_image(export_ctx, image):
     image datablock is never modified.'''
     cache = export_ctx.__dict__.setdefault('exported_images', {})
     key = image.name_full
-    if key in cache and not image.is_dirty:
-        absolute = os.path.join(export_ctx.directory, cache[key])
-        if os.path.isfile(absolute):
-            return cache[key]
+    if key in cache:
+        path, raw, was_dirty = cache[key]
+        if was_dirty == image.is_dirty and os.path.isfile(os.path.join(export_ctx.directory, path)):
+            return path, raw
 
     folder = os.path.join(export_ctx.directory,
                           export_ctx.TEXTURES_FOLDER)
     os.makedirs(folder, exist_ok=True)
 
     source = ''
+    raw = False
     if image.filepath_raw:
         source = bpy.path.abspath(image.filepath_raw, library=image.library)
     if source and os.path.isfile(source) and not image.is_dirty \
@@ -93,8 +94,9 @@ def export_image(export_ctx, image):
         name = _unique_name(cache, f'{base}{ext}')
         copy = image.copy()
         try:
-            # Copying does not reliably duplicate the pixel buffer of
-            # generated or edited images, so transfer it explicitly
+            if image.is_float:
+                copy.colorspace_settings.name = 'Non-Color'
+                raw = True
             pixels = np.empty(len(image.pixels), dtype=np.float32)
             image.pixels.foreach_get(pixels)
             copy.pixels.foreach_set(pixels)
@@ -104,9 +106,10 @@ def export_image(export_ctx, image):
         finally:
             bpy.data.images.remove(copy)
 
+
     path = f'{export_ctx.TEXTURES_FOLDER}/{name}'
-    cache[key] = path
-    return path
+    cache[key] = (path, raw, image.is_dirty)
+    return path, raw
 
 
 ######################
@@ -217,8 +220,9 @@ def convert_image_texture(export_ctx, ref, out_socket):
 
     params: dict[str, object] = {'type': 'bitmap'}
     colorspace = image.colorspace_settings.name
-    params['filename'] = export_image(export_ctx, image)
-    if colorspace in _DATA_COLORSPACES:
+    params['filename'], raw= export_image(export_ctx, image)
+
+    if raw or colorspace in _DATA_COLORSPACES:
         params['raw'] = True
     elif colorspace != 'sRGB':
         export_ctx.log(
@@ -476,6 +480,14 @@ def convert_brightness_contrast(export_ctx: ExportContext, ref : NodeRef, out_so
         'contrast' : eval_float(export_ctx, ref.node.inputs['Contrast'], stack=ref.stack)
     }
 
+
+@texture_converter('RGBTOBW')
+def convert_rgb_to_bw(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    return {
+        'type' : 'rgb_to_bw',
+        'color' : eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
+    }
+
 ###########################
 ##  Normal and bump map  ##
 ###########################
@@ -586,7 +598,8 @@ def convert_environment_texture(export_ctx, ref):
         raise ConversionError(f'projection {node.projection} of environment '
                               f'texture node "{node.name}" is not supported')
     params = {'type': 'envmap'}
-    params['filename'] = export_image(export_ctx, image)
+    params['filename'], _= export_image(export_ctx, image)
+
     colorspace = image.colorspace_settings.name
     if colorspace != 'sRGB' and colorspace not in _DATA_COLORSPACES:
         export_ctx.log(

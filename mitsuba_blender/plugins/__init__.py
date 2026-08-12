@@ -7,7 +7,7 @@ def register_plugins():
     import mitsuba as mi
     import drjit as dr
 
-    from .textures import color_ramp, math, hue_saturation, rgb_curve, mix, invert, brightness_contrast
+    from .textures import color_ramp, math, hue_saturation, rgb_curve, mix, invert, brightness_contrast, rgb_to_bw
 
     color_ramp.register(mi, dr)
     math.register(mi, dr)
@@ -16,3 +16,4 @@ def register_plugins():
     mix.register(mi, dr)
     invert.register(mi, dr)
     brightness_contrast.register(mi, dr)
+    rgb_to_bw.register(mi, dr)
