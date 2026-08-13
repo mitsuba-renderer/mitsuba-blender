@@ -24,7 +24,7 @@ from ....io.exporter.export_context import ExportContext
 from ... import ConversionError
 from .. import sanitize_attribute_name
 from . import texture_converter
-from ._eval import Constant, Texture, eval_color, eval_float, resolve, socket_default, trace_source
+from ._resolve import Constant, Texture, NodeRef, eval_color, eval_float, eval_vector, resolve, socket_default, trace_source
 
 
 ########################
@@ -125,7 +125,6 @@ def _to_uv_param(matrix):
     return ScalarTransform4f([list(row) for row in matrix])
 
 
-from ._eval import Constant, NodeRef, Texture, eval_color, resolve, trace_source
 
 
 def _constant_input(export_ctx, socket, description, stack):
@@ -206,6 +205,12 @@ def _vector_to_uv(export_ctx, ref):
 ##########################
 ##  Texture converters  ##
 ##########################
+
+_ONE_VECTOR_OPS = {'LENGTH', 'SCALE', 'NORMALIZE',
+                    'ABSOLUTE', 'FLOOR', 'CEIL',
+                    'FRACTION', 'SINE', 'COSINE',
+                    'TANGENT'}
+
 
 @texture_converter('TEX_IMAGE')
 def convert_image_texture(export_ctx, ref, out_socket):
@@ -514,6 +519,95 @@ def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
 def _math(op, a, b):
     return {'type': 'math', 'op': op, 'use_clamp': False,
             'child_0': a, 'child_1': b}
+
+
+
+@texture_converter('MAP_RANGE')
+def convert_map_range(export_ctx: ExportContext, ref : NodeRef, out_socket):
+    node = ref.node
+    is_float = node.data_type == 'FLOAT'
+    params = {
+        'type': 'map_range',
+        'clamp': node.clamp,
+        'vector': not is_float,
+        'interpolation_type' : node.interpolation_type,
+    }
+    if is_float:
+        params['input'] = eval_float(export_ctx, node.inputs['Value'], stack=ref.stack)
+        params['from_min'] = eval_float(export_ctx, node.inputs['From Min'], stack=ref.stack)
+        params['from_max'] = eval_float(export_ctx, node.inputs['From Max'], stack=ref.stack)
+        params['to_min'] = eval_float(export_ctx, node.inputs['To Min'], stack=ref.stack)
+        params['to_max'] = eval_float(export_ctx, node.inputs['To Max'], stack=ref.stack)
+        steps = next((s for s in node.inputs if s.identifier == 'Steps'), None)
+        if steps is not None:
+            params['steps'] = eval_float(export_ctx, steps, stack=ref.stack)
+    else:
+        params['input'] = eval_vector(export_ctx, node.inputs['Vector'], stack=ref.stack)
+        params['from_min'] = eval_vector(export_ctx, node.inputs['From Min'], stack=ref.stack)
+        params['from_max'] = eval_vector(export_ctx, node.inputs['From Max'], stack=ref.stack)
+        params['to_min'] = eval_vector(export_ctx, node.inputs['To Min'], stack=ref.stack)
+        params['to_max'] = eval_vector(export_ctx, node.inputs['To Max'], stack=ref.stack)
+        params['steps'] = eval_vector(export_ctx, node.inputs['Steps'], stack=ref.stack)
+    return params
+
+
+@texture_converter('COMBXYZ')
+def convert_combine_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    return {
+        'type': 'combine_xyz',
+        'x': eval_float(export_ctx, ref.node.inputs['X']),
+        'y': eval_float(export_ctx, ref.node.inputs['Y']),
+        'z': eval_float(export_ctx, ref.node.inputs['Z'])
+    }
+
+@texture_converter('SEPXYZ')
+def convert_separate_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    index = {'X': 0, 'Y': 1, 'Z': 2}[out_socket.identifier]
+    return {
+        'type': 'separate_xyz',
+        'index': index,
+        'vector': eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack)
+    }
+
+
+@texture_converter('SEPARATE_COLOR')
+def convert_separate_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    return {
+        'type': 'separate_color',
+        'color': eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
+        'mode': ref.node.mode,
+        'index': ('Red', 'Green', 'Blue').index(out_socket.name)
+    }
+
+@texture_converter('COMBINE_COLOR')
+def convert_combine_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    return {
+        'type': 'combine_color',
+        'mode' : ref.node.mode,
+        'red' : eval_float(export_ctx, ref.node.inputs['Red'], stack=ref.stack),
+        'green' : eval_float(export_ctx, ref.node.inputs['Green'], stack=ref.stack),
+        'blue' : eval_float(export_ctx, ref.node.inputs['Blue'], stack=ref.stack)
+    }
+
+
+@texture_converter('VECT_MATH')
+def convert_vect_math(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    op = ref.node.operation
+    params = {
+        'type': 'vect_math',
+        'vec_0': eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack),
+        'op' : op
+    }
+    if op == 'SCALE':
+        params['scale'] = eval_float(export_ctx, ref.node.inputs['Scale'], stack=ref.stack)
+    elif op not in _ONE_VECTOR_OPS:
+        params['vec_1'] = eval_vector(export_ctx, ref.node.inputs['Vector_001'], stack=ref.stack)
+
+        if op == 'MULTIPLY_ADD':
+            params['vec_2'] = eval_vector(export_ctx, ref.node.inputs['Vector_002'], stack=ref.stack)
+
+    return params
+
 
 ###########################
 ##  Normal and bump map  ##

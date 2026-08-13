@@ -60,15 +60,11 @@ def register(mi, dr):
                 return dr.clip(result, 0.0, 1.0)
             return result
 
-        def traverse(self, cb):
-            cb.put('a', self.a, mi.ParamFlags.Differentiable)
-            cb.put('b', self.b, mi.ParamFlags.Differentiable)
-
-
         def eval(self, si, active=True):
             val_a = self.a.eval(si, active)
             val_b = self.b.eval(si, active)
             return mi.UnpolarizedSpectrum(self._process(si, val_a, val_b, active))
+
 
         def eval_1(self, si, active=True):
             val_a = self.a.eval_1(si, active)
@@ -83,6 +79,10 @@ def register(mi, dr):
 
         def mean(self):
             return 0.5
+
+        def traverse(self, cb):
+            cb.put('a', self.a, mi.ParamFlags.Differentiable)
+            cb.put('b', self.b, mi.ParamFlags.Differentiable)
 
         def resolution(self):
             return self.a.resolution

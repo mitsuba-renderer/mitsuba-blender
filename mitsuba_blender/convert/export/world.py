@@ -10,7 +10,7 @@ from mathutils import Euler, Matrix, Vector
 
 from .. import ConversionError
 from ...compat import uses_nodes
-from .materials import _eval
+from .materials import _resolve 
 from .materials.textures import convert_environment_texture
 
 # The color of Blender's default gray world background.
@@ -25,8 +25,8 @@ ENVMAP_COORDINATE_MAT = Matrix(((0, 0, 1, 0),
 
 def _constant_vector(export_ctx, socket, stack=()):
     '''Fold a vector socket to a constant, or fail.'''
-    result = _eval.resolve(export_ctx, socket, stack)
-    if not isinstance(result, _eval.Constant):
+    result = _resolve.resolve(export_ctx, socket, stack)
+    if not isinstance(result, _resolve.Constant):
         raise ConversionError(f'input "{socket.name}" of node '
                               f'"{socket.node.name}" does not fold to a '
                               'constant')
@@ -39,7 +39,7 @@ def _constant_vector(export_ctx, socket, stack=()):
 def _envmap_world_transform(export_ctx, vector_socket, stack=()):
     '''The world transform of an environment texture, from an optional
     Mapping node feeding its Vector input.'''
-    node, _, stack = _eval.trace_source(vector_socket, stack)
+    node, _, stack = _resolve.trace_source(vector_socket, stack)
     if node is None:
         return Matrix()
     if node.type != 'MAPPING':
@@ -48,7 +48,7 @@ def _envmap_world_transform(export_ctx, vector_socket, stack=()):
                               'a Mapping node is supported')
 
     # checking the input of the Mapping node
-    coord_node, coord_socket, _ = _eval.trace_source(node.inputs['Vector'], stack)
+    coord_node, coord_socket, _ = _resolve.trace_source(node.inputs['Vector'], stack)
     if coord_node is None or coord_node.type != 'TEX_COORD' \
             or coord_socket.name != 'Generated':
         raise ConversionError('the Mapping node must be driven by the '
@@ -103,7 +103,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
     output = b_world.node_tree.get_output_node('CYCLES')
     if output is None:
         raise ConversionError('cannot find the world output node')
-    node, _, stack = _eval.trace_source(output.inputs['Surface'])
+    node, _, stack = _resolve.trace_source(output.inputs['Surface'])
     if node is None:
         return None
     if node.type not in ('BACKGROUND', 'EMISSION'):
@@ -111,7 +111,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
                               'not supported as the world surface; only '
                               'Background and Emission nodes are')
 
-    strength = _eval.eval_float(export_ctx, node.inputs['Strength'],
+    strength = _resolve.eval_float(export_ctx, node.inputs['Strength'],
                                 stack=stack)
     if not isinstance(strength, (int, float)):
         raise ConversionError('the world strength must be a constant')
@@ -120,15 +120,15 @@ def convert_world(export_ctx, b_world, ignore_background=True):
         return None
 
     color_socket = node.inputs['Color']
-    env_node, _, env_stack = _eval.trace_source(color_socket, stack)
+    env_node, _, env_stack = _resolve.trace_source(color_socket, stack)
     if env_node is not None and env_node.type == 'TEX_ENVIRONMENT':
         return _convert_envmap(export_ctx,
-                               _eval.NodeRef(env_node, env_stack), strength)
+                               _resolve.NodeRef(env_node, env_stack), strength)
 
-    result = _eval.resolve(export_ctx, color_socket, stack)
+    result = _resolve.resolve(export_ctx, color_socket, stack)
 
-    if not isinstance(result, _eval.Constant):
-        reason = result.reason if isinstance(result, _eval.Unsupported) \
+    if not isinstance(result, _resolve.Constant):
+        reason = result.reason if isinstance(result, _resolve.Unsupported) \
             else 'only environment textures and constant colors are supported'
         raise ConversionError(reason)
 

@@ -11,7 +11,7 @@ import pytest
 @pytest.fixture(scope='session')
 def eval_mod(mi_addon):
     return importlib.import_module(
-        f'{mi_addon}.convert.export.materials._eval')
+        f'{mi_addon}.convert.export.materials._resolve')
 
 
 @pytest.fixture(scope='session')

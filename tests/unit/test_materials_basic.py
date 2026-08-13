@@ -132,7 +132,7 @@ def test_export_glossy_textured_roughness(fresh_scene, exporter, tmp_path,
         # Texture-driven roughness passes through without squaring
         assert entry['bsdf']['alpha'] == {'type': 'checkerboard'}
     finally:
-        del registry._eval._texture_converters['TEX_BRICK']
+        del registry._resolve._texture_converters['TEX_BRICK']
 
 
 ##########################
@@ -254,7 +254,7 @@ def test_export_translucent(fresh_scene, exporter, tmp_path):
 def fake_image_texture(registry):
     """Registers a stand-in TEX_IMAGE texture converter, restoring any
     previously registered one afterwards."""
-    converters = registry._eval._texture_converters
+    converters = registry._resolve._texture_converters
     previous = converters.get('TEX_IMAGE')
 
     @registry.texture_converter('TEX_IMAGE')

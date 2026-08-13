@@ -26,11 +26,6 @@ def register(mi, dr):
             b = bright - contrast * 0.5
             return dr.maximum(a * value + b, 0.0)
 
-        def traverse(self, cb):
-            cb.put_object('input', self.input, mi.ParamFlags.Differentiable)
-            cb.put_object('brightness', self.brightness, mi.ParamFlags.Differentiable)
-            cb.put_object('contrast', self.contrast, mi.ParamFlags.Differentiable)
-
         def eval(self, si, active=True):
             return self.eval_3(si, active)
 
@@ -42,5 +37,10 @@ def register(mi, dr):
 
         def mean(self):
             return 0.5
+
+        def traverse(self, cb):
+            cb.put_object('input', self.input, mi.ParamFlags.Differentiable)
+            cb.put_object('brightness', self.brightness, mi.ParamFlags.Differentiable)
+            cb.put_object('contrast', self.contrast, mi.ParamFlags.Differentiable)
 
     mi.register_texture('brightness_contrast', BrightnessContrast)

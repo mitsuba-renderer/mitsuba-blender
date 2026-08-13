@@ -25,9 +25,6 @@ def register(mi, dr):
             return dr.lerp(value, inv_val, f)
 
 
-        def traverse(self, cb):
-            cb.put_object('color', self.input, mi.ParamFlags.Differentiable)
-            cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
 
         def eval(self, si, active=True):
             return self.eval_3(si, active)
@@ -41,5 +38,8 @@ def register(mi, dr):
         def mean(self):
             return 0.5
 
+        def traverse(self, cb):
+            cb.put_object('color', self.input, mi.ParamFlags.Differentiable)
+            cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
     
     mi.register_texture('invert', InvertColor)

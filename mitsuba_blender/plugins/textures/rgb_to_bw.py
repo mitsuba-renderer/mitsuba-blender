@@ -25,6 +25,8 @@ def register(mi, dr):
             c = self.color.eval_3(si, active)
             return _REC709[0] * c.x + _REC709[1] * c.y + _REC709[2] * c.z
 
+        def eval(self, si, active=True):
+            return mi.UnpolarizedSpectrum(self._luminance(si, active))
 
         def eval_1(self, si, active=True):
             return self._luminance(si, active)
@@ -33,7 +35,11 @@ def register(mi, dr):
             lum = self._luminance(si, active)
             return mi.Color3f(lum, lum, lum)
 
-        def eval(self, si, active=True):
-            return mi.UnpolarizedSpectrum(self._luminance(si, active))
+        def mean(self):
+            return 0.5
+
+        def traverse(self, cb):
+            cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
+
 
     mi.register_texture('rgb_to_bw', RGBToBW)

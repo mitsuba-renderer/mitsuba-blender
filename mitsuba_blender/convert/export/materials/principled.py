@@ -6,8 +6,7 @@ and the Normal input wraps it in normalmap/bumpmap adapters.
 '''
 
 from . import node_converter
-from ._eval import Constant, Texture, Unsupported, eval_color, eval_float, \
-    resolve, scalar_from_socket
+from ._resolve import Constant, Texture, Unsupported, eval_color, eval_float, resolve, scalar_from_socket
 from .textures import convert_normal_input
 
 

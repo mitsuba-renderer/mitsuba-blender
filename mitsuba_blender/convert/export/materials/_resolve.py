@@ -1,10 +1,9 @@
-'''Socket resolution and constant folding for material export.
+'''Socket resolution for material export.
 
 `resolve` follows node links through reroutes and muted nodes and classifies
 what feeds an input socket:
 
-- `Constant(value)`: the socket is unlinked, or fed by a subgraph built
-  entirely from value nodes (Math, Mix, RGB, ...) that is evaluated here,
+- `Constant(value)`: the socket is unlinked
 - `Texture(params)`: the socket is fed by a node with a registered texture
   converter, and `params` is the resulting Mitsuba texture dict,
 - `Unsupported(reason)`: anything else, with a message naming the node that
@@ -22,7 +21,7 @@ from ... import ConversionError
 ERROR_COLOR = [1.0, 0.0, 0.3, 1.0]
 
 class Constant:
-    '''A folded constant: a float, or a tuple for vectors and colors.'''
+    '''A constant: a float, or a tuple for vectors and colors.'''
 
     def __init__(self, value):
         self.value = value
@@ -69,7 +68,6 @@ def _average(texture):
     colors = texture.eval(si)
 
     avg_color = dr.slice(dr.mean(colors, axis=None), 0)
-    print("AVG COLOR: ", avg_color)
     return avg_color
 
 
@@ -106,7 +104,7 @@ def texture_converter(*node_types):
 
 def _active_output(tree):
     '''The live NodeGroupOutput node of a node group tree, or None
-    
+
     A tree may hold several Group output nodes, onlty the one flagged
     is_active_output is evaluated, the rest are inert. If nothing is flagged,
     it take the first one'''
@@ -129,7 +127,7 @@ def trace_source(socket, stack=()):
         - (node, out_socket, stack) a real node produces the value
         - (node, terminal, stack)   nothing does: `terminal` is where the walk stopped
 
-    Raise a ConversionError when the link form a cycle (Blender permits cycles made 
+    Raise a ConversionError when the link form a cycle (Blender permits cycles made
     of retoutes or muted nodes).'''
 
     visited = set()
@@ -221,9 +219,16 @@ def resolve(export_ctx, socket, stack=()):
             return Texture(converter(export_ctx, ref, source))
         except ConversionError as e:
             return Unsupported(str(e))
+    if ref.node.type in _GETTERS:
+        getter = _GETTERS[ref.node.type]
+    else:
+        return Unsupported(f'node "{node.name}" of type {node.type} is not '
+                       f'supported (feeding socket "{socket.name}" of node '
+                       f'"{socket.node.name}")')
     try:
-        return Constant(_convert(_fold_node(ref, source), socket.type))
-    except _Unfoldable as e:
+            return Constant(_convert(getter(ref, source), socket.type))
+
+    except _Uncastable as e:
         return Unsupported(f'{e} (feeding socket "{socket.name}" of node '
                            f'"{socket.node.name}")')
 
@@ -256,14 +261,27 @@ def eval_color(export_ctx, socket, default=None, stack=()):
     return export_ctx.spectrum(ERROR_COLOR)
 
 
+def eval_vector(export_ctx, socket, default=None, stack=()):
+    '''Resolve a vector socket to a 3-component value or a Mitsuba texture
+    dict. Unlike eval_color the result carries no colour semantics, so
+    constants are emitted as raw values and the fallback is the socket
+    default rather than the error colour.'''
+
+    result = resolve(export_ctx, socket, stack=stack)
+    if isinstance(result, Constant):
+        return _to_vector(result.value)
+    if isinstance(result, Texture):
+        return result.params
+    export_ctx.log(f'{result.reason}; using the default value', 'WARN')
+    return _to_vector(default if default is not None else socket_default(socket))
+
+
+
 #############################
 ##  Value representations  ##
 #############################
 
-# Folded values are floats, 3-tuples (vectors) or 4-tuples (RGBA colors).
-# The conversions between them mirror Blender's implicit socket conversions.
-
-class _Unfoldable(Exception):
+class _Uncastable(Exception):
     pass
 
 
@@ -305,241 +323,30 @@ _SOCKET_CONVERTERS = {
 def _convert(value, socket_type):
     converter = _SOCKET_CONVERTERS.get(socket_type)
     if converter is None:
-        raise _Unfoldable(f'cannot fold into a socket of type {socket_type}')
+        raise _Uncastable(f'cannot cast into a socket of type {socket_type}')
     return converter(value)
 
-
 ####################
-##  Folding core  ##
+##  Nodes         ##
 ####################
-
-
 
 class NodeRef(NamedTuple):
     node : object
     stack: tuple
 
-    def input(self, key):
-        return _fold_input(_input(self.node, key), self.stack)
 
-def _fold_node(ref, out_socket):
-    node = ref.node
-    if node.type in _texture_converters:
-        raise _Unfoldable(f'node "{node.name}" of type {node.type} produces '
-                          'a texture inside a constant subgraph')
-    folder = _FOLDERS.get(node.type)
-    if folder is None:
-        raise _Unfoldable(f'node "{node.name}" of type {node.type} is not '
-                          'supported')
-    return folder(ref, out_socket)
-
-
-# Sockets whose _fold_input is currently on the call stack, to detect
-# link cycles that pass through foldable nodes
-_folding = set()
-
-
-def _fold_input(socket, stack=()):
-    try:
-        # trace_source can return two different things depending on the first
-        # if node is None, then middle value = link.from_socket (that's why `source` is not a great name here)
-        node, terminal, stack = trace_source(socket, stack)
-    except ConversionError as e:
-        raise _Unfoldable(str(e)) from None
-
-    if node is None:
-        return _convert(socket_default(terminal), socket.type)
-    key = (socket.as_pointer(), stack)
-    if key in _folding:
-        raise _Unfoldable(f'the links feeding socket "{socket.name}" of '
-                          f'node "{socket.node.name}" form a cycle')
-    _folding.add(key)
-    try:
-        return _convert(_fold_node(NodeRef(node, stack), terminal), socket.type)
-    finally:
-        _folding.discard(key)
-
-
-def _input(node, key):
-    if isinstance(key, int):
-        return node.inputs[key]
-    for socket in node.inputs:
-        if socket.identifier == key:
-            return socket
-    raise _Unfoldable(f'node "{node.name}" has no input socket "{key}"')
-
-
-def _float_in(ref, key):
-    return _to_float(ref.input(key))
-
-
-def _vector_in(ref, key):
-    return _to_vector(ref.input(key))
-
-
-def _color_in(ref, key):
-    return _to_color(ref.input(key))
-
-
-##################
-##  Arithmetic  ##
-##################
-
-def _clamp(value, lo=0.0, hi=1.0):
-    return min(max(value, lo), hi)
-
-
-def _mix(a, b, t):
-    return a + (b - a) * t
-
-
-def _safe_divide(a, b):
-    return a / b if b != 0.0 else 0.0
-
-def _dot(a, b):
-    return sum(x * y for x, y in zip(a, b))
-
-
-def _length(a):
-    return math.sqrt(_dot(a, a))
-
-
-def _normalize(a):
-    norm = _length(a)
-    return tuple(x / norm for x in a) if norm > 0.0 else (0.0, 0.0, 0.0)
-
-
-_VECTOR_OPS = {
-    'ADD': lambda a, b, c, s: tuple(x + y for x, y in zip(a, b)),
-    'SUBTRACT': lambda a, b, c, s: tuple(x - y for x, y in zip(a, b)),
-    'MULTIPLY': lambda a, b, c, s: tuple(x * y for x, y in zip(a, b)),
-    'DIVIDE': lambda a, b, c, s:
-        tuple(_safe_divide(x, y) for x, y in zip(a, b)),
-    'MULTIPLY_ADD': lambda a, b, c, s:
-        tuple(x * y + z for x, y, z in zip(a, b, c)),
-    'CROSS_PRODUCT': lambda a, b, c, s: (a[1] * b[2] - a[2] * b[1],
-                                         a[2] * b[0] - a[0] * b[2],
-                                         a[0] * b[1] - a[1] * b[0]),
-    'DOT_PRODUCT': lambda a, b, c, s: _dot(a, b),
-    'DISTANCE': lambda a, b, c, s:
-        _length(tuple(x - y for x, y in zip(a, b))),
-    'LENGTH': lambda a, b, c, s: _length(a),
-    'SCALE': lambda a, b, c, s: tuple(x * s for x in a),
-    'NORMALIZE': lambda a, b, c, s: _normalize(a),
-    'ABSOLUTE': lambda a, b, c, s: tuple(abs(x) for x in a),
-    'MINIMUM': lambda a, b, c, s: tuple(min(x, y) for x, y in zip(a, b)),
-    'MAXIMUM': lambda a, b, c, s: tuple(max(x, y) for x, y in zip(a, b)),
-    'FLOOR': lambda a, b, c, s: tuple(math.floor(x) for x in a),
-    'CEIL': lambda a, b, c, s: tuple(math.ceil(x) for x in a),
-    'FRACTION': lambda a, b, c, s: tuple(_fract(x) for x in a),
-    'MODULO': lambda a, b, c, s:
-        tuple(math.fmod(x, y) if y != 0.0 else 0.0 for x, y in zip(a, b)),
-    'SINE': lambda a, b, c, s: tuple(math.sin(x) for x in a),
-    'COSINE': lambda a, b, c, s: tuple(math.cos(x) for x in a),
-    'TANGENT': lambda a, b, c, s: tuple(math.tan(x) for x in a),
-}
-
-
-def _fold_vector_math(ref, out_socket):
-    node = ref.node
-    op = _VECTOR_OPS.get(node.operation)
-    if op is None:
-        raise _Unfoldable(f'node "{node.name}": Vector Math operation '
-                          f'{node.operation} is not supported')
-    return op(_vector_in(ref, 'Vector'), _vector_in(ref, 'Vector_001'),
-              _vector_in(ref, 'Vector_002'), _float_in(ref, 'Scale'))
-
-
-####################
-##  Simple nodes  ##
-####################
-
-def _fold_rgb(ref, out_socket):
+def _get_rgb(ref, out_socket):
     # The value lives on the output socket; node.color is the header color.
     node = ref.node
     return tuple(node.outputs['Color'].default_value)
 
 
-def _fold_value(ref, out_socket):
+def _get_value(ref, out_socket):
     node = ref.node
     return float(node.outputs['Value'].default_value)
 
 
-
-def _fold_map_range(ref, out_socket):
-    node = ref.node
-    if node.data_type != 'FLOAT':
-        raise _Unfoldable(f'node "{node.name}": Map Range data type '
-                          f'{node.data_type} is not supported')
-    to_min = _float_in(ref, 'To Min')
-    to_max = _float_in(ref, 'To Max')
-    from_min = _float_in(ref, 'From Min')
-    fac = _safe_divide(_float_in(ref, 'Value') - from_min,
-                       _float_in(ref, 'From Max') - from_min)
-    interpolation = node.interpolation_type
-    if interpolation == 'STEPPED':
-        steps = _float_in(ref, 'Steps')
-        fac = math.floor(fac * (steps + 1.0)) / steps if steps > 0.0 else 0.0
-    elif interpolation == 'SMOOTHSTEP':
-        fac = _clamp(fac)
-        fac = fac * fac * (3.0 - 2.0 * fac)
-    elif interpolation == 'SMOOTHERSTEP':
-        fac = _clamp(fac)
-        fac = fac ** 3 * (fac * (fac * 6.0 - 15.0) + 10.0)
-    result = _mix(to_min, to_max, fac)
-    if node.clamp and interpolation in ('LINEAR', 'STEPPED'):
-        result = _clamp(result, min(to_min, to_max), max(to_min, to_max))
-    return result
-
-
-def _fold_separate_xyz(ref, out_socket):
-    return _vector_in(ref, 'Vector')['XYZ'.index(out_socket.name)]
-
-
-def _fold_combine_xyz(ref, out_socket):
-    return (_float_in(ref, 'X'), _float_in(ref, 'Y'), _float_in(ref, 'Z'))
-
-
-def _fold_separate_color(ref, out_socket):
-    node = ref.node
-    rgb = _color_in(ref, 'Color')[:3]
-    if node.mode == 'RGB':
-        components = rgb
-    elif node.mode == 'HSV':
-        components = colorsys.rgb_to_hsv(*rgb)
-    elif node.mode == 'HSL':
-        h, l, s = colorsys.rgb_to_hls(*rgb)
-        components = (h, s, l)
-    else:
-        raise _Unfoldable(f'node "{node.name}": color mode {node.mode} is '
-                          'not supported')
-    return components[('Red', 'Green', 'Blue').index(out_socket.name)]
-
-
-def _fold_combine_color(ref, out_socket):
-    node = ref.node
-    x = _float_in(ref, 'Red')
-    y = _float_in(ref, 'Green')
-    z = _float_in(ref, 'Blue')
-    if node.mode == 'RGB':
-        rgb = (x, y, z)
-    elif node.mode == 'HSV':
-        rgb = colorsys.hsv_to_rgb(x, y, z)
-    elif node.mode == 'HSL':
-        rgb = colorsys.hls_to_rgb(x, z, y)
-    else:
-        raise _Unfoldable(f'node "{node.name}": color mode {node.mode} is '
-                          'not supported')
-    return rgb + (1.0,)
-
-
-_FOLDERS = {
-    'VECT_MATH': _fold_vector_math,
-    'RGB': _fold_rgb,
-    'VALUE': _fold_value,
-    'MAP_RANGE': _fold_map_range,
-    'SEPXYZ': _fold_separate_xyz,
-    'COMBXYZ': _fold_combine_xyz,
-    'SEPARATE_COLOR': _fold_separate_color,
-    'COMBINE_COLOR': _fold_combine_color,
+_GETTERS = {
+    'RGB': _get_rgb,
+    'VALUE': _get_value,
 }

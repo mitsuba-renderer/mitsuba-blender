@@ -32,6 +32,15 @@ def register(mi, dr):
 
 
 
+        def eval(self, si, active):
+            return mi.UnpolarizedSpectrum(self.eval_3(si, active))
+
+        def eval_1(self, si, active):
+            return mi.luminance(self.eval_3(si, active))
+
+        def eval_1_grad(self, si, active=True):
+            return mi.Vector2f(0.0)
+
         def eval_3(self, si, active):
             rgb = self.color.eval_3(si, active)
             fac = self.fac.eval_1(si, active)
@@ -42,25 +51,16 @@ def register(mi, dr):
 
             return dr.lerp(rgb, mi.Color3f(r, g, b), fac)
 
-        def eval(self, si, active):
-            return mi.UnpolarizedSpectrum(self.eval_3(si, active))
-
-        def eval_1(self, si, active):
-            return mi.luminance(self.eval_3(si, active))
-
-        def eval_1_grad(self, si, active=True):
-            return mi.Vector2f(0.0)
-
-
-        def traverse(self, callback):
-            callback.put_object('color', self.color, mi.ParamFlags.Differentiable)
-            callback.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
-            callback.put_object('curve_c', self.curve_c, mi.ParamFlags.Differentiable)
-            callback.put_object('curve_r', self.curve_r, mi.ParamFlags.Differentiable)
-            callback.put_object('curve_g', self.curve_g, mi.ParamFlags.Differentiable)
-            callback.put_object('curve_b', self.curve_b, mi.ParamFlags.Differentiable)
-
         def mean(self):
             return 0.5
+
+        def traverse(self, cb):
+            cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
+            cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
+            cb.put_object('curve_c', self.curve_c, mi.ParamFlags.Differentiable)
+            cb.put_object('curve_r', self.curve_r, mi.ParamFlags.Differentiable)
+            cb.put_object('curve_g', self.curve_g, mi.ParamFlags.Differentiable)
+            cb.put_object('curve_b', self.curve_b, mi.ParamFlags.Differentiable)
+
     
     mi.register_texture('rgb_curve', RGBCurve)

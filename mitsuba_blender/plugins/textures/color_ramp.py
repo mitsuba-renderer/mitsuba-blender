@@ -84,9 +84,6 @@ def register(mi, dr):
             self.band_col[3*last_elem+2] = self.band_col[3*(last_elem-1)+2]
 
 
-        def traverse(self, callback):
-            callback.put_object('input', self.input, mi.ParamFlags.Differentiable)
-
         def parameters_changed(self, keys):
             pass
 
@@ -113,13 +110,13 @@ def register(mi, dr):
             return col
 
         def mean(self):
-            raise NotImplementedError
+            return 0.5
+
+        def traverse(self, callback):
+            callback.put_object('input', self.input, mi.ParamFlags.Differentiable)
 
         def resolution(self):
             return self.input.resolution()
-
-        def spectral_resolution(self):
-            pass
 
         def wavelength_range(self):
             return mi.ScalarVector2f(mi.MI_CIE_MIN, mi.MI_CIE_MAX)

@@ -4,7 +4,7 @@ Refraction, Transparent and Translucent.'''
 import math
 
 from . import node_converter
-from ._eval import Constant, eval_color, eval_float, resolve, scalar_from_socket
+from ._resolve import Constant, eval_color, eval_float, resolve, scalar_from_socket
 from .textures import convert_normal_input
 
 # Mapping from MULTI_GGX is an approximation which diverges with high roughness

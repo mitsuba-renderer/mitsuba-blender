@@ -32,7 +32,7 @@ def exporter(mi_addon):
 @contextlib.contextmanager
 def fake_texture_converter(registry, node_type, params):
     """Temporarily registers a texture converter, restoring any previous one."""
-    converters = registry._eval._texture_converters
+    converters = registry._resolve._texture_converters
     previous = converters.get(node_type)
     converters[node_type] = lambda export_ctx, node, out_socket: dict(params)
     try:

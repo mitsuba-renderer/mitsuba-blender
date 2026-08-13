@@ -7,8 +7,8 @@ import drjit as dr
 if TYPE_CHECKING:
     import mitsuba as mi
     import drjit as dr
-# Math texture operations
 
+# Math texture operations
 def _clamp(v, lo=0.0, hi=1.0):
     return dr.clip(v, lo, hi)
 
@@ -59,8 +59,12 @@ _MATH_OPS = {
     'MULTIPLY_ADD':   lambda a, b, c: a * b + c,
     'POWER':          lambda a, b, c: _safe_power(a, b),
     'LOGARITHM':      lambda a, b, c: _safe_log(a, b),
-    'SQRT':           lambda a, b, c: dr.select(a >= 0.0, dr.sqrt(dr.maximum(a, 0.0)), 0.0),
-    'INVERSE_SQRT':   lambda a, b, c: dr.select(a > 0.0, 1.0 / dr.sqrt(dr.maximum(a, 1e-8)), 0.0),
+    'SQRT':           lambda a, b, c: dr.select(
+                            a >= 0.0,
+                            dr.sqrt(dr.maximum(a, 0.0)), 0.0),
+    'INVERSE_SQRT':   lambda a, b, c: dr.select(
+                            a > 0.0,
+                            1.0 / dr.sqrt(dr.maximum(a, 1e-8)), 0.0),
     'ABSOLUTE':       lambda a, b, c: dr.abs(a),
     'EXPONENT':       lambda a, b, c: dr.exp(a),
     'MINIMUM':        lambda a, b, c: dr.minimum(a, b),
@@ -126,21 +130,22 @@ def register(mi, dr):
             return result
 
 
-        def eval_1(self, si: mi.SurfaceInteraction3f, active=True) -> mi.Float:
-            return mi.Float(self._process(self.a.eval_1(si, active),
-                                          self.b.eval_1(si, active),
-                                          self.c.eval_1(si, active)))
-
         def eval(self, si: mi.SurfaceInteraction3f, active=True) -> mi.UnpolarizedSpectrum:
             return mi.UnpolarizedSpectrum(self._process(self.a.eval(si, active),
                                                          self.b.eval(si, active),
                                                          self.c.eval(si, active)))
+
+        def eval_1(self, si: mi.SurfaceInteraction3f, active=True) -> mi.Float:
+            return mi.Float(self._process(self.a.eval_1(si, active),
+                                          self.b.eval_1(si, active),
+                                          self.c.eval_1(si, active)))
 
 
         def eval_3(self, si: mi.SurfaceInteraction3f, active=True) -> mi.Color3f:
             return mi.Color3f(self._process(self.a.eval_3(si, active),
                                             self.b.eval_3(si, active),
                                             self.c.eval_3(si, active)))
+
         def mean(self):
             return 0.5
 

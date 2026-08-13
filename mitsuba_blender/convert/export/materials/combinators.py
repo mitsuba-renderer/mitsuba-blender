@@ -3,7 +3,7 @@ Emission and Holdout.'''
 
 from ... import ConversionError
 from . import convert_shader_node, node_converter
-from ._eval import Constant, NodeRef, Texture, resolve, eval_float, trace_source, scalar_from_socket
+from ._resolve import Constant, NodeRef, Texture, resolve, eval_float, trace_source, scalar_from_socket
 
 
 def _child_bsdf(export_ctx, ref):

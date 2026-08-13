@@ -31,7 +31,7 @@ def exporter(mi_addon):
 def fake_uniform_texture(registry):
     """Stand-in TEX_IMAGE converter returning a constant texture, so a
     texture's average is exactly known regardless of the sampling grid."""
-    converters = registry._eval._texture_converters
+    converters = registry._resolve._texture_converters
     previous = converters.get('TEX_IMAGE')
 
     @registry.texture_converter('TEX_IMAGE')
@@ -48,7 +48,7 @@ def fake_uniform_texture(registry):
 def fake_image_texture(registry):
     """Registers a stand-in TEX_IMAGE texture converter, restoring any
     previously registered one afterwards."""
-    converters = registry._eval._texture_converters
+    converters = registry._resolve._texture_converters
     previous = converters.get('TEX_IMAGE')
 
     @registry.texture_converter('TEX_IMAGE')

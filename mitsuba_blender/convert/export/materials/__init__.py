@@ -2,7 +2,7 @@
 
 Converter modules in this package register functions with
 @node_converter('<node.type>'). A converter receives (export_ctx, ref),
-where `ref` is a _eval.NodeRef pairing the shader node with the group
+where `ref` is a resolve.NodeRef pairing the shader node with the group
 instance path it was reached through, and returns either a Mitsuba BSDF
 dict, or a {'bsdf': dict|None, 'emitter': dict|None} pair when the node
 (also) emits light. Converters signal failure by raising ConversionError;
@@ -10,7 +10,7 @@ convert_material catches everything and substitutes an error BSDF, so a
 broken material never aborts an export.
 
 Texture-producing nodes register with @texture_converter('<node.type>')
-instead and are picked up by the socket resolver in _eval.
+instead and are picked up by the socket resolver in resolve.
 '''
 
 import copy
@@ -19,8 +19,7 @@ import pkgutil
 
 from ... import ConversionError
 from ....compat import uses_nodes
-from . import _eval
-from ._eval import (Constant, NodeRef, Texture, Unsupported, eval_color,
+from ._resolve import (Constant, NodeRef, Texture, Unsupported, eval_color,
                     eval_float, resolve, texture_converter)
 
 _node_converters = {}
@@ -35,7 +34,7 @@ def node_converter(*node_types):
     return decorator
 
 
-ERROR_COLOR = [1.0, 0.0, 0.3]
+ERROR_COLOR = [0.5, 0.5, 0.5]
 ERROR_BSDF = {
     'type': 'twosided',
     'bsdf': {
@@ -65,7 +64,7 @@ def surface_ref(b_mat):
     output = b_mat.node_tree.get_output_node('CYCLES')
     if output is None:
         return None
-    node, _, stack = _eval.trace_source(output.inputs['Surface'])
+    node, _, stack = _resolve.trace_source(output.inputs['Surface'])
     return NodeRef(node, stack) if node is not None else None
 
 
