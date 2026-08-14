@@ -391,11 +391,16 @@ def _write_curve_table(export_ctx, node, name, arr):
     The XML writer cannot serialise an in-memory bitmap, so file export
     stores the tables as images like any other texture.
     '''
+    import hashlib
+    import os
     import mitsuba as mi
     directory = os.path.join(export_ctx.directory, 'textures')
     os.makedirs(directory, exist_ok=True)
-    filename = f'{bpy.path.clean_name(node.name)}-{name}.exr'
-    mi.Bitmap(arr).write(os.path.join(directory, filename))
+    digest = hashlib.sha1(arr.tobytes()).hexdigest()[:12]
+    filename = f'curve-{digest}.exr'
+    path = os.path.join(directory, filename)
+    if not os.path.exists(path):
+        mi.Bitmap(arr).write(path)
     return f'textures/{filename}'
 
 
@@ -417,7 +422,7 @@ def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
     mapping.update()
 
 
-    for i, c in enumerate(['curve_c', 'curve_r', 'curve_g', 'curve_b']):
+    for i, c in enumerate(['curve_r', 'curve_g', 'curve_b', 'curve_c']):
         curve = mapping.curves[i]
         row = np.array([mapping.evaluate(curve, j / (N -1)) for j in range(N)], dtype=np.float32)
         arr = np.stack([row, row]).reshape(2, N, 1) # bitmaps need at least 2 x 2
