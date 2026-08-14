@@ -34,6 +34,7 @@ class ExportContext:
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
         self.deg = None # Dependency graph
+        self.strict = False
 
     def add_serialized_mesh(self, mi_mesh):
         '''Append a mesh to the scene's shared .serialized file, returning

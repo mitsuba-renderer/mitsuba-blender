@@ -16,10 +16,11 @@ instead and are picked up by the socket resolver in resolve.
 import copy
 import importlib
 import pkgutil
+from shutil import ignore_patterns
 
 from ... import ConversionError
 from ....compat import uses_nodes
-from ._resolve import (Constant, NodeRef, Texture, Unsupported, eval_color,
+from ._resolve import (FALLBACK_COLOR, ERROR_COLOR, Constant, NodeRef, Texture, Unsupported, eval_color,
                     eval_float, resolve, texture_converter)
 
 _node_converters = {}
@@ -33,8 +34,6 @@ def node_converter(*node_types):
         return func
     return decorator
 
-
-ERROR_COLOR = [1.0, 0.0, 0.3]
 ERROR_BSDF = {
     'type': 'twosided',
     'bsdf': {
@@ -42,7 +41,13 @@ ERROR_BSDF = {
         'reflectance': {'type': 'rgb', 'value': ERROR_COLOR},
     },
 }
-
+FALLBACK_BSDF = {
+    'type': 'twosided',
+    'bsdf': {
+        'type': 'diffuse',
+        'reflectance': {'type': 'rgb', 'value': FALLBACK_COLOR},
+    },
+}
 
 def convert_shader_node(export_ctx, ref):
     '''Convert one shader node into a {'bsdf', 'emitter'} pair.'''
@@ -85,9 +90,15 @@ def convert_material(export_ctx, b_mat):
                                   'input')
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
-        export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
-                       'Exporting an ERROR diffuse fallback.', 'WARN')
-        return {'bsdf': copy.deepcopy(ERROR_BSDF), 'emitter': None}
+        print("convert_material strict: ", export_ctx.strict)
+        if export_ctx.strict:
+            export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
+                           'Exporting an ERROR diffuse fallback.', 'WARN')
+            return {'bsdf': copy.deepcopy(ERROR_BSDF), 'emitter': None}
+        else:
+            export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
+                           'Exporting a diffuse fallback.', 'WARN')
+            return {'bsdf': copy.deepcopy(FALLBACK_BSDF), 'emitter': None}
 
 def add_material_to_dict(export_ctx, mat_id, bsdf, emitter):
     '''Store a converted BSDF/emitter pair in the scene dict, in the layout

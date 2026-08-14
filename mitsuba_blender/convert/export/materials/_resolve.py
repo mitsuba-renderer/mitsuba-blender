@@ -18,7 +18,8 @@ from typing import NamedTuple
 from ....io.exporter.export_context import ExportContext
 from ... import ConversionError
 
-ERROR_COLOR = [1.0, 0.0, 0.3, 1.0]
+ERROR_COLOR = [1.0, 0.0, 0.3]
+FALLBACK_COLOR = [0.5, 0.5, 0.5]
 
 class Constant:
     '''A constant: a float, or a tuple for vectors and colors.'''
@@ -242,6 +243,11 @@ def eval_float(export_ctx, socket, default=None, stack=()):
         return _to_float(result.value)
     if isinstance(result, Texture):
         return result.params
+
+    print("eval_float strict: ", export_ctx.strict)
+    if export_ctx.strict:
+        print("WE are HEREREREJLKAJFKLASJDLK")
+        raise ConversionError(result.reason)
     export_ctx.log(f'{result.reason}; using the default value', 'WARN')
     return _to_float(default if default is not None else socket_default(socket))
 
@@ -258,7 +264,12 @@ def eval_color(export_ctx, socket, default=None, stack=()):
     export_ctx.log(f'{result.reason}; using the ERROR color', 'WARN')
     if default is None:
         default = socket_default(socket)
-    return export_ctx.spectrum(ERROR_COLOR)
+
+    print("eval_color strict: ", export_ctx.strict)
+    if export_ctx.strict:
+        print("Here in eval_color we are also strict")
+    color = ERROR_COLOR if export_ctx.strict else  FALLBACK_COLOR
+    return export_ctx.spectrum(color)
 
 
 def eval_vector(export_ctx, socket, default=None, stack=()):

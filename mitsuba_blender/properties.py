@@ -346,6 +346,10 @@ RFILTER_ITEMS = [
     ('lanczos', 'Lanczos', 'Windowed lanczos sinc filter'),
 ]
 
+MODE_EXP_ITEMS = [
+    ('strict', 'Strict', 'Replace the whole material with the error BSDF when any node is unsupported'),
+    ('relaxed', 'Relaxed', 'Use the socket default for unsupported nodes and log a warning'),
+]
 
 class MitsubaRenderSettings(PropertyGroup):
     variant: EnumProperty(
@@ -359,6 +363,12 @@ class MitsubaRenderSettings(PropertyGroup):
         default='path')
 
     available_integrators: PointerProperty(type=MitsubaAvailableIntegrators)
+
+    export_mode: EnumProperty(
+        name='Exporting mode',
+        items=MODE_EXP_ITEMS, 
+        default='strict'
+    )
 
     blender_triangulation: BoolProperty(
         name='Triangulate non-triangular faces in Blender',

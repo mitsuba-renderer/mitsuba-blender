@@ -124,6 +124,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         self.converter.export_ctx.directory = export_dir
         self.converter.export_ctx.exported_images = cache
         self.converter.export_ctx.blender_triangulation = b_scene.mitsuba.blender_triangulation
+        self.converter.export_ctx.strict = b_scene.mitsuba.export_mode == 'strict'
         self.converter.scene_to_dict(depsgraph)
         mts_scene = self.converter.dict_to_scene()
 
