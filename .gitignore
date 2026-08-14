@@ -7,3 +7,4 @@ tests/**/out
 blender/
 blender-*.tar.xz
 .coverage.*
+*.serialized
