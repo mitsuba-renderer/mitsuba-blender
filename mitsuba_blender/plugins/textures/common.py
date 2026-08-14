@@ -39,7 +39,7 @@ def get_texture(props: mi.Properties,
     Helper function to check when a node is active in `props`
     Authors: Sebastien Speierer, Baptiste Nicolet
     '''
-    if not props.has_property(name):
+    if name not in props:
         if value is None:
             raise Exception(f'Property {name} has not been specified!')
         if isinstance(value, (float, int)):
