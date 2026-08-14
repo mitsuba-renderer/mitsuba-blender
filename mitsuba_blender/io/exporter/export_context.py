@@ -25,7 +25,6 @@ class ExportContext:
         self.exported_mats = {}
         self.export_ids = False # Export Object IDs in the XML file
         self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
-        self.bsdf_objects = {} # Instantiated BSDFs, by material id (render mode)
         # Let Blender split the polygons of a mesh instead of Mitsuba
         self.blender_triangulation = False
         # Shared .serialized output and the file offset of each sub-mesh
@@ -88,10 +87,9 @@ class ExportContext:
 
     def data_add(self, mts_dict, name=''):
         '''
-        Function to add new elements to the scene dict. The element is either
-        a plugin dict or an already instantiated Mitsuba object (render mode).
-        If a name is provided it will be used as the key of the element.
-        Otherwise the Id of the element is used if it exists
+        Function to add new elements to the scene dict. The element is a 
+        plugin dict. If a name is provided it will be used as the key of
+        the element. Otherwise the Id of the element is used if it exists
         or a new key is generated incrementally.
         '''
         if mts_dict is None or (isinstance(mts_dict, dict)

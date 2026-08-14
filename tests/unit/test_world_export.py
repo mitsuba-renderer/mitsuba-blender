@@ -225,7 +225,7 @@ def test_export_world_adds_entry(fresh_scene, export_ctx, world):
 def test_envmap_render_mode_keeps_hdr(fresh_scene, export_ctx, world,
                                       tmp_path):
     import mitsuba as mi
-    # Render mode hands the pixels to Mitsuba in memory; values above 1
+    # Render mode hands the pixels to Mitsuba in memory; values above 1 TODO: check if this is still true
     # must survive and no files may be written
     b_world = make_env_world(tmp_path)
     image = bpy.data.images['env']
