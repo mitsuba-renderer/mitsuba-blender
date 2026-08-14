@@ -345,8 +345,18 @@ def _get_value(ref, out_socket):
     node = ref.node
     return float(node.outputs['Value'].default_value)
 
+def _get_object_info(ref, out_socket):
+    # TODO: every output here depends on which object (and which instance
+    # of it) is being shaded. A Mitsuba texture is evaluated from a
+    # SurfaceInteraction, which carries no per-instance identity, so none
+    # of these can be reproduced yet. Returning zero until instance data
+    # is available: https://github.com/mitsuba-renderer/mitsuba3/pull/1885
+    if out_socket.type == 'VALUE':
+        return 0.0
+    return (0.0, 0.0, 0.0)
 
 _GETTERS = {
     'RGB': _get_rgb,
     'VALUE': _get_value,
+    'OBJECT_INFO' : _get_object_info
 }
