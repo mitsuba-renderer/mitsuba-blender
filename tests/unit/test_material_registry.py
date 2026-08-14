@@ -71,7 +71,7 @@ def test_diffuse_export(fresh_scene, exporter, tmp_path):
     assert mi.load_dict(entry) is not None
 
 
-def test_diffuse_export_folds_input_graph(fresh_scene, exporter, tmp_path):
+def test_diffuse_export_input_graph(fresh_scene, exporter, tmp_path):
     import mitsuba as mi, drjit as dr
     b_mat = make_diffuse_material()
     tree = b_mat.node_tree

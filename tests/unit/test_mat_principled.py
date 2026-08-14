@@ -236,7 +236,7 @@ def test_textured_coat_roughness_is_averaged(fresh_scene, exporter, tmp_path, fa
     _, entry = exported_entry(exporter, tmp_path)
     assert entry['bsdf']['clearcoat_gloss'] == pytest.approx(0.75)
 
-def test_export_folds_input_graph(fresh_scene, exporter, tmp_path):
+def test_export_input_graph(fresh_scene, exporter, tmp_path):
     import mitsuba as mi, drjit as dr
     node = principled_node()
     tree = node.id_data

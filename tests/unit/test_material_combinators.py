@@ -127,7 +127,7 @@ def test_emission_zero_strength_exports_black_diffuse(fresh_scene, exporter,
     assert 'mat-Dark' not in ctx.exported_mats
 
 
-def test_emission_folds_strength_graph(fresh_scene, exporter, tmp_path):
+def test_emission_strength_graph(fresh_scene, exporter, tmp_path):
     b_mat = make_material('MathGlow')
     emission = add_emission(b_mat, color=(1.0, 1.0, 1.0, 1.0))
     math_node = b_mat.node_tree.nodes.new('ShaderNodeMath')

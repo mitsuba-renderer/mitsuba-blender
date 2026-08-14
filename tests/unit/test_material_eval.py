@@ -1,4 +1,4 @@
-"""Unit tests for material socket resolution and constant folding."""
+"""Unit tests for material socket resolution."""
 
 import importlib
 import math
@@ -488,7 +488,7 @@ def test_eval_float_returns_default_on_unsupported(export_ctx, ev, tree, probe, 
                          default=0.125) == 0.125
 
 
-def test_eval_color_folds_spectrum(export_ctx, ev, tree, probe, mi_addon):
+def test_eval_color_spectrum(export_ctx, ev, tree, probe, mi_addon):
     ctx_module = importlib.import_module(
         f'{mi_addon}.io.exporter.export_context')
     export_ctx = ctx_module.ExportContext()

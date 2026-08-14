@@ -121,7 +121,7 @@ def test_zero_radiance_skipped(fresh_scene, export_ctx, world):
     assert world.convert_world(export_ctx, b_world) is None
 
 
-def test_rgb_node_color_folds(fresh_scene, export_ctx, world):
+def test_rgb_node_color(fresh_scene, export_ctx, world):
     # The RGB node value lives on its output socket, not node.color
     # (PR #153)
     b_world = make_world(strength=0.5)
