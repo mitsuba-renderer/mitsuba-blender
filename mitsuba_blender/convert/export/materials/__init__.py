@@ -34,7 +34,7 @@ def node_converter(*node_types):
     return decorator
 
 
-ERROR_COLOR = [0.5, 0.5, 0.5]
+ERROR_COLOR = [1.0, 0.0, 0.3]
 ERROR_BSDF = {
     'type': 'twosided',
     'bsdf': {
