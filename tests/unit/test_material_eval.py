@@ -484,8 +484,11 @@ def test_eval_float_returns_default_on_unsupported(export_ctx, ev, tree, probe, 
     export_ctx = ctx_module.ExportContext()
     noise = tree.nodes.new('ShaderNodeTexNoise')
     tree.links.new(noise.outputs['Fac'], probe.inputs['Strength'])
-    assert ev.eval_float(export_ctx, probe.inputs['Strength'],
-                         default=0.125) == 0.125
+    if export_ctx.strict:
+        with pytest.raises(ev.ConversionError):
+            ev.eval_float(export_ctx, probe.inputs['Strength'], default=0.125)
+    else:
+        assert ev.eval_float(export_ctx, probe.inputs['Strength'], default=0.125) == 0.125
 
 
 def test_eval_color_spectrum(export_ctx, ev, tree, probe, mi_addon):

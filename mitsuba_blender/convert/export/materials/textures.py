@@ -330,16 +330,8 @@ def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
         'type': 'color_ramp',
         'mode': ramp.interpolation.lower(),
         'num_bands': len(ramp.elements),
+        'input': eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
     }
-
-    fac = resolve(export_ctx, node.inputs['Fac'], stack=ref.stack)
-    if isinstance(fac, Constant):
-        params['input'] = float(fac.value)
-    elif isinstance(fac, Texture):
-        params['input'] = fac.params
-    else:
-        export_ctx.log(f'The Fac input of "{node.name}" is not supported; using the socket value.', 'WARN')
-        params['input'] = node.inputs['Fac'].default_value
 
     for i, element in enumerate(ramp.elements):
         params[f'pos{i}'] = element.position
@@ -359,14 +351,7 @@ def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
     }
 
     for i,  socket in enumerate(node.inputs):
-        result = resolve(export_ctx, socket, stack=ref.stack)
-        if isinstance(result, Constant):
-            params[f'child_{i}'] = float(result.value)
-        elif isinstance(result, Texture):
-            params[f'child_{i}'] = result.params
-        else:
-            export_ctx.log(f'Input {i} of math node {node.name} is not supported, using the socket default', 'WARN')
-            params[f'child_{i}'] = socket.default_value
+        params[f'child_{i}'] = eval_float(export_ctx, socket, stack=ref.stack)
     return params
 
 
