@@ -75,6 +75,7 @@ def get_compatible_panels():
         'RENDER_PT_simplify',
         'RENDER_PT_color_management',
         'RENDER_PT_freestyle',
+        'RENDER_PT_gpencil',
     }
     return [panel for panel in bpy.types.Panel.__subclasses__()
             if 'BLENDER_RENDER' in getattr(panel, 'COMPAT_ENGINES', ())
