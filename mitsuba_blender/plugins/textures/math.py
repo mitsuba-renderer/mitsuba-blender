@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .common import get_texture
 import drjit as dr
 
 if TYPE_CHECKING:

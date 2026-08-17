@@ -38,7 +38,7 @@ def register(mi, dr):
             self.blend_type = props.get('blend_type', 'MIX')
             self.clamp_result = props.get('clamp_result', False)
             self.clamp_factor = props.get('clamp_factor', False)
-            self.factor = get_texture('factor', 0.5)
+            self.factor = get_texture(props, 'factor', 0.5)
             self.a = get_texture(props, 'a', 1.0)
             self.b = get_texture(props, 'b', 1.0)
 
