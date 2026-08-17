@@ -14,6 +14,7 @@ _DISTRIBUTIONS = {
     'ASHIKHMIN_SHIRLEY': 'beckmann',
     'MULTI_GGX': 'ggx',
 }
+_HANDLED_DISTRIBUTION = ('BECKMANN', 'GGX')
 
 
 def _eval_roughness(export_ctx, socket, stack):
@@ -54,6 +55,11 @@ def convert_glossy(export_ctx, ref):
     if isinstance(alpha, float) and alpha == 0.0:
         params = {'type': 'conductor'}
     else:
+        if node.distribution not in _HANDLED_DISTRIBUTION:
+            export_ctx.log(
+                f'Approximating distribution "{node.distribution}" with "{_DISTRIBUTIONS[node.distribution]}".',
+                'WARN')
+
         params = {
             'type': 'roughconductor',
             'distribution': _DISTRIBUTIONS[node.distribution],
@@ -87,6 +93,11 @@ def _convert_dielectric(export_ctx, ref):
     if isinstance(alpha, float) and alpha == 0.0:
         params = {'type': 'thindielectric' if ior == 1.0 else 'dielectric'}
     else:
+        if node.distribution not in _HANDLED_DISTRIBUTION:
+            export_ctx.log(
+                f'Approximating distribution "{node.distribution}" with "{_DISTRIBUTIONS[node.distribution]}".',
+                'WARN')
+
         params = {
             'type': 'roughdielectric',
             'alpha': alpha,
