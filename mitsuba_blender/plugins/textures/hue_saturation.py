@@ -51,11 +51,12 @@ def register(mi, dr):
             color      = self.input.eval_3(si, active)
 
             hsv = rgb2hsv(color)
-            hsv.x += 360.0 * (hue - 0.5)
-            hsv.y *= saturation
-            hsv.z *= value
+            hsv.x = hsv.x + hue + 0.5
+            hsv.x = hsv.x - dr.floor(hsv.x)
+            hsv.y = dr.clip(hsv.y * saturation, 0.0, 1.0)
+            hsv.z = hsv.z * value
 
-            return dr.lerp(color,  hsv2rgb(hsv) , mix)
+            return dr.maximum(dr.lerp(color, hsv2rgb(hsv), mix), 0.0)
 
         def mean(self):
             return 0.5
