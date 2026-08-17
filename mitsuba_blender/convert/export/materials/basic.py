@@ -18,10 +18,20 @@ _HANDLED_DISTRIBUTION = ('BECKMANN', 'GGX')
 
 
 def _eval_roughness(export_ctx, socket, stack):
-    '''Blender roughness -> Mitsuba alpha: constants are squared, texture
-    dicts pass through unchanged.'''
+    '''Blender roughness -> Mitsuba alpha. Cycles has used the square root
+    of the internal roughness as the UI value since 2.8, so the socket
+    value is squared; roughconductor and friends take alpha directly.
+    '''
     value = eval_float(export_ctx, socket, stack=stack)
-    return value * value if isinstance(value, float) else value
+    if isinstance(value, dict):
+        return {
+                'type': 'math',
+                'op' : 'POWER',
+                'use_clamp' : False,
+                'a': value,
+                'b': 2.0
+                }
+    return value * value
 
 
 @node_converter('BSDF_DIFFUSE')
