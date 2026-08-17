@@ -325,7 +325,7 @@ def convert_vertex_color(export_ctx, ref, out_socket):
 def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
     node = ref.node
     ramp = node.color_ramp
-    
+
     params = {
         'type': 'color_ramp',
         'mode': ramp.interpolation.lower(),

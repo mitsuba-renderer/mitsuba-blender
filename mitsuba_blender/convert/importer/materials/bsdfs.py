@@ -2,7 +2,7 @@
 
 import math
 
-from . import material_converter
+from . import material_converter, _rgba
 
 
 @material_converter('diffuse')
@@ -16,11 +16,6 @@ def convert_diffuse(builder, mi_props):
 #################
 ##  Utilities  ##
 #################
-
-def _rgba(color):
-    color = list(color)
-    return color + [1.0] * (4 - len(color))
-
 
 _IOR_VALUES = {
     'acetone': 1.36,
@@ -47,7 +42,6 @@ _IOR_VALUES = {
     'water': 1.3330,
     'water ice': 1.31,
 }
-
 
 def _ior(builder, mi_props, name, default):
     '''Read an IOR property, which is either a float or a material name.'''

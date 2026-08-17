@@ -90,7 +90,6 @@ def convert_material(export_ctx, b_mat):
                                   'input')
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
-        print("convert_material strict: ", export_ctx.strict)
         if export_ctx.strict:
             export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
                            'Exporting an ERROR diffuse fallback.', 'WARN')
