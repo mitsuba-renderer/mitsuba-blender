@@ -244,9 +244,7 @@ def eval_float(export_ctx, socket, default=None, stack=()):
     if isinstance(result, Texture):
         return result.params
 
-    print("eval_float strict: ", export_ctx.strict)
     if export_ctx.strict:
-        print("WE are HEREREREJLKAJFKLASJDLK")
         raise ConversionError(result.reason)
     export_ctx.log(f'{result.reason}; using the default value', 'WARN')
     return _to_float(default if default is not None else socket_default(socket))
@@ -261,15 +259,13 @@ def eval_color(export_ctx, socket, default=None, stack=()):
         return export_ctx.spectrum(list(_to_color(result.value)))
     if isinstance(result, Texture):
         return result.params
-    export_ctx.log(f'{result.reason}; using the ERROR color', 'WARN')
-    if default is None:
-        default = socket_default(socket)
 
-    print("eval_color strict: ", export_ctx.strict)
     if export_ctx.strict:
-        print("Here in eval_color we are also strict")
-    color = ERROR_COLOR if export_ctx.strict else  FALLBACK_COLOR
-    return export_ctx.spectrum(color)
+        raise ConversionError(result.reason)
+
+    export_ctx.log(f'{result.reason}; using the default color', 'WARN')
+
+    return _to_color(default if default is not None else socket_default(socket)) 
 
 
 def eval_vector(export_ctx, socket, default=None, stack=()):
@@ -283,6 +279,10 @@ def eval_vector(export_ctx, socket, default=None, stack=()):
         return _to_vector(result.value)
     if isinstance(result, Texture):
         return result.params
+
+    if export_ctx.strict:
+        raise ConversionError(result.reason)
+
     export_ctx.log(f'{result.reason}; using the default value', 'WARN')
     return _to_vector(default if default is not None else socket_default(socket))
 
