@@ -10,10 +10,27 @@ if TYPE_CHECKING:
     import drjit as dr
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
     class MapRange(mi.Texture):
+        ''' Blender's Map Range node.
+
+        Follows node_shader_map_range.cc: the input is not clamped to the
+        from-range, the smoothstep variants clamp the factor to [0, 1]
+        regardless of the clamp setting, and clamp applies to the result only.
+        Float and vector modes differ only in which eval wiedth the caller uses.
+        '''
         def __init__(self, props: mi.Properties):
             super().__init__(props)
-            self.clamp = props.get('clamp', True) 
+            self.clamp = props.get('clamp', True)
             self.vector = props.get('vector', True)
 
 

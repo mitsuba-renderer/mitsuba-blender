@@ -340,6 +340,8 @@ def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
     return params
 
 
+_MATH_INPUT_NAMES = ('a', 'b', 'c')
+
 @texture_converter("MATH")
 def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
     node = ref.node
@@ -351,7 +353,7 @@ def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
     }
 
     for i,  socket in enumerate(node.inputs):
-        params[f'child_{i}'] = eval_float(export_ctx, socket, stack=ref.stack)
+        params[_MATH_INPUT_NAMES[i]] = eval_float(export_ctx, socket, stack=ref.stack)
     return params
 
 
@@ -508,7 +510,7 @@ def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
 
 def _math(op, a, b):
     return {'type': 'math', 'op': op, 'use_clamp': False,
-            'child_0': a, 'child_1': b}
+            'a': a, 'b': b}
 
 
 

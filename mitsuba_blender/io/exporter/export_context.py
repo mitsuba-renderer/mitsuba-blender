@@ -24,7 +24,6 @@ class ExportContext:
         # using them need two references
         self.exported_mats = {}
         self.export_ids = False # Export Object IDs in the XML file
-        self.render = False # Render mode keeps instantiated Mitsuba objects in the dict
         # Let Blender split the polygons of a mesh instead of Mitsuba
         self.blender_triangulation = False
         # Shared .serialized output and the file offset of each sub-mesh

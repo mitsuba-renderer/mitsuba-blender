@@ -1,6 +1,7 @@
-
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 from enum import Enum
 from .common import get_texture
 
@@ -10,8 +11,24 @@ if TYPE_CHECKING:
 
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
 
     class RGBCurve(mi.Texture):
+        ''' Blender's RGB Curve node.
+
+        The combined curve is applied first, then per channel curve.
+        Each curve arrives as a 2xN bitmap sampled with wrap_map clamp,
+        since Properties cannot hold a float array.
+        '''
         def _sample(self, table, x, active):
             lut_si = dr.zeros(mi.SurfaceInteraction3f)
             lut_si.uv = mi.Point2f(x, 0.5)
@@ -22,13 +39,12 @@ def register(mi, dr):
 
 
             self.fac = get_texture(props, 'fac', 1.0)
-            self.color = props.get_texture('color')
-            self.size = get_texture(props, 'size', 1)
+            self.color = get_texture(props, 'color')
 
-            self.curve_c = props.get_texture('curve_c')
-            self.curve_r = props.get_texture('curve_r')
-            self.curve_g = props.get_texture('curve_g')
-            self.curve_b = props.get_texture('curve_b')
+            self.curve_c = get_texture(props, 'curve_c')
+            self.curve_r = get_texture(props, 'curve_r')
+            self.curve_g = get_texture(props, 'curve_g')
+            self.curve_b = get_texture(props, 'curve_b')
 
 
 

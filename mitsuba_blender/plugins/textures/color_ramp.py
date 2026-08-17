@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from enum import Enum
 from .common import get_texture
@@ -9,12 +10,21 @@ if TYPE_CHECKING:
 
 
 def register(mi, dr):
-    class ColorRamp(mi.Texture):
-        '''
-        ColorRamp texture plugin
+    '''
+    Define and register the plugin for the active variant
 
-        This has been taken from Sebastien Speierer and Baptiste Nicolet PR#121. It has been adapted
-        by being created inside register() rather than at import time
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
+    class ColorRamp(mi.Texture):
+        ''' ColorRamp texture plugin
+
+        This has been taken from Sebastien Speierer and Baptiste Nicolet PR#121
+        and adapted to match what is needed.
         '''
 
         class InterpolationMode(Enum):

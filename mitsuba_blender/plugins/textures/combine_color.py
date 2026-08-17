@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -11,8 +10,22 @@ if TYPE_CHECKING:
 
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
 
     class CombineColor(mi.Texture):
+        '''Texture combining inputs into a color
+
+        Converts three value, red, green, blue into a color, either
+        in RGB, HSV or HSL.
+        '''
         def __init__(self, props: mi.Properties):
             super().__init__(props)
 

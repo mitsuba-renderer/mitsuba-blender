@@ -11,7 +11,23 @@ if TYPE_CHECKING:
 
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
     class BrightnessContrast(mi.Texture):
+        ''' Bright/Contrast texture
+
+        Follows node_shader_brightness.cc: gain is 1 + constant, offset is
+        brightness - contrast/2 - constrast*0.5... , and the result is clamped
+        to zero from below
+        '''
+
         def __init__(self, props : mi.Properties) -> None:
             super().__init__(props)
             self.input = get_texture(props, 'color', 1.0)

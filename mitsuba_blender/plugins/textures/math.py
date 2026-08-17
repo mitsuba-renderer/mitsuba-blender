@@ -1,5 +1,5 @@
-
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 import drjit as dr
@@ -109,15 +109,31 @@ _MATH_OPS = {
 
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
 
     class Math(mi.Texture):
+        '''
+        This plugin provides a simple math texture with a total of
+        41 operations. Operations are done safely in order to prevent
+        NaNs (e.g. division by 0 are replaced by 0.0)
+
+        '''
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
-            self.a : mi.Texture = props.get_texture('child_0', 0.0)
-            self.b : mi.Texture = props.get_texture('child_1', 0.0)
-            self.c : mi.Texture = props.get_texture('child_2', 0.0)
-            self.use_clamp = props.get('use_clamp', False) 
+            self.a : mi.Texture = get_texture(props, 'a', 0.0)
+            self.b : mi.Texture = get_texture(props, 'b', 0.0)
+            self.c : mi.Texture = get_texture(props, 'c', 0.0)
+            self.use_clamp = props.get('use_clamp', False)
 
             self.op_fn = _MATH_OPS[props.get('op')]
 
@@ -150,8 +166,8 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, cb: mi.TraversalCallback) -> None:
-            cb.put('child_0', self.a, +mi.ParamFlags.Differentiable)
-            cb.put('child_1', self.b, +mi.ParamFlags.Differentiable)
-            cb.put('child_2', self.c, +mi.ParamFlags.Differentiable)
+            cb.put('a', self.a, +mi.ParamFlags.Differentiable)
+            cb.put('b', self.b, +mi.ParamFlags.Differentiable)
+            cb.put('c', self.c, +mi.ParamFlags.Differentiable)
 
     mi.register_texture('math', Math)

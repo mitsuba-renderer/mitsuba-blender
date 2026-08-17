@@ -1,14 +1,32 @@
-from __future__ import annotations # Delayed parsing of type annotations
+from __future__ import annotations
 
-import drjit as dr
-import mitsuba as mi
-
+from typing import TYPE_CHECKING
+from enum import Enum
 from .common import get_texture, hsv2rgb, rgb2hsv
 
+if TYPE_CHECKING:
+    import mitsuba as mi
+    import drjit as dr
+
+
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
     class HueSaturationValue(mi.Texture):
-        '''
-        Hue-Saturation-Value texture.
+        ''' Hue-Saturation-Value texture.
+
+        Convert to HSV, offsets hue, scales saturation and value, converter
+        back, then lerps towards the resuly by Fac. The conversions follow
+        hsv_to_rgb and rgb_to_hsv in Blender's math_color.cc, which are branchless
+        and take hue in [0, 1] rather than degrees.
         '''
         def __init__(self, props):
             mi.Texture.__init__(self, props)

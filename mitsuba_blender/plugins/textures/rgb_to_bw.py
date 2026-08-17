@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from .common import get_texture
 
+from typing import TYPE_CHECKING
+
+from .common import get_texture
 import drjit as dr
 
 if TYPE_CHECKING:
@@ -15,7 +16,22 @@ _REC709 = (0.2126, 0.7152, 0.0722)
 
 
 def register(mi, dr):
+    '''
+    Define and register the plugin for the active variant
+
+    mi.Texture is a different class per variant, so a class defined at
+    module scope would bind to whichever variant was active on first
+    import and never rebind. Defining it inside this factory means
+    register_plugins() can be called again after every set_variant.
+    The class body should not be moved out of this function.
+    '''
+
     class RGBToBW(mi.Texture):
+        ''' Color to gray scale converter
+            
+        Texture which convert an RGB color input into a black and white
+        (grayscale) value, using a weighted formula (_REC709).
+        '''
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
