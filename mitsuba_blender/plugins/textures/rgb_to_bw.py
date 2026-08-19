@@ -28,7 +28,7 @@ def register(mi, dr):
 
     class RGBToBW(mi.Texture):
         ''' Color to gray scale converter
-            
+
         Texture which convert an RGB color input into a black and white
         (grayscale) value, using a weighted formula (_REC709).
         '''
@@ -56,6 +56,9 @@ def register(mi, dr):
 
         def traverse(self, cb):
             cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'RGBToBW[color = {self.color}]')
 
 
     mi.register_texture('rgb_to_bw', RGBToBW)

@@ -21,7 +21,7 @@ def register(mi, dr):
     '''
 
     class CombineXYZ(mi.Texture):
-        ''' Texture converter three values into a vector'''
+        ''' Texture combining three values into a vector'''
         def __init__(self, props: mi.Properties):
             super().__init__(props)
             self.x = get_texture(props, 'x', 0.0)
@@ -49,5 +49,8 @@ def register(mi, dr):
             cb.put('x', self.x, mi.ParamFlags.Differentiable)
             cb.put('y', self.y, mi.ParamFlags.Differentiable)
             cb.put('z', self.z, mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'CombineXYZ[x = {self.x},\n y = {self.y},\n z = {self.z}]')
 
     mi.register_texture('combine_xyz', CombineXYZ)

@@ -23,13 +23,11 @@ def register(mi, dr):
     '''
 
     class Mix(mi.Texture):
-        '''Blender's Mix node
+        ''' Blend two textures by a factor
 
-        ShaderNodeMix declares sockets for every data type at once and
-        hides the irrelevant ones, so the conveter matches on socket
-        identifier rather than display name. Blend mode apply only to
-        RGBA: a FLOAT mix is a plein lerp, and the conveter emits 'MIX'
-        for it.
+        It mirros Blender's Mix node. Blend modes other than a plain
+        interpolation appy only to colour inputs; a float mix is always
+        a lerp, so the converter emits 'MIX' for those.
         '''
 
         def __init__(self, props : mi.Properties) -> None:
@@ -104,6 +102,10 @@ def register(mi, dr):
         def traverse(self, cb):
             cb.put('a', self.a, mi.ParamFlags.Differentiable)
             cb.put('b', self.b, mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'Mix[blend_type={self.blend_type}, \n'
+                    f' factor = {self.factor}, \n, a = {self.a},\n b = {self.b}\n]')
 
         def resolution(self):
             return self.a.resolution

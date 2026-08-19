@@ -59,4 +59,8 @@ def register(mi, dr):
             cb.put_object('brightness', self.brightness, mi.ParamFlags.Differentiable)
             cb.put_object('contrast', self.contrast, mi.ParamFlags.Differentiable)
 
+        def to_string(self):
+            return (f'BrightnessContrast[\n color = {self.input},\n brightness = {self.brightness},\n'
+                    f'contrast = {self.contrast}\n]')
+
     mi.register_texture('brightness_contrast', BrightnessContrast)

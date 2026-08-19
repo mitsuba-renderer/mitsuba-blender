@@ -10,8 +10,7 @@ if TYPE_CHECKING:
 
 
 def register(mi, dr):
-    '''
-    Define and register the plugin for the active variant
+    ''' Define and register the plugin for the active variant
 
     mi.Texture is a different class per variant, so a class defined at
     module scope would bind to whichever variant was active on first
@@ -67,6 +66,10 @@ def register(mi, dr):
             callback.put_object('value',      self.value,      +mi.ParamFlags.Differentiable)
             callback.put_object('mix',        self.mix,        +mi.ParamFlags.Differentiable)
             callback.put_object('input',      self.input,      +mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'HueSaturationValue[\n input = {self.input},\n mix = {self.mix},\n'
+                    f'value = {self.value},\n saturation {self.saturation},\n hue = {self.hue}\n]')
 
 
     mi.register_texture('hue_saturation_value', HueSaturationValue)

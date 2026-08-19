@@ -21,7 +21,7 @@ def register(mi, dr):
     '''
 
     class CombineColor(mi.Texture):
-        '''Texture combining inputs into a color
+        ''' Texture combining inputs into a color
 
         Converts three value, red, green, blue into a color, either
         in RGB, HSV or HSL.
@@ -60,6 +60,12 @@ def register(mi, dr):
             cb.put('red', self.red, mi.ParamFlags.Differentiable)
             cb.put('green', self.green, mi.ParamFlags.Differentiable)
             cb.put('blue', self.blue, mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'CombineColor[mode = {self.mode},\n'
+                    f'red = {self.red},\n'
+                    f'green = {self.green},\n'
+                    f'blue = {self.blue}\n]')
 
 
     mi.register_texture('combine_color', CombineColor)

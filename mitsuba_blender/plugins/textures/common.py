@@ -3,9 +3,10 @@ import drjit as dr
 
 
 class ConstantVector(mi.Texture):
-    """A fixed three-component value. Unlike Mitsuba's rgb texture this
+    ''' A fixed three-component value. Unlike Mitsuba's rgb texture this
     carries no reflectance semantics, so components outside [0, 1] are
-    allowed — vector sockets in Blender routinely produce them."""
+    allowed.'''
+
     def __init__(self, value):
         super().__init__(mi.Properties())
         if isinstance(value, (int, float)):

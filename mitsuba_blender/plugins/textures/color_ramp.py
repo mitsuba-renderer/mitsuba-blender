@@ -136,6 +136,7 @@ def register(mi, dr):
 
         def to_string(self):
             return f'ColorRamp[input={self.input}, mode={self.mode_str}]'
+
     print('Reigstered')
     mi.register_texture('color_ramp', ColorRamp)
 

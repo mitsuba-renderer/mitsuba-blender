@@ -134,13 +134,13 @@ def register(mi, dr):
             self.a : mi.Texture = get_texture(props, 'a', 0.0)
             self.b : mi.Texture = get_texture(props, 'b', 0.0)
             self.c : mi.Texture = get_texture(props, 'c', 0.0)
-            self.use_clamp = props.get('use_clamp', False)
+            self.use_clamp : bool = props.get('use_clamp', False)
 
-            self.op_fn = _MATH_OPS[props.get('op')]
+            self.op : str = props.get('op')
 
         def _process(self, a, b, c):
             import drjit as dr
-            result = self.op_fn(a, b, c)
+            result = _MATH_OPS[self.op](a, b, c)
             if self.use_clamp:
                 return dr.clip(result, 0.0, 1.0)
 
@@ -170,5 +170,9 @@ def register(mi, dr):
             cb.put('a', self.a, +mi.ParamFlags.Differentiable)
             cb.put('b', self.b, +mi.ParamFlags.Differentiable)
             cb.put('c', self.c, +mi.ParamFlags.Differentiable)
+
+        def to_string(self):
+            return (f'Math[op={self.op}, use_clamp=[{self.use_clamp},\n'
+                    f'a = {self.a}\n b = {self.b}\n c = {self.c}]\n')
 
     mi.register_texture('math', Math)

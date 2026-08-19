@@ -59,6 +59,8 @@ def register(mi, dr):
         def traverse(self, cb):
             cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
 
+        def to_string(self):
+            return f'SeparateColor[index={self.index}, mode={self.mode}]'
 
     mi.register_texture('separate_color', SeparateColor)
 

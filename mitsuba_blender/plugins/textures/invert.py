@@ -22,9 +22,8 @@ def register(mi, dr):
     '''
 
     class InvertColor(mi.Texture):
-        '''
-        Invert color texture
-        '''
+        ''' Invert color texture '''
+
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
@@ -40,7 +39,7 @@ def register(mi, dr):
 
         def eval(self, si, active=True):
             return self.eval_3(si, active)
-        
+
         def eval_1(self, si, active=True):
             return self._process(self.input.eval_1(si, active), si, active)
 
@@ -53,5 +52,8 @@ def register(mi, dr):
         def traverse(self, cb):
             cb.put_object('color', self.input, mi.ParamFlags.Differentiable)
             cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
-    
+
+        def to_string(self):
+            return (f'Invert[\n input = {self.input},\n fac = {self.fac}\n]')
+
     mi.register_texture('invert', InvertColor)

@@ -121,6 +121,13 @@ def register(mi, dr):
             cb.put('vec_2', self.vec_2, mi.ParamFlags.Differentiable)
             cb.put('scale', self.scale, mi.ParamFlags.Differentiable)
 
+        def to_string(self):
+            return (f'VectMath[ op = {self.op_fn},\n'
+                    f'vec_0 = {self.vec_0},\n'
+                    f'vec_1 = {self.vec_1},\n'
+                    f'vec_2 = {self.vec_2},\n'
+                    f'scale = {self.scale}\n]')
+
 
 
 

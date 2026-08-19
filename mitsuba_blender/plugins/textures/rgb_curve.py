@@ -78,5 +78,14 @@ def register(mi, dr):
             cb.put_object('curve_g', self.curve_g, mi.ParamFlags.Differentiable)
             cb.put_object('curve_b', self.curve_b, mi.ParamFlags.Differentiable)
 
-    
+        def to_string(self):
+            return (f'RGBCurve[\n color = {self.color}, \n fac = {self.fac}\n]')
+
+
     mi.register_texture('rgb_curve', RGBCurve)
+
+
+
+
+
+

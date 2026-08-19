@@ -53,4 +53,7 @@ def register(mi, dr):
             cb.put('vector', self.vector, mi.ParamFlags.Differentiable)
             cb.put('index', self.index, mi.ParamFlags.Differentiable)
 
+        def to_string(self):
+            return (f'SeparateXYZ[vector = {self.vector},\n index = {self.index}\n]')
+
     mi.register_texture('separate_xyz', SeparateXYZ)
