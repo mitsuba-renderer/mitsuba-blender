@@ -22,7 +22,7 @@ def _emission_radiance(export_ctx, ref):
     texture dict (the color scaled by the strength).'''
     node = ref.node
     strength = scalar_from_socket(export_ctx, node.inputs['Strength'], stack=ref.stack)
-    
+
     color = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if isinstance(color, Texture):
         if strength != 1.0:
@@ -134,17 +134,13 @@ def convert_mix(export_ctx, ref):
 
 def _mix_emitters(export_ctx, ref, a, b):
     node = ref.node
-    fac = resolve(export_ctx, node.inputs['Fac'], stack=ref.stack)
-    if not isinstance(fac, Constant):
-        raise ConversionError(f'Mix Shader node "{node.name}": only a '
-                              'constant factor is supported when mixing '
-                              'emitters')
+    weight = scalar_from_socket(export_ctx, node.inputs['Fac'], stack=ref.stack)
+
     radiance_a = _emission_radiance(export_ctx, a)
     radiance_b = _emission_radiance(export_ctx, b)
     if isinstance(radiance_a, dict) or isinstance(radiance_b, dict):
         raise ConversionError(f'Mix Shader node "{node.name}": mixing '
                               'textured emitters is not supported')
-    weight = fac.value
     return _emitter_result(
         export_ctx, [(1.0 - weight) * x + weight * y
                      for x, y in zip(radiance_a, radiance_b)])

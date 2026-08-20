@@ -24,7 +24,9 @@ from ....io.exporter.export_context import ExportContext
 from ... import ConversionError
 from .. import sanitize_attribute_name
 from . import texture_converter
-from ._resolve import Constant, Texture, NodeRef, eval_color, eval_float, eval_vector, resolve, scalar_from_socket, socket_default, trace_source
+from ._resolve import (Constant, Texture, NodeRef, eval_color, eval_float,
+                    eval_vector, resolve, scalar_from_socket,
+                    vector_from_socket, socket_default, trace_source)
 
 
 ########################
@@ -125,26 +127,12 @@ def _to_uv_param(matrix):
     return ScalarTransform4f([list(row) for row in matrix])
 
 
-
-
-def _constant_input(export_ctx, socket, description, stack):
-    result = resolve(export_ctx, socket, stack=stack)
-    if not isinstance(result, Constant):
-        raise ConversionError(f'{description} must be a constant value')
-    return result.value
-
-
 def _mapping_matrix(export_ctx, ref):
     node, stack = ref.node, ref.stack
-    location = _constant_input(export_ctx, node.inputs['Location'],
-                               f'the location of mapping node "{node.name}"',
-                               stack)
-    rotation = _constant_input(export_ctx, node.inputs['Rotation'],
-                               f'the rotation of mapping node "{node.name}"',
-                               stack)
-    scale = _constant_input(export_ctx, node.inputs['Scale'],
-                            f'the scale of mapping node "{node.name}"',
-                            stack)
+    location = vector_from_socket(export_ctx, ref, node.inputs['Location'])
+    rotation = vector_from_socket(export_ctx, ref, node.inputs['Rotation'])
+    scale = vector_from_socket(export_ctx, ref, node.inputs['Scale'])
+
     if abs(rotation[0]) > 1e-6 or abs(rotation[1]) > 1e-6:
         raise ConversionError(f'mapping node "{node.name}" rotates out of '
                               'the UV plane')

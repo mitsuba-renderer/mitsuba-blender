@@ -10,7 +10,7 @@ from mathutils import Euler, Matrix, Vector
 
 from .. import ConversionError
 from ...compat import uses_nodes
-from .materials import _resolve 
+from .materials import _resolve
 from .materials.textures import convert_environment_texture
 
 # The color of Blender's default gray world background.
@@ -21,19 +21,6 @@ ENVMAP_COORDINATE_MAT = Matrix(((0, 0, 1, 0),
                                 (1, 0, 0, 0),
                                 (0, 1, 0, 0),
                                 (0, 0, 0, 1)))
-
-
-def _constant_vector(export_ctx, socket, stack=()):
-    '''Fold a vector socket to a constant, or fail.'''
-    result = _resolve.resolve(export_ctx, socket, stack)
-    if not isinstance(result, _resolve.Constant):
-        raise ConversionError(f'input "{socket.name}" of node '
-                              f'"{socket.node.name}" does not fold to a '
-                              'constant')
-    value = result.value
-    if isinstance(value, float):
-        value = (value,) * 3
-    return Vector(value[:3])
 
 
 def _envmap_world_transform(export_ctx, vector_socket, stack=()):
@@ -54,10 +41,11 @@ def _envmap_world_transform(export_ctx, vector_socket, stack=()):
         raise ConversionError('the Mapping node must be driven by the '
                               '"Generated" output of a Texture Coordinate '
                               'node')
+    ref = _resolve.NodeRef(node, stack)
     matrix = Matrix.LocRotScale(
-        _constant_vector(export_ctx, node.inputs['Location'], stack),
-        Euler(_constant_vector(export_ctx, node.inputs['Rotation'], stack=stack)),
-        _constant_vector(export_ctx, node.inputs['Scale'], stack))
+        _resolve.vector_from_socket(export_ctx, ref, node.inputs['Location']),
+        Euler(_resolve.vector_from_socket(export_ctx, ref, node.inputs['Rotation'])),
+        _resolve.vector_from_socket(export_ctx, ref, node.inputs['Scale']))
     if node.vector_type == 'TEXTURE':
         # Texture mappings look up the texture at the inverse-transformed
         # coordinate, matching Mitsuba's to_world convention directly
@@ -111,10 +99,10 @@ def convert_world(export_ctx, b_world, ignore_background=True):
                               'not supported as the world surface; only '
                               'Background and Emission nodes are')
 
-    strength = _resolve.eval_float(export_ctx, node.inputs['Strength'],
-                                stack=stack)
-    if not isinstance(strength, (int, float)):
-        raise ConversionError('the world strength must be a constant')
+    strength = _resolve.scalar_from_socket(export_ctx,
+                                           node.inputs['Strength'],
+                                           _resolve.NodeRef(node, stack))
+
     if strength == 0.0:
         export_ctx.log('Ignoring a world with zero strength.', 'INFO')
         return None
@@ -125,6 +113,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
         return _convert_envmap(export_ctx,
                                _resolve.NodeRef(env_node, env_stack), strength)
 
+    # TODO: create a color_from_socket
     result = _resolve.resolve(export_ctx, color_socket, stack)
 
     if not isinstance(result, _resolve.Constant):

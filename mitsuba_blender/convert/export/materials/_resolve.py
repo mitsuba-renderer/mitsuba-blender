@@ -12,6 +12,7 @@ what feeds an input socket:
 
 import colorsys
 import math
+from types import resolve_bases
 import mitsuba as mi
 
 from typing import NamedTuple
@@ -72,6 +73,30 @@ def _average(texture):
     return avg_color
 
 
+def _average_vector(texture):
+    import drjit as dr
+    n = 5
+    if 'scalar' in mi.variant():
+        total = [0.0, 0.0, 0.0 ]
+        for i in range(n):
+            for j in range(n):
+                si = dr.zeros(mi.SurfaceInteraction3f)
+                si.uv = mi.Point2f(i / (n - 1), j / (n - 1))
+                c = texture.eval_3(si)
+                total[0] += float(c.x)
+                total[1] += float(c.y)
+                total[2] += float(c.z)
+        return [v / (n * n) for v in total]
+    x = dr.linspace(mi.Float, 0.0, 1.0, n)
+    x, y = dr.meshgrid(x, x)
+    si = dr.zeros(mi.SurfaceInteraction3f, dr.width(x))
+    si.uv = mi.Point2f(x, y)
+
+    colors = texture.eval_3(si)
+    avg_vector = dr.slice(dr.mean(colors, axis=1), 0)
+    return avg_vector
+
+
 def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     '''
     Average a subgraph down to a scalar for parameters Mitsuba reads as floats.
@@ -86,6 +111,18 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     # Texture: build it once and average over a UV grid
     texture = mi.load_dict(result.params)
     return _average(texture)
+
+
+def vector_from_socket(export_ctx: ExportContext, ref, socket):
+    result = resolve(export_ctx, socket, stack=ref.stack)
+    if isinstance(result, Constant):
+        return _to_vector(result.value)
+    if isinstance(result, Unsupported):
+        if export_ctx.strict:
+            raise ConversionError(result.reason)
+        return socket_default(socket)
+    texture = mi.load_dict(result.params)
+    return _average_vector(texture)
 
 
 _texture_converters = {}

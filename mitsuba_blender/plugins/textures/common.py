@@ -32,7 +32,6 @@ def register(mi, dr):
     mi.register_texture('constant_vector', ConstantVector)
 
 
-
 def get_texture(props: mi.Properties,
                 name: str,
                 value=None) -> mi.Texture:
@@ -54,20 +53,16 @@ def get_texture(props: mi.Properties,
     return texture
 
 
-def _constant_vector(value):
-    return ConstantVector(value)
-
-
 def get_vector_texture(props, name, default=0.0):
     """As get_texture, but for vector-valued properties. Constants are kept
     as raw values rather than wrapped in an rgb texture, whose reflectance
     range would reject components outside [0, 1]."""
     if name not in props:
-        return _constant_vector(default)
+        return ConstantVector(default)
     value = props.get(name)
     if isinstance(value, mi.Texture):
         return value
-    return _constant_vector(value)
+    return ConstantVector(value)
 
 # Those functions are taken directly from Blender implementation
 # see: https://github.com/blender/blender/blob/main/source/blender/blenlib/intern/math_color.cc
