@@ -109,6 +109,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
     # small preview for materials, world and lights.
     def render(self, depsgraph):
         from mitsuba import set_variant
+        from bpy_extras.io_utils import axis_conversion
         b_scene = depsgraph.scene
         set_variant(b_scene.mitsuba.variant)
         from ..plugins import register_plugins
@@ -124,6 +125,7 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
         self.converter.export_ctx.directory = export_dir
         self.converter.export_ctx.exported_images = cache
         self.converter.export_ctx.blender_triangulation = b_scene.mitsuba.blender_triangulation
+        self.converter.export_ctx.axis_mat = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
         self.converter.export_ctx.strict = b_scene.mitsuba.export_mode == 'strict'
         self.converter.scene_to_dict(depsgraph)
         mts_scene = self.converter.dict_to_scene()
