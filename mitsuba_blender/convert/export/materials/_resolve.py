@@ -9,10 +9,6 @@ what feeds an input socket:
 - `Unsupported(reason)`: anything else, with a message naming the node that
   could not be handled.
 '''
-
-import colorsys
-import math
-from types import resolve_bases
 import mitsuba as mi
 
 from typing import NamedTuple

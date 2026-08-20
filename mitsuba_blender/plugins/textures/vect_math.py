@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-
 import drjit as dr
 import mitsuba as mi
 
-from .common import get_texture, get_vector_texture
+from .common import get_vector_texture
 
 if TYPE_CHECKING:
     import mitsuba as mi

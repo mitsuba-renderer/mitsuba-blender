@@ -16,7 +16,6 @@ import os
 import shutil
 
 import bpy
-from drjit import stack
 from mathutils import Euler, Matrix
 
 from ....io.exporter.export_context import ExportContext
@@ -26,7 +25,7 @@ from .. import sanitize_attribute_name
 from . import texture_converter
 from ._resolve import (Constant, Texture, NodeRef, eval_color, eval_float,
                     eval_vector, resolve, scalar_from_socket,
-                    vector_from_socket, socket_default, trace_source)
+                    vector_from_socket, trace_source)
 
 
 ########################

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-
-from enum import Enum
 from .common import get_texture
 
 if TYPE_CHECKING:
@@ -102,6 +100,7 @@ def register(mi, dr):
         def traverse(self, cb):
             cb.put('a', self.a, mi.ParamFlags.Differentiable)
             cb.put('b', self.b, mi.ParamFlags.Differentiable)
+            cb.put('factor', self.factor, mi.ParamFlags.Differentiable)
 
         def to_string(self):
             return (f'Mix[blend_type={self.blend_type}, \n'

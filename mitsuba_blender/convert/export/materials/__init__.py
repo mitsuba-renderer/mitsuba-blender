@@ -16,7 +16,6 @@ instead and are picked up by the socket resolver in resolve.
 import copy
 import importlib
 import pkgutil
-from shutil import ignore_patterns
 
 from ... import ConversionError
 from ....compat import uses_nodes

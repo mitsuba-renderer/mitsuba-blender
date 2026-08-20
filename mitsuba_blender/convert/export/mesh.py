@@ -7,9 +7,6 @@ transform baked in. When exporting to a file, they are appended to one shared
 `.serialized` file next to the XML, and each shape references its sub-mesh by
 index and carries its own `to_world`.
 '''
-
-from contextlib import contextmanager
-
 import bpy
 import numpy as np
 
