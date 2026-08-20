@@ -24,7 +24,7 @@ from ....io.exporter.export_context import ExportContext
 from ... import ConversionError
 from .. import sanitize_attribute_name
 from . import texture_converter
-from ._resolve import Constant, Texture, NodeRef, eval_color, eval_float, eval_vector, resolve, socket_default, trace_source
+from ._resolve import Constant, Texture, NodeRef, eval_color, eval_float, eval_vector, resolve, scalar_from_socket, socket_default, trace_source
 
 
 ########################
@@ -620,15 +620,22 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
         raise ConversionError(f'normal map node "{node.name}" uses '
                               f'{node.space} space; only tangent space is '
                               'supported')
-    strength = _constant_input(export_ctx, node.inputs['Strength'],
-                               f'the strength of normal map "{node.name}"',
-                               ref.stack)
-    if abs(strength - 1.0) > 1e-6:
-        export_ctx.log(f'Mitsuba normal maps have no strength parameter; '
-                       f'ignoring the strength of node "{node.name}".',
-                       'WARN')
+
     texture = _texture_input(export_ctx, node.inputs['Color'], ref.stack)
-    if texture is None:
+    strength = eval_float(export_ctx, node.inputs['Strength'], ref.stack)
+    params = texture
+
+    use_strength = False
+    if node.inputs['Strength'].is_linked \
+        or (abs(node.inputs['Strength'].default_value - 1.0) > 1e-6):
+        use_strength = True
+        params = {
+            'type': 'normal_map',
+            'texture': texture,
+            'strength': strength
+        }
+
+    if params is None:
         export_ctx.log(f'The color of normal map node "{node.name}" is '
                        'constant and has no effect; ignoring it.', 'WARN')
         return bsdf
@@ -636,12 +643,20 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
         export_ctx.log(f'The image of normal map node "{node.name}" should '
                        'use a Non-Color space; interpreting it as raw '
                        'data.', 'WARN')
-        texture['raw'] = True
+        if use_strength:
+            params['texture']['raw'] = True
+        else:
+            params['raw'] = True
+
         if 'bitmap' in texture:
-            texture['bitmap'].set_srgb_gamma(False)
+            if use_strength:
+                params['texture']['bitmap'].set_srgb_gamma(False)
+            else:
+                params['bitmap'].set_srgb_gamma(False)
+
     return {
         'type': 'normalmap',
-        'normalmap': texture,
+        'normalmap': params,
         'bsdf': bsdf,
     }
 
