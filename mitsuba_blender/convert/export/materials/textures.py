@@ -671,12 +671,8 @@ def _wrap_bumpmap(export_ctx, ref, bsdf):
         export_ctx.log(f'The height of bump node "{node.name}" is constant '
                        'and has no effect; ignoring it.', 'WARN')
         return bsdf
-    strength = _constant_input(export_ctx, node.inputs['Strength'],
-                               f'the strength of bump node "{node.name}"',
-                               ref.stack)
-    distance = _constant_input(export_ctx, node.inputs['Distance'],
-                               f'the distance of bump node "{node.name}"',
-                               ref.stack)
+    strength = scalar_from_socket(export_ctx, node.inputs['Strength'], stack=ref.stack)
+    distance = scalar_from_socket(export_ctx, node.inputs['Distance'], stack=ref.stack)
     scale = strength * distance
     if node.invert:
         scale = -scale
