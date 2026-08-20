@@ -25,12 +25,16 @@ def _emission_radiance(export_ctx, ref):
 
     color = resolve(export_ctx, node.inputs['Color'], stack=ref.stack)
     if isinstance(color, Texture):
+        params = color.params
         if strength != 1.0:
-            # Mitsuba has no texture-scaling plugin, so the strength is lost
-            export_ctx.log(f'Emission node "{node.name}": cannot scale a '
-                           'textured color by the strength; ignoring it.',
-                           'WARN')
-        return color.params
+            params = {
+                'type' : 'math',
+                'op' : 'MULTIPLY',
+                'use_clamp': False,
+                'a' : params,
+                'b' : strength
+            }
+        return params
     if isinstance(color, Constant):
         rgb = color.value
     else:
