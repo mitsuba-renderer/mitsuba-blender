@@ -41,7 +41,7 @@ def register(mi, dr):
 
         def eval_3(self, si, active=True):
             n = self.texture.eval_3(si, active) * 2.0 - 1.0
-            s = self.strength
+            s = self.strength.eval_1(si, active)
             n = mi.Color3f(n.x * s, n.y * s, dr.lerp(1.0, n.z, dr.clip(s, 0.0, 1.0)))
 
             return n * 0.5 + 0.5
