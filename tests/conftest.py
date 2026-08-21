@@ -45,7 +45,8 @@ def mi_addon():
         if bpy.ops.preferences.addon_enable(module=ADDON_MODULE) != {'FINISHED'}:
             pytest.fail(f'Cannot enable the {ADDON_MODULE} extension')
         addon_module = sys.modules[ADDON_MODULE]
-        if addon_module.mitsuba_version is None:
+        prefs = sys.modules[f'{ADDON_MODULE}.preferences']
+        if prefs.mitsuba_version is None:
             pytest.fail('Extension failed to initialize Mitsuba: '
                         f'{addon_module.init_error}')
         yield ADDON_MODULE
