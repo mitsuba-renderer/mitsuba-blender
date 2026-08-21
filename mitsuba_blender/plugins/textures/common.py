@@ -57,9 +57,10 @@ def get_texture(props: mi.Properties,
 
 
 def get_vector_texture(props, name, default=0.0):
-    """As get_texture, but for vector-valued properties. Constants are kept
+    '''As get_texture, but for vector-valued properties. Constants are kept
     as raw values rather than wrapped in an rgb texture, whose reflectance
-    range would reject components outside [0, 1]."""
+    range would reject components outside [0, 1].
+    '''
     if name not in props:
         return ConstantVector(default)
     value = props.get(name)

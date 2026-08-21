@@ -29,7 +29,7 @@ def register(mi, dr):
         and take hue in [0, 1] rather than degrees.
         '''
         def __init__(self, props):
-            mi.Texture.__init__(self, props)
+            super().__init__(props)
             self.hue        = get_texture(props, 'hue', 0.5)
             self.saturation = get_texture(props, 'saturation', 1.0)
             self.value      = get_texture(props, 'value', 1.0)

@@ -19,8 +19,9 @@ import pkgutil
 
 from ... import ConversionError
 from ....compat import uses_nodes
-from ._resolve import (FALLBACK_COLOR, ERROR_COLOR, Constant, NodeRef, Texture, Unsupported, eval_color,
-                    eval_float, resolve, texture_converter)
+from ._resolve import (FALLBACK_COLOR, ERROR_COLOR, Constant, NodeRef,
+                       Texture, Unsupported, eval_color, eval_float,
+                       resolve, texture_converter)
 
 _node_converters = {}
 

@@ -97,6 +97,16 @@ def register(mi, dr):
         def parameters_changed(self, keys):
             pass
 
+        def process(self, input_pos, active=True):
+            col = mi.Color3f(self.band_col[0], self.band_col[1], self.band_col[2])
+            for i in range(1, len(self.band_pos)):
+                lo, hi = self.band_pos[i-1], self.band_pos[i]
+                t = dr.clip((input_pos - lo) / max(hi - lo, 1e-8), 0.0, 1.0)
+                c0 = mi.Color3f(*self.band_col[3*(i-1):3*i])
+                c1 = mi.Color3f(*self.band_col[3*i:3*(i+1)])
+                col = dr.select(input_pos >= lo, dr.lerp(c0, c1, t), col)
+            return col
+
         def eval(self, si, active):
             return self.eval_3(si, active)
 
@@ -108,16 +118,6 @@ def register(mi, dr):
 
         def eval_3(self, si, active):
             return self.process(self.input.eval_1(si, active), active)
-
-        def process(self, input_pos, active=True):
-            col = mi.Color3f(self.band_col[0], self.band_col[1], self.band_col[2])
-            for i in range(1, len(self.band_pos)):
-                lo, hi = self.band_pos[i-1], self.band_pos[i]
-                t = dr.clip((input_pos - lo) / max(hi - lo, 1e-8), 0.0, 1.0)
-                c0 = mi.Color3f(*self.band_col[3*(i-1):3*i])
-                c1 = mi.Color3f(*self.band_col[3*i:3*(i+1)])
-                col = dr.select(input_pos >= lo, dr.lerp(c0, c1, t), col)
-            return col
 
         def mean(self):
             return 0.5
@@ -137,6 +137,5 @@ def register(mi, dr):
         def to_string(self):
             return f'ColorRamp[input={self.input}, mode={self.mode_str}]'
 
-    print('Reigstered')
     mi.register_texture('color_ramp', ColorRamp)
 

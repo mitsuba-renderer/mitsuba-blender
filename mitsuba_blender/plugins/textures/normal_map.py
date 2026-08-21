@@ -46,7 +46,6 @@ def register(mi, dr):
 
             return n * 0.5 + 0.5
 
-
         def traverse(self, cb: mi.TraversalCallback):
             cb.put('texture', self.texture, mi.ParamFlags.Differentiable)
             cb.put('strength', self.strength, mi.ParamFlags.Differentiable)

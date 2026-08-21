@@ -50,6 +50,16 @@ class Unsupported:
 
 
 def _average(texture):
+    ''' Mean of a texture over a 5x5 grid of UV samples
+
+    Some Mitsuba parameters are read as float at construction and cannot
+    take a texture, so a subgraph driving one has to collaps to a number.
+    Callers check is_spatially_varying() first, so this is only reached
+    when the value genuinely varies and the result is an approximation.
+    The grid size is arbitrary: 25 samples are cheap at export time and no
+    choice is correct, since the parameters is constant over  the surface
+    either way.
+    '''
     import drjit as dr
     n = 5
     if 'scalar' in mi.variant():
@@ -71,6 +81,7 @@ def _average(texture):
 
 
 def _average_vector(texture):
+    '''As _average, but per channel, for parameters that take three floats'''
     import drjit as dr
     n = 5
     if 'scalar' in mi.variant():
@@ -115,6 +126,9 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
 
 
 def vector_from_socket(export_ctx: ExportContext, ref, socket):
+    '''
+    Average a subgraph down to a vector for paramters Mitsuba reads as vector
+    '''
     result = resolve(export_ctx, socket, stack=ref.stack)
     if isinstance(result, Constant):
         return _to_vector(result.value)

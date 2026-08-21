@@ -96,6 +96,10 @@ def register(mi, dr):
             cb.put('to_min', self.to_min, mi.ParamFlags.Differentiable)
             cb.put('to_max', self.to_max, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return any([t.is_spatially_varying() for t in [
+                self.from_min, self.from_max, self.to_min, self.to_max, self.input
+            ]])
 
         def to_string(self):
             return (f'MapRange[interpolation_type={self.interpolation_type},\n'
@@ -104,11 +108,6 @@ def register(mi, dr):
                     f'from = [{self.from_min}, {self.from_max}],\n'
                     f'to = [{self.to_min}, {self.to_max}]\n]')
 
-
-        def is_spatially_varying(self):
-            return any([t.is_spatially_varying() for t in [
-                self.from_min, self.from_max, self.to_min, self.to_max, self.input
-            ]])
 
         def resolution(self):
             return self.input.resolution()
