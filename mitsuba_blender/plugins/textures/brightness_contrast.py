@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 from enum import Enum
 from .common import get_texture
@@ -58,6 +59,11 @@ def register(mi, dr):
             cb.put_object('input', self.input, mi.ParamFlags.Differentiable)
             cb.put_object('brightness', self.brightness, mi.ParamFlags.Differentiable)
             cb.put_object('contrast', self.contrast, mi.ParamFlags.Differentiable)
+
+        def is_spatially_varying(self):
+            return (self.input.is_spatially_varying() or
+                    self.brightness.is_spatially_varying() or
+                    self.contrast.is_spatially_varying())
 
         def to_string(self):
             return (f'BrightnessContrast[\n color = {self.input},\n brightness = {self.brightness},\n'

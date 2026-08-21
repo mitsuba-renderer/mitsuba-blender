@@ -57,6 +57,9 @@ def register(mi, dr):
         def traverse(self, cb):
             cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return self.color.is_spatially_varying()
+
         def to_string(self):
             return (f'RGBToBW[color = {self.color}]')
 

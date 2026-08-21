@@ -171,6 +171,11 @@ def register(mi, dr):
             cb.put('b', self.b, +mi.ParamFlags.Differentiable)
             cb.put('c', self.c, +mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.a.is_spatially_varying() or
+                    self.b.is_spatially_varying() or
+                    self.c.is_spatially_varying())
+
         def to_string(self):
             return (f'Math[op={self.op}, use_clamp=[{self.use_clamp},\n'
                     f'a = {self.a}\n b = {self.b}\n c = {self.c}]\n')

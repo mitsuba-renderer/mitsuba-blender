@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from enum import Enum
+
 from .common import get_texture, hsv2rgb, rgb2hsv
 
 if TYPE_CHECKING:
@@ -66,6 +67,14 @@ def register(mi, dr):
             callback.put_object('value',      self.value,      +mi.ParamFlags.Differentiable)
             callback.put_object('mix',        self.mix,        +mi.ParamFlags.Differentiable)
             callback.put_object('input',      self.input,      +mi.ParamFlags.Differentiable)
+
+        def is_spatially_varying(self):
+            return (self.hue.is_spatially_varying() or
+                    self.saturation.is_spatially_varying() or
+                    self.saturation.is_spatially_varying() or
+                    self.value.is_spatially_varying() or
+                    self.mix.is_spatially_varying() or
+                    self.input.is_spatially_varying())
 
         def to_string(self):
             return (f'HueSaturationValue[\n input = {self.input},\n mix = {self.mix},\n'

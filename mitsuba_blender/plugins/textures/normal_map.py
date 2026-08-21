@@ -49,6 +49,11 @@ def register(mi, dr):
 
         def traverse(self, cb: mi.TraversalCallback):
             cb.put('texture', self.texture, mi.ParamFlags.Differentiable)
+            cb.put('strength', self.strength, mi.ParamFlags.Differentiable)
+
+        def is_spatially_varying(self):
+            return (self.texture.is_spatially_varying() or
+                    self.strength.is_spatially_varying())
 
         def mean(self):
             return 0.5

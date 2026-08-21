@@ -53,6 +53,10 @@ def register(mi, dr):
             cb.put('vector', self.vector, mi.ParamFlags.Differentiable)
             cb.put('index', self.index, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.vector.is_spatially_varying() or
+                        self.index.is_spatially_varying())
+
         def to_string(self):
             return (f'SeparateXYZ[vector = {self.vector},\n index = {self.index}\n]')
 

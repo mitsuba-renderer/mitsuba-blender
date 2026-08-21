@@ -78,6 +78,14 @@ def register(mi, dr):
             cb.put_object('curve_g', self.curve_g, mi.ParamFlags.Differentiable)
             cb.put_object('curve_b', self.curve_b, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.color.is_spatially_varying() or
+                    self.fac.is_spatially_varying() or
+                    self.curve_c.is_spatially_varying() or
+                    self.curve_r.is_spatially_varying() or
+                    self.curve_g.is_spatially_varying() or
+                    self.curve_r.is_spatially_varying())
+
         def to_string(self):
             return (f'RGBCurve[\n color = {self.color}, \n fac = {self.fac}\n]')
 

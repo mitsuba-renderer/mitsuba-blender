@@ -102,6 +102,12 @@ def register(mi, dr):
             cb.put('b', self.b, mi.ParamFlags.Differentiable)
             cb.put('factor', self.factor, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.factor.is_spatially_varying() or
+                    self.a.is_spatially_varying() or
+                    self.b.is_spatially_varying())
+
+
         def to_string(self):
             return (f'Mix[blend_type={self.blend_type}, \n'
                     f' factor = {self.factor}, \n, a = {self.a},\n b = {self.b}\n]')

@@ -53,6 +53,9 @@ def register(mi, dr):
             cb.put_object('color', self.input, mi.ParamFlags.Differentiable)
             cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return self.input.is_spatially_varying() or self.fac.is_spatially_varying()
+
         def to_string(self):
             return (f'Invert[\n input = {self.input},\n fac = {self.fac}\n]')
 

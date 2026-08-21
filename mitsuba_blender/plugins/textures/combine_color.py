@@ -60,6 +60,11 @@ def register(mi, dr):
             cb.put('green', self.green, mi.ParamFlags.Differentiable)
             cb.put('blue', self.blue, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.red.is_spatially_varying() or
+                    self.green.is_spatially_varying() or
+                    self.blue.is_spatially_varying())
+
         def to_string(self):
             return (f'CombineColor[mode = {self.mode},\n'
                     f'red = {self.red},\n'

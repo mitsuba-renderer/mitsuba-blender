@@ -27,6 +27,9 @@ class ConstantVector(mi.Texture):
     def mean(self):
         return 0.5
 
+    def is_spatially_varying(self):
+        return False
+
 
 def register(mi, dr):
     mi.register_texture('constant_vector', ConstantVector)

@@ -49,6 +49,11 @@ def register(mi, dr):
             cb.put('y', self.y, mi.ParamFlags.Differentiable)
             cb.put('z', self.z, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.x.is_spatially_varying() or
+                    self.y.is_spatially_varying() or
+                    self.z.is_spatially_varying())
+
         def to_string(self):
             return (f'CombineXYZ[x = {self.x},\n y = {self.y},\n z = {self.z}]')
 

@@ -120,6 +120,12 @@ def register(mi, dr):
             cb.put('vec_2', self.vec_2, mi.ParamFlags.Differentiable)
             cb.put('scale', self.scale, mi.ParamFlags.Differentiable)
 
+        def is_spatially_varying(self):
+            return (self.vec_0.is_spatially_varying() or
+                    self.vec_1.is_spatially_varying() or
+                    self.vec_2.is_spatially_varying() or
+                    self.scale.is_spatially_varying())
+
         def to_string(self):
             return (f'VectMath[ op = {self.op_fn},\n'
                     f'vec_0 = {self.vec_0},\n'
