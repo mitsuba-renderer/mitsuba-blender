@@ -10,6 +10,7 @@ what feeds an input socket:
   could not be handled.
 '''
 import mitsuba as mi
+import drjit as dr
 
 from typing import NamedTuple
 from ....io.exporter.export_context import ExportContext
@@ -106,6 +107,10 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
         return socket_default(socket) 
     # Texture: build it once and average over a UV grid
     texture = mi.load_dict(result.params)
+
+    if not texture.is_spatially_varying():
+        si = dr.zeros(mi.SurfaceInteraction3f)
+        return float(texture.eval_1(si))
     return _average(texture)
 
 
@@ -118,6 +123,11 @@ def vector_from_socket(export_ctx: ExportContext, ref, socket):
             raise ConversionError(result.reason)
         return socket_default(socket)
     texture = mi.load_dict(result.params)
+
+    if not texture.is_spatially_varying():
+        si = dr.zeros(mi.SurfaceInteraction3f)
+        c = texture.eval_3(si)
+        return [float(c.x), float(c.y), float(c.z)]
     return _average_vector(texture)
 
 
@@ -244,8 +254,10 @@ def resolve(export_ctx, socket, stack=()):
         node, source, stack = trace_source(socket, stack=stack)
     except ConversionError as e:
         return Unsupported(str(e))
+
     if node is None:
         return Constant(socket_default(source))
+
     ref = NodeRef(node, stack)
     converter = _texture_converters.get(node.type)
     if converter is not None:
@@ -253,6 +265,7 @@ def resolve(export_ctx, socket, stack=()):
             return Texture(converter(export_ctx, ref, source))
         except ConversionError as e:
             return Unsupported(str(e))
+
     if ref.node.type in _GETTERS:
         getter = _GETTERS[ref.node.type]
     else:
@@ -336,9 +349,7 @@ def _luminance(rgb):
 def _to_float(value):
     if isinstance(value, (int, float)):
         return float(value)
-    if len(value) == 4:
-        return _luminance(value)
-    return sum(value) / 3.0
+    return _luminance(value)
 
 
 def _to_vector(value):
