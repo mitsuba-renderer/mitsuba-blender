@@ -87,9 +87,18 @@ directions with matching radiometric units.
 | Normal Map / Bump | `normalmap` / `bumpmap` |
 | Mapping / Texture Coordinate | `to_uv` transform |
 
-Value and color nodes feeding the above are converted to Mitsuba texture plugins, currently implemented plugins are : `Math`, `Mix`, `Invert`, `Gamma`, `Brightness/Contrast`, `Map Range`, `Clamp`, `RGB Curves`, `Hue/Saturation/Value`, `Color Ramp`, `RGB to BW`, `Separate/Combine XYZ/Color`, and `Vector Math`. `RGB` and `Value` nodes stay constants and are therefore not converted to textures.
+Value and color nodes feeding the above become Mitsuba texture plugins rather than being folded into constants at export: `Math`, `Mix`, `Invert`, `Gamma`, `Brightness/Contrast`, `Map Range`, `Clamp`, `RGB Curves`, `Hue/Saturation/Value`, `Color Ramp`, `RGB to BW`, `Separate/Combine XYZ` and `Color`, and `Vector Math`. `RGB` and `Value` nodes stay constants, since there is nothing to evaluate per shading point.
 
-All parameters that Mitsuba reads as a scalar rather than a texture (e.g. Principled's eta and specular) cannot use the same mechanism, it is resolved by sampling over a UV grid and averaged.
+Some Mitsuba parameters are read as a scalar rather than a texture (e.g. Principled's `eta` and `specular`). Hence we cannot use the same mechanism, it is resolved by sampling over a UV grid and averaged.
+
+### Unsupported nodes
+
+Nodes outside the tables above are handle according to the **export mode**, set in the render properties panel and in the export operator:
+
+- **Strict** (default): any unsupported input fails the whole material, which exports as a pink error BSDF. The problem is then visible in the render rather than buried in the console.
+- **Relaxed**: the socket default is used and a warning is logged, which gives a usable scene from one that contains nodes the exporter cannot represent.
+
+Currently unsupported: procedural textures (Noise, Voronoiu, Wave, ...) and `Object info`, whose ouputs depend on which instance is baing shaded. A Mitsuba texture is evaluated from a `SurfaceInteraction`, which carries no per-instance identity, so it converts to zero for now.
 
 ### Material import
 
