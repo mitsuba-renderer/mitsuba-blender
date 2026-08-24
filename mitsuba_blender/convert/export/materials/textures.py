@@ -588,6 +588,38 @@ def convert_vect_math(export_ctx: ExportContext, ref: NodeRef, out_socket):
     return params
 
 
+@texture_converter('TEX_NOISE')
+def convert_tex_noise(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    node, stack = ref.node, ref.stack
+
+    if node.noise_dimensions != '3D':
+        export_ctx.log(f'Noise node "{node.name}" is {node.noise_dimensions}; '
+                       'approximating it with 3D noise.', 'WARN')
+    if out_socket.identifier != 'Fac':
+        raise ConversionError(f'the {out_socket.name} output of noise node '
+                              f'"{node.name}" is not supported')
+    params = {
+        'type': 'tex_noise',
+        'scale': eval_float(export_ctx, node.inputs['Scale'], stack=stack),
+        'detail': scalar_from_socket(export_ctx, ref, node.inputs['Detail'], 2.0),
+        'roughness': scalar_from_socket(export_ctx, ref, node.inputs['Roughness'], 0.5),
+        'lacunarity': scalar_from_socket(export_ctx, ref, node.inputs['Lacunarity'], 2.0),
+        'normalize': node.normalize,
+    }
+
+    vector = node.inputs['Vector']
+    if vector.is_linked:
+        params['vector'] = eval_vector(export_ctx, vector, stack=stack)
+    else:
+        params['vector'] = {'type': 'position'}
+
+    distortion = scalar_from_socket(export_ctx, ref, node.inputs['Distortion'], 0.0)
+    if distortion != 0.0:
+        export_ctx.log(f'Noise node "{node.name}": distortion is not '
+                       'supported; ignoring it.', 'WARN')
+
+    return params
+
 ###########################
 ##  Normal and bump map  ##
 ###########################
