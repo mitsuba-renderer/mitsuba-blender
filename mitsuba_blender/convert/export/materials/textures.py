@@ -14,6 +14,7 @@ and the world exporter calls `convert_environment_texture`.
 
 import os
 import shutil
+from sys import set_int_max_str_digits
 
 import bpy
 from mathutils import Euler, Matrix
@@ -170,7 +171,14 @@ def _uv_chain_matrix(export_ctx, socket, stack):
                 'but only the active render UV layer is exported.', 'WARN')
         return Matrix.Identity(4)
     if node.type == 'MAPPING':
-        return _mapping_matrix(export_ctx, NodeRef(node, node_stack)) @ _uv_chain_matrix(export_ctx, node.inputs['Vector'], node_stack)
+        if node.vector_type == 'TEXTURE' or node.vector_type == 'POINT':
+            return _mapping_matrix(export_ctx,
+                                    NodeRef(node, node_stack)) @ _uv_chain_matrix(export_ctx, node.inputs['Vector'],
+                                    node_stack)
+        # TODO: allow other vector type
+        raise ConversionError(f'node "{node.name}" of type MAPPING of vector '
+                                f'type "{node.vector_type}" is not supported.'
+                                f' Only texture is.')
 
     raise ConversionError(f'node "{node.name}" of type {node.type} feeding '
                           'a texture Vector input is not supported')
@@ -601,9 +609,9 @@ def convert_tex_noise(export_ctx: ExportContext, ref: NodeRef, out_socket):
     params = {
         'type': 'tex_noise',
         'scale': eval_float(export_ctx, node.inputs['Scale'], stack=stack),
-        'detail': scalar_from_socket(export_ctx, ref, node.inputs['Detail'], 2.0),
-        'roughness': scalar_from_socket(export_ctx, ref, node.inputs['Roughness'], 0.5),
-        'lacunarity': scalar_from_socket(export_ctx, ref, node.inputs['Lacunarity'], 2.0),
+        'detail': scalar_from_socket(export_ctx, node.inputs['Detail'], stack=stack),
+        'roughness': scalar_from_socket(export_ctx, node.inputs['Roughness'], stack=stack),
+        'lacunarity': scalar_from_socket(export_ctx, node.inputs['Lacunarity'], stack=stack),
         'normalize': node.normalize,
     }
 
@@ -613,7 +621,7 @@ def convert_tex_noise(export_ctx: ExportContext, ref: NodeRef, out_socket):
     else:
         params['vector'] = {'type': 'position'}
 
-    distortion = scalar_from_socket(export_ctx, ref, node.inputs['Distortion'], 0.0)
+    distortion = scalar_from_socket(export_ctx, node.inputs['Distortion'], stack=stack)
     if distortion != 0.0:
         export_ctx.log(f'Noise node "{node.name}": distortion is not '
                        'supported; ignoring it.', 'WARN')
