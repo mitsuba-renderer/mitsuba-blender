@@ -71,7 +71,13 @@ def _convert_point(export_ctx, b_light, matrix_world):
     position = list(export_ctx.transform_matrix(matrix_world).translation())
     radius = data.shadow_soft_size
     if radius > 0.0:
-        # A point light with a radius is a sphere emitter in Cycles
+        # Cycles gives the light the radiance below, but samples it as a
+        # disk of radius `radius` that always faces the shaded point, so it
+        # illuminates as P / (4 pi (d^2 + radius^2)). A sphere emitter has
+        # the same radiance and the same far-field power, but illuminates
+        # as P / (4 pi d^2) whatever its radius, so it stays brighter than
+        # Cycles by 1 + (radius / d)^2. No Mitsuba emitter reproduces the
+        # disk falloff; the sphere at least gets the soft shadows right.
         radiance = _colored(power_to_radiance(data.energy,
                                               sphere_area(radius)),
                             data.color)
@@ -96,8 +102,12 @@ def _convert_point(export_ctx, b_light, matrix_world):
 def _convert_spot(export_ctx, b_light, matrix_world):
     data = b_light.data
     if data.shadow_soft_size:
+        # Mitsuba spot emitters are delta lights, so unlike point lights the
+        # radius cannot be modelled at all: the shadows come out hard and the
+        # light stays brighter than Cycles by 1 + (radius / d)^2.
         export_ctx.log(f'Light "{b_light.name_full}" has a non-zero radius. '
-                       'It will be ignored.', 'WARN')
+                       'It will be ignored: expect hard shadows and a '
+                       'slightly brighter light than Cycles.', 'WARN')
     # Blender spot lights point along -Z, Mitsuba's along +Z
     flip = Matrix.Rotation(math.pi, 4, 'X')
     return {
@@ -119,11 +129,15 @@ def _convert_sun(export_ctx, b_light, matrix_world):
                        'angle.', 'INFO')
     # Blender sun lights shine along -Z, Mitsuba's along +Z
     flip = Matrix.Rotation(math.pi, 4, 'X')
+    # Mitsuba's directional emitter does not normalize the direction it
+    # reads from `to_world`, so any object scale would scale the
+    # irradiance. Cycles only uses the orientation of a sun light.
+    orientation = (matrix_world @ flip).to_3x3().normalized().to_4x4()
     return {
         'type': 'directional',
         # The energy of a Blender sun light is its irradiance in W/m^2
         'irradiance': export_ctx.spectrum(_colored(data.energy, data.color)),
-        'to_world': export_ctx.transform_matrix(matrix_world @ flip),
+        'to_world': export_ctx.transform_matrix(orientation),
     }
 
 
