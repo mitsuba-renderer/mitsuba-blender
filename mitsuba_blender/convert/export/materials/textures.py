@@ -618,8 +618,6 @@ def convert_tex_noise(export_ctx: ExportContext, ref: NodeRef, out_socket):
     vector = node.inputs['Vector']
     if vector.is_linked:
         params['vector'] = eval_vector(export_ctx, vector, stack=stack)
-    else:
-        params['vector'] = {'type': 'position'}
 
     distortion = scalar_from_socket(export_ctx, node.inputs['Distortion'], stack=stack)
     if distortion != 0.0:

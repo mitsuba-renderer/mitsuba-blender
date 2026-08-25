@@ -146,7 +146,7 @@ def register(mi, dr):
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
-            self.vector = get_vector_texture(props, 'vector', (0.0, 0.0, 0.0))
+            self.vector = get_vector_texture(props, 'vector') if 'vector' in props else None
             self.scale = get_texture(props, 'scale', 5.0)
 
             self.detail = float(props.get('detail', 2.0))
@@ -155,7 +155,8 @@ def register(mi, dr):
             self.normalize = bool(props.get('normalize', True))
 
         def eval_1(self, si, active=True):
-            p = self.vector.eval_3(si, active) * self.scale.eval_1(si, active)
+            p = si.p if self.vector is None else self.vector.eval_3(si, active)
+            p = p * self.scale.eval_1(si, active)
             return _noise_fbm_3d(p, self.detail, self.roughness,
                                  self.lacunarity, self.normalize)
 
