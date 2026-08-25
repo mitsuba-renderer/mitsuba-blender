@@ -424,8 +424,34 @@ def _get_object_info(ref, out_socket):
         return 0.0
     return (0.0, 0.0, 0.0)
 
+
+_LIGHT_PATH_DEFAULTS = {
+    'Is Camera Ray': 1.0,
+    'Is Shadow Ray': 0.0,
+    'Is Diffuse Ray': 0.0,
+    'Is Glossy Ray': 0.0,
+    'Is Singular Ray': 0.0,
+    'Is Reflection Ray': 0.0,
+    'Is Transmission Ray': 0.0,
+    'Ray Depth': 0.0,
+    'Diffuse Depth': 0.0,
+    'Glossy Depth': 0.0,
+    'Transparent Depth': 0.0,
+    'Transmission Depth': 0.0,
+}
+
+
+def _get_light_path(ref, out_socket):
+    # TODO: these describe the path rather than the surface, and a Mitsuba
+    # texture is evaluated from a SurfaceInteraction which carries none of
+    # it. Defaulting to a camera ray at depth zero reproduces the primary
+    # appearance, which is roughly what EEVEE does for the outputs it
+    # cannot support either.
+    return _LIGHT_PATH_DEFAULTS.get(out_socket.name, 0.0)
+
 _GETTERS = {
     'RGB': _get_rgb,
     'VALUE': _get_value,
-    'OBJECT_INFO' : _get_object_info
+    'OBJECT_INFO' : _get_object_info,
+    'LIGHT_PATH' : _get_light_path
 }
