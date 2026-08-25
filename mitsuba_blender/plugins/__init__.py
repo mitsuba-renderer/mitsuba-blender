@@ -10,7 +10,7 @@ def register_plugins():
     from .textures import (color_ramp, math, hue_saturation, rgb_curve, mix,
                         invert, brightness_contrast, rgb_to_bw, map_range,
                         combine_xyz, separate_xyz, separate_color, combine_color,
-                        vect_math, common, normal_map)
+                        vect_math, common, normal_map, tex_noise)
 
     color_ramp.register(mi, dr)
     math.register(mi, dr)
@@ -28,3 +28,4 @@ def register_plugins():
     vect_math.register(mi, dr)
     common.register(mi, dr)
     normal_map.register(mi, dr)
+    tex_noise.register(mi, dr)
