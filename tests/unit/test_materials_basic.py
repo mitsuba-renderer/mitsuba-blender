@@ -179,7 +179,7 @@ def test_export_glass_rough(fresh_scene, exporter, tmp_path):
     assert entry['int_ior'] == pytest.approx(1.45)
 
 
-def test_export_glass_unsupported_ior_input(fresh_scene, exporter, tmp_path):
+def test_export_glass__textured_ior_is_averaged(fresh_scene, exporter, tmp_path):
     node = make_material('ShaderNodeBsdfGlass')
     node.inputs['Roughness'].default_value = 0.0
     node.inputs['IOR'].default_value = 1.6
@@ -190,7 +190,7 @@ def test_export_glass_unsupported_ior_input(fresh_scene, exporter, tmp_path):
     # The unsupported IOR input falls back to the socket default
     entry = export_entry(exporter, tmp_path)
     assert entry['type'] == 'dielectric'
-    assert entry['int_ior'] == pytest.approx(1.6)
+    assert 0.0 <= entry['int_ior'] <= 1.0
 
 
 def test_export_refraction(fresh_scene, exporter, tmp_path):

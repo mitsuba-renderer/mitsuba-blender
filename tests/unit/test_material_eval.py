@@ -423,18 +423,18 @@ def test_muted_link_is_unlinked(export_ctx, ev, tree, probe):
 
 
 def test_unsupported_node(export_ctx, ev, tree, probe):
-    node = tree.nodes.new('ShaderNodeTexNoise')
-    result = fold_float(export_ctx, ev, tree, probe, node.outputs['Fac'])
+    node = tree.nodes.new('ShaderNodeTexVoronoi')
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
     assert isinstance(result, ev.Unsupported)
     assert node.name in result.reason
-    assert 'TEX_NOISE' in result.reason
-    assert 'Strength' in result.reason
+    assert 'TEX_VORONOI' in result.reason
+    assert 'Color' in result.reason
 
 
 def test_unsupported_node_inside_fold(export_ctx, ev, tree, probe):
-    noise = tree.nodes.new('ShaderNodeTexNoise')
+    noise = tree.nodes.new('ShaderNodeTexVoronoi')
     add = math_node(tree, 'ADD', 0.0, 1.0)
-    tree.links.new(noise.outputs['Fac'], add.inputs[0])
+    tree.links.new(noise.outputs['Color'], add.inputs[0])
     result = fold_float(export_ctx, ev, tree, probe, add.outputs['Value'])
     assert isinstance(result, ev.Unsupported)
     assert noise.name in result.reason
@@ -482,13 +482,13 @@ def test_eval_float_returns_default_on_unsupported(export_ctx, ev, tree, probe, 
     ctx_module = importlib.import_module(
         f'{mi_addon}.io.exporter.export_context')
     export_ctx = ctx_module.ExportContext()
-    noise = tree.nodes.new('ShaderNodeTexNoise')
-    tree.links.new(noise.outputs['Fac'], probe.inputs['Strength'])
+    noise = tree.nodes.new('ShaderNodeTexVoronoi')
+    tree.links.new(noise.outputs['Color'], probe.inputs['Color'])
     if export_ctx.strict:
         with pytest.raises(ev.ConversionError):
-            ev.eval_float(export_ctx, probe.inputs['Strength'], default=0.125)
+            ev.eval_color(export_ctx, probe.inputs['Color'], default=0.125)
     else:
-        assert ev.eval_float(export_ctx, probe.inputs['Strength'], default=0.125) == 0.125
+        assert ev.eval_color(export_ctx, probe.inputs['Color'], default=0.125) == 0.125
 
 
 def test_eval_color_spectrum(export_ctx, ev, tree, probe, mi_addon):
@@ -606,14 +606,14 @@ def test_group_unsupported_node_inside(export_ctx, ev, tree, probe):
     '''An unsupported node inside a group is reported as unsupported --
     not as "GROUP is not supported".'''
     group, g_in, g_out = _make_group('NoiseGroup')
-    noise = group.nodes.new('ShaderNodeTexNoise')
-    group.links.new(noise.outputs['Fac'], g_out.inputs['Result'])
+    noise = group.nodes.new('ShaderNodeTexVoronoi')
+    group.links.new(noise.outputs['Color'], g_out.inputs['Result'])
 
     group_node = tree.nodes.new('ShaderNodeGroup')
     group_node.node_tree = group
-    result = fold_float(export_ctx, ev, tree, probe, group_node.outputs['Result'])
+    result = fold_color(export_ctx, ev, tree, probe, group_node.outputs['Result'])
     assert isinstance(result, ev.Unsupported)
-    assert 'TEX_NOISE' in result.reason
+    assert 'TEX_VORONOI' in result.reason
 
 
 def test_group_with_no_tree(export_ctx, ev, tree, probe):
