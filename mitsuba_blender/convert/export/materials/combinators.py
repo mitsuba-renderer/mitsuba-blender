@@ -82,9 +82,13 @@ def convert_add(export_ctx, ref):
     node = ref.node
     a = _shader_input(node, node.inputs[0], ref.stack)
     b = _shader_input(node, node.inputs[1], ref.stack)
-    if a is None or b is None:
+    if a is None and b is None:
         raise ConversionError(f'Add Shader node "{node.name}" needs both '
                               'shader inputs linked')
+    if a is None:
+        return b
+    if b is None:
+        return a
     a_emits = a.node.type == 'EMISSION'
     b_emits = b.node.type == 'EMISSION'
     if a_emits and b_emits:
@@ -115,9 +119,24 @@ def convert_mix(export_ctx, ref):
     node = ref.node
     a = _shader_input(node, node.inputs[1], ref.stack)
     b = _shader_input(node, node.inputs[2], ref.stack)
-    if a is None or b is None:
+    if a is None and b is None:
         raise ConversionError(f'Mix Shader node "{node.name}" needs both '
                               'shader inputs linked')
+    if a is None:
+        return {
+            'type' : 'blendbsdf',
+            'weight' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack),
+            'bsdf1': {'type' : 'null'},
+            'bsdf2': _child_bsdf(export_ctx, b)
+        }
+    if b is None:
+        return {
+            'type' : 'blendbsdf',
+            'weight' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack),
+            'bsdf1': _child_bsdf(export_ctx, a),
+            'bsdf2': {'type' : 'null'}
+        }
+
     a_emits = a.node.type == 'EMISSION'
     b_emits = b.node.type == 'EMISSION'
     if a_emits and b_emits:
