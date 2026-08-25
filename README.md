@@ -87,7 +87,7 @@ directions with matching radiometric units.
 | Normal Map / Bump | `normalmap` / `bumpmap` |
 | Mapping / Texture Coordinate | `to_uv` transform |
 
-Value and color nodes feeding the above become Mitsuba texture plugins rather than being folded into constants at export: `Math`, `Mix`, `Invert`, `Gamma`, `Brightness/Contrast`, `Map Range`, `Clamp`, `RGB Curves`, `Hue/Saturation/Value`, `Color Ramp`, `RGB to BW`, `Separate/Combine XYZ` and `Color`, and `Vector Math`. `RGB` and `Value` nodes stay constants, since there is nothing to evaluate per shading point.
+Value and color nodes feeding the above become Mitsuba texture plugins at export: `Math`, `Mix`, `Invert`, `Gamma`, `Brightness/Contrast`, `Map Range`, `Clamp`, `RGB Curves`, `Hue/Saturation/Value`, `Color Ramp`, `RGB to BW`, `Separate/Combine XYZ` and `Color`, and `Vector Math`. `RGB` and `Value` nodes stay constants, since there is nothing to evaluate per shading point.
 
 Some Mitsuba parameters are read as a scalar rather than a texture (e.g. Principled's `eta` and `specular`). Hence we cannot use the same mechanism, it is resolved by sampling over a UV grid and averaged.
 
