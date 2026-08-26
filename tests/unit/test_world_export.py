@@ -111,6 +111,23 @@ def test_default_background_ignored(fresh_scene, export_ctx, world):
         pytest.approx(world.DEFAULT_BACKGROUND)
 
 
+def test_default_color_at_other_strength_is_kept(fresh_scene, export_ctx,
+                                                 world):
+    # Only an untouched world is the default one; a color/strength pair that
+    # merely multiplies out to the default gray must still be exported
+    gray = world.DEFAULT_BACKGROUND[0]
+    for color, strength in ((2.0 * gray, 0.5), (gray / 4.0, 4.0),
+                            (1.0, gray), (gray, 2.0)):
+        b_world = make_world(color=(color, color, color, 1.0),
+                             strength=strength)
+        params = world.convert_world(export_ctx, b_world,
+                                     ignore_background=True)
+        assert params is not None, \
+            f'color {color} at strength {strength} was dropped'
+        assert params['radiance']['value'] == \
+            pytest.approx([color * strength] * 3, rel=1e-5)
+
+
 def test_zero_strength_skipped(fresh_scene, export_ctx, world):
     b_world = make_world(color=(1.0, 1.0, 1.0, 1.0), strength=0.0)
     assert world.convert_world(export_ctx, b_world) is None

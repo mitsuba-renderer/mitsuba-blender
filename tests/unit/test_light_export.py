@@ -130,6 +130,18 @@ def test_sun_light(fresh_scene, export_ctx, lights):
     assert mi.load_dict(params) is not None
 
 
+def test_sun_light_ignores_object_scale(fresh_scene, export_ctx, lights):
+    # Mitsuba's directional emitter does not normalize the direction it
+    # reads from to_world, so a scaled to_world would scale the irradiance
+    obj = make_light('SUN', rotation=(math.radians(30), 0, 0), energy=2.5,
+                     scale=(5.0, 2.0, 3.0))
+    params = lights.convert_light(export_ctx, obj)
+    matrix = np.array(params['to_world'].matrix)
+    assert np.linalg.norm(matrix[:3, 2]) == pytest.approx(1.0)
+    np.testing.assert_allclose(matrix[:3, 2],
+                               emitted_direction(export_ctx, obj), atol=1e-6)
+
+
 @pytest.mark.parametrize('shape,size,size_y,scale,expected_type,expected_area', [
     ('SQUARE', 2.0, None, (1, 1, 1), 'rectangle', 4.0),
     ('RECTANGLE', 2.0, 3.0, (2, 1, 1), 'rectangle', 12.0),
