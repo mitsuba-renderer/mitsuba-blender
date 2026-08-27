@@ -50,6 +50,9 @@ def register(mi, dr):
             cb.put('texture', self.texture, mi.ParamFlags.Differentiable)
             cb.put('strength', self.strength, mi.ParamFlags.Differentiable)
 
+        def parameters_changed(self, keys=None):
+            pass
+
         def is_spatially_varying(self):
             return (self.texture.is_spatially_varying() or
                     self.strength.is_spatially_varying())

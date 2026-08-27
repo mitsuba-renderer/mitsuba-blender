@@ -174,8 +174,14 @@ def register(mi, dr):
             return True
 
         def traverse(self, cb):
-            cb.put('vector', self.vector, +mi.ParamFlags.Differentiable)
-            cb.put('scale', self.scale, +mi.ParamFlags.Differentiable)
+            # 'vector' is optional: with the input unconnected it is None,
+            # which is not a traversable value.
+            if self.vector is not None:
+                cb.put('vector', self.vector, mi.ParamFlags.Differentiable)
+            cb.put('scale', self.scale, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def to_string(self):
             return (f'TexNoise[detail={self.detail}, '

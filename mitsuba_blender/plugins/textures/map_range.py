@@ -90,11 +90,15 @@ def register(mi, dr):
 
 
         def traverse(self, cb):
+            cb.put('steps', self.steps, mi.ParamFlags.Differentiable)
             cb.put('input', self.input, mi.ParamFlags.Differentiable)
             cb.put('from_min', self.from_min, mi.ParamFlags.Differentiable)
             cb.put('from_max', self.from_max, mi.ParamFlags.Differentiable)
             cb.put('to_min', self.to_min, mi.ParamFlags.Differentiable)
             cb.put('to_max', self.to_max, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def is_spatially_varying(self):
             return any([t.is_spatially_varying() for t in [

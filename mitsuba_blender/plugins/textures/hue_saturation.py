@@ -62,11 +62,14 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, callback):
-            callback.put_object('hue',        self.hue,        +mi.ParamFlags.Differentiable)
-            callback.put_object('saturation', self.saturation, +mi.ParamFlags.Differentiable)
-            callback.put_object('value',      self.value,      +mi.ParamFlags.Differentiable)
-            callback.put_object('mix',        self.mix,        +mi.ParamFlags.Differentiable)
-            callback.put_object('input',      self.input,      +mi.ParamFlags.Differentiable)
+            callback.put('hue',        self.hue,        mi.ParamFlags.Differentiable)
+            callback.put('saturation', self.saturation, mi.ParamFlags.Differentiable)
+            callback.put('value',      self.value,      mi.ParamFlags.Differentiable)
+            callback.put('mix',        self.mix,        mi.ParamFlags.Differentiable)
+            callback.put('input',      self.input,      mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def is_spatially_varying(self):
             return (self.hue.is_spatially_varying() or

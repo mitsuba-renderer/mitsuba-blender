@@ -49,6 +49,9 @@ def register(mi, dr):
             cb.put('y', self.y, mi.ParamFlags.Differentiable)
             cb.put('z', self.z, mi.ParamFlags.Differentiable)
 
+        def parameters_changed(self, keys=None):
+            pass
+
         def is_spatially_varying(self):
             return (self.x.is_spatially_varying() or
                     self.y.is_spatially_varying() or

@@ -51,7 +51,9 @@ def register(mi, dr):
 
         def traverse(self, cb):
             cb.put('vector', self.vector, mi.ParamFlags.Differentiable)
-            cb.put('index', self.index, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def is_spatially_varying(self):
             return (self.vector.is_spatially_varying() or

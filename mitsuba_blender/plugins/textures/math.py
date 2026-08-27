@@ -167,9 +167,12 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, cb: mi.TraversalCallback) -> None:
-            cb.put('a', self.a, +mi.ParamFlags.Differentiable)
-            cb.put('b', self.b, +mi.ParamFlags.Differentiable)
-            cb.put('c', self.c, +mi.ParamFlags.Differentiable)
+            cb.put('a', self.a, mi.ParamFlags.Differentiable)
+            cb.put('b', self.b, mi.ParamFlags.Differentiable)
+            cb.put('c', self.c, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None) -> None:
+            pass
 
         def is_spatially_varying(self):
             return (self.a.is_spatially_varying() or

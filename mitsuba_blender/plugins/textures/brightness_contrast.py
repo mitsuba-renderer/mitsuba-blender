@@ -56,9 +56,12 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, cb):
-            cb.put_object('input', self.input, mi.ParamFlags.Differentiable)
-            cb.put_object('brightness', self.brightness, mi.ParamFlags.Differentiable)
-            cb.put_object('contrast', self.contrast, mi.ParamFlags.Differentiable)
+            cb.put('input', self.input, mi.ParamFlags.Differentiable)
+            cb.put('brightness', self.brightness, mi.ParamFlags.Differentiable)
+            cb.put('contrast', self.contrast, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def is_spatially_varying(self):
             return (self.input.is_spatially_varying() or

@@ -24,6 +24,12 @@ class ConstantVector(mi.Texture):
     def eval_3(self, si, active=True):
         return self.value
 
+    def traverse(self, cb):
+        cb.put('value', self.value, mi.ParamFlags.Differentiable)
+
+    def parameters_changed(self, keys=None):
+        pass
+
     def mean(self):
         return 0.5
 

@@ -71,12 +71,15 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, cb):
-            cb.put_object('color', self.color, mi.ParamFlags.Differentiable)
-            cb.put_object('fac', self.fac, mi.ParamFlags.Differentiable)
-            cb.put_object('curve_c', self.curve_c, mi.ParamFlags.Differentiable)
-            cb.put_object('curve_r', self.curve_r, mi.ParamFlags.Differentiable)
-            cb.put_object('curve_g', self.curve_g, mi.ParamFlags.Differentiable)
-            cb.put_object('curve_b', self.curve_b, mi.ParamFlags.Differentiable)
+            cb.put('color', self.color, mi.ParamFlags.Differentiable)
+            cb.put('fac', self.fac, mi.ParamFlags.Differentiable)
+            cb.put('curve_c', self.curve_c, mi.ParamFlags.NonDifferentiable)
+            cb.put('curve_r', self.curve_r, mi.ParamFlags.NonDifferentiable)
+            cb.put('curve_g', self.curve_g, mi.ParamFlags.NonDifferentiable)
+            cb.put('curve_b', self.curve_b, mi.ParamFlags.NonDifferentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
 
         def is_spatially_varying(self):
             return (self.color.is_spatially_varying() or

@@ -60,6 +60,9 @@ def register(mi, dr):
             cb.put('green', self.green, mi.ParamFlags.Differentiable)
             cb.put('blue', self.blue, mi.ParamFlags.Differentiable)
 
+        def parameters_changed(self, keys=None):
+            pass
+
         def is_spatially_varying(self):
             return (self.red.is_spatially_varying() or
                     self.green.is_spatially_varying() or

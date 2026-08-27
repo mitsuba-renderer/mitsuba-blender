@@ -94,7 +94,7 @@ def register(mi, dr):
             self.band_col[3*last_elem+2] = self.band_col[3*(last_elem-1)+2]
 
 
-        def parameters_changed(self, keys):
+        def parameters_changed(self, keys=None):
             pass
 
         def process(self, input_pos, active=True):
@@ -123,7 +123,7 @@ def register(mi, dr):
             return 0.5
 
         def traverse(self, callback):
-            callback.put_object('input', self.input, mi.ParamFlags.Differentiable)
+            callback.put('input', self.input, mi.ParamFlags.Differentiable)
 
         def resolution(self):
             return self.input.resolution()
