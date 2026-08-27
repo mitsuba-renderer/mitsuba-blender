@@ -71,7 +71,7 @@ def convert_holdout(export_ctx, ref):
     return {'type': 'null'}
 
 
-def _shader_input(node, socket, stack):
+def _shader_input(socket, stack):
     '''Trace a shader input to the node feeding it, as a NodeRef.'''
     child, _, child_stack = trace_source(socket, stack)
     return NodeRef(child, child_stack) if child is not None else None
@@ -80,8 +80,8 @@ def _shader_input(node, socket, stack):
 @node_converter('ADD_SHADER')
 def convert_add(export_ctx, ref):
     node = ref.node
-    a = _shader_input(node, node.inputs[0], ref.stack)
-    b = _shader_input(node, node.inputs[1], ref.stack)
+    a = _shader_input(node.inputs[0], ref.stack)
+    b = _shader_input(node.inputs[1], ref.stack)
     if a is None and b is None:
         raise ConversionError(f'Add Shader node "{node.name}" needs both '
                               'shader inputs linked')
@@ -117,8 +117,8 @@ def convert_add(export_ctx, ref):
 @node_converter('MIX_SHADER')
 def convert_mix(export_ctx, ref):
     node = ref.node
-    a = _shader_input(node, node.inputs[1], ref.stack)
-    b = _shader_input(node, node.inputs[2], ref.stack)
+    a = _shader_input(node.inputs[1], ref.stack)
+    b = _shader_input(node.inputs[2], ref.stack)
     if a is None and b is None:
         raise ConversionError(f'Mix Shader node "{node.name}" needs both '
                               'shader inputs linked')

@@ -79,7 +79,7 @@ def convert_mi_bsdf(mi_context, node_id, emitter_id=None):
 
     mi_props = mi_context.mi_state.nodes[node_id].props
     bsdf_name = mi_props.id() if mi_props.id() else f'Material_{node_id}'
-    
+
     if emitter_id is None:
         em_props = None
     else:
@@ -287,7 +287,7 @@ def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shap
     # Instantiate a default Blender world if none was created
     if mi_context.bl_scene.world is None:
         mi_context.bl_scene.world = world.create_default_bl_world()
-    
+
     # TODO: maybeCheck that every property was accessed at least once as a sanity check
 
     end_time = time.time()

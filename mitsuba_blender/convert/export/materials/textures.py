@@ -14,7 +14,6 @@ and the world exporter calls `convert_environment_texture`.
 
 import os
 import shutil
-from sys import set_int_max_str_digits
 
 import bpy
 from mathutils import Euler, Matrix
@@ -257,7 +256,7 @@ def convert_image_texture(export_ctx, ref, out_socket):
 
     params: dict[str, object] = {'type': 'bitmap'}
     colorspace = image.colorspace_settings.name
-    params['filename'], raw= export_image(export_ctx, image)
+    params['filename'], raw = export_image(export_ctx, image)
 
     if raw or colorspace in _DATA_COLORSPACES:
         params['raw'] = True
@@ -384,7 +383,7 @@ def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
         'use_clamp' : node.use_clamp
     }
 
-    for i,  socket in enumerate(node.inputs):
+    for i, socket in enumerate(node.inputs):
         params[_MATH_INPUT_NAMES[i]] = eval_float(export_ctx, socket, stack=ref.stack)
     return params
 
@@ -396,15 +395,15 @@ def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_so
     params = {
         'type': 'hue_saturation_value',
         'input': eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
-        'hue': eval_float(export_ctx, node.inputs['Hue']),
-        'saturation': eval_float(export_ctx, node.inputs['Saturation']),
-        'value' : eval_float(export_ctx, node.inputs['Value']),
-        'mix' : eval_float(export_ctx, node.inputs['Fac'])
+        'hue': eval_float(export_ctx, node.inputs['Hue'], stack=ref.stack),
+        'saturation': eval_float(export_ctx, node.inputs['Saturation'], stack=ref.stack),
+        'value' : eval_float(export_ctx, node.inputs['Value'], stack=ref.stack),
+        'mix' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
     }
     return params
 
 
-def _write_curve_table(export_ctx, node, name, arr):
+def _write_curve_table(export_ctx, arr):
     '''Write a sampled curve table beside the scene and return its path.
 
     The XML writer cannot serialise an in-memory bitmap, so file export
@@ -428,7 +427,6 @@ def _write_curve_table(export_ctx, node, name, arr):
 @texture_converter('CURVE_RGB')
 def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
     import numpy as np
-    import mitsuba as mi
     node = ref.node
 
     params = {
@@ -443,14 +441,14 @@ def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
 
     for i, c in enumerate(['curve_r', 'curve_g', 'curve_b', 'curve_c']):
         curve = mapping.curves[i]
-        row = np.array([mapping.evaluate(curve, j / (N -1)) for j in range(N)], dtype=np.float32)
+        row = np.array([mapping.evaluate(curve, j / (N - 1)) for j in range(N)], dtype=np.float32)
         arr = np.stack([row, row]).reshape(2, N, 1) # bitmaps need at least 2 x 2
 
         table = {
             'type': 'bitmap',
             'raw': True,
             'wrap_mode': 'clamp',
-            'filename' : _write_curve_table(export_ctx, node, c, arr)
+            'filename' : _write_curve_table(export_ctx, arr)
         }
         params[c] = table
 
@@ -479,12 +477,12 @@ def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
 
     if data_type == 'FLOAT':
         params['blend_type'] = 'MIX'
-        params['a'] = eval_float(export_ctx, _socket(node.inputs, 'A_Float'))
-        params['b'] = eval_float(export_ctx, _socket(node.inputs, 'B_Float'))
+        params['a'] = eval_float(export_ctx, _socket(node.inputs, 'A_Float'), stack=ref.stack)
+        params['b'] = eval_float(export_ctx, _socket(node.inputs, 'B_Float'), stack=ref.stack)
     elif data_type == 'RGBA':
         params['blend_type'] = node.blend_type
-        params['a'] = eval_color(export_ctx, _socket(node.inputs, 'A_Color'))
-        params['b'] = eval_color(export_ctx, _socket(node.inputs, 'B_Color'))
+        params['a'] = eval_color(export_ctx, _socket(node.inputs, 'A_Color'), stack=ref.stack)
+        params['b'] = eval_color(export_ctx, _socket(node.inputs, 'B_Color'), stack=ref.stack)
     else:
         raise ConversionError(f'Mix node "{node.name}": data type {data_type} is not supported')
 
@@ -579,9 +577,9 @@ def convert_map_range(export_ctx: ExportContext, ref : NodeRef, out_socket):
 def convert_combine_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
     return {
         'type': 'combine_xyz',
-        'x': eval_float(export_ctx, ref.node.inputs['X']),
-        'y': eval_float(export_ctx, ref.node.inputs['Y']),
-        'z': eval_float(export_ctx, ref.node.inputs['Z'])
+        'x': eval_float(export_ctx, ref.node.inputs['X'], stack=ref.stack),
+        'y': eval_float(export_ctx, ref.node.inputs['Y'], stack=ref.stack),
+        'z': eval_float(export_ctx, ref.node.inputs['Z'], stack=ref.stack)
     }
 
 @texture_converter('SEPXYZ')
@@ -677,7 +675,6 @@ def _texture_input(export_ctx, socket, stack):
 
 
 def _wrap_normalmap(export_ctx, ref, bsdf):
-    import os
     import mitsuba as mi
 
     node = ref.node
@@ -710,7 +707,7 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
         except Exception:
             pass
 
-    strength = eval_float(export_ctx, node.inputs['Strength'], ref.stack)
+    strength = eval_float(export_ctx, node.inputs['Strength'], stack=ref.stack)
     params = texture
 
     use_strength = False
@@ -731,12 +728,6 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
             params['texture']['raw'] = True
         else:
             params['raw'] = True
-
-        if 'bitmap' in texture:
-            if use_strength:
-                params['texture']['bitmap'].set_srgb_gamma(False)
-            else:
-                params['bitmap'].set_srgb_gamma(False)
 
     return {
         'type': 'normalmap',
@@ -806,7 +797,7 @@ def convert_environment_texture(export_ctx, ref):
         raise ConversionError(f'projection {node.projection} of environment '
                               f'texture node "{node.name}" is not supported')
     params = {'type': 'envmap'}
-    params['filename'], _= export_image(export_ctx, image)
+    params['filename'], _ = export_image(export_ctx, image)
 
     colorspace = image.colorspace_settings.name
     if colorspace != 'sRGB' and colorspace not in _DATA_COLORSPACES:

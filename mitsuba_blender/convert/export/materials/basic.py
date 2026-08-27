@@ -45,7 +45,7 @@ def convert_diffuse(export_ctx, ref):
         'type': 'twosided',
         'bsdf': {
             'type': 'diffuse',
-            'reflectance': eval_color(export_ctx, node.inputs['Color']),
+            'reflectance': eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
         },
     }
     return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack=ref.stack)
@@ -91,7 +91,8 @@ def convert_glossy(export_ctx, ref):
             params['alpha_u'] = alpha_u
             params['alpha_v'] = alpha_v
     params['specular_reflectance'] = eval_color(export_ctx,
-                                                node.inputs['Color'])
+                                                node.inputs['Color'],
+                                                stack=ref.stack)
     return convert_normal_input(export_ctx, node.inputs['Normal'],
                                 {'type': 'twosided', 'bsdf': params}, stack=ref.stack)
 

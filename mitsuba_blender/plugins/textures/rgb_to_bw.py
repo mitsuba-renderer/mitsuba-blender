@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .common import get_texture
-import drjit as dr
 
 if TYPE_CHECKING:
     import mitsuba as mi
@@ -29,7 +28,7 @@ def register(mi, dr):
     class RGBToBW(mi.Texture):
         ''' Color to gray scale converter
 
-        Texture which convert an RGB color input into a black and white
+        Texture which converts an RGB color input into a black and white
         (grayscale) value, using a weighted formula (_REC709).
         '''
         def __init__(self, props: mi.Properties) -> None:

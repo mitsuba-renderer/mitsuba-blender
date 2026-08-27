@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from enum import Enum
 
 from .common import get_texture, hsv2rgb, rgb2hsv
 
@@ -23,8 +22,8 @@ def register(mi, dr):
     class HueSaturationValue(mi.Texture):
         ''' Hue-Saturation-Value texture.
 
-        Convert to HSV, offsets hue, scales saturation and value, converter
-        back, then lerps towards the resuly by Fac. The conversions follow
+        Convert to HSV, offsets hue, scales saturation and value, converts
+        back, then lerps towards the result by Fac. The conversions follow
         hsv_to_rgb and rgb_to_hsv in Blender's math_color.cc, which are branchless
         and take hue in [0, 1] rather than degrees.
         '''
@@ -73,7 +72,6 @@ def register(mi, dr):
 
         def is_spatially_varying(self):
             return (self.hue.is_spatially_varying() or
-                    self.saturation.is_spatially_varying() or
                     self.saturation.is_spatially_varying() or
                     self.value.is_spatially_varying() or
                     self.mix.is_spatially_varying() or

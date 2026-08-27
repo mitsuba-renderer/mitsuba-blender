@@ -298,11 +298,10 @@ class GeometryExporter:
         object-to-world transform.'''
         export_ctx = self.export_ctx
         to_world = export_ctx.transform_matrix(deg_instance.matrix_world)
-        converted = self.convert_parts(deg_instance.object, name_clean,
-                                       to_world)
+        converted = self.convert_parts(deg_instance.object, name_clean)
         for name, bsdf_id, emitter, mi_mesh in converted:
             name = name_clean if len(converted) == 1 else name
-            entry = self.make_entry(name, bsdf_id, emitter, mi_mesh, to_world)
+            entry = self.make_entry(bsdf_id, emitter, mi_mesh, to_world)
             if export_ctx.export_ids:
                 export_ctx.data_add(entry, name=f'mesh-{name}')
             else:
@@ -331,12 +330,12 @@ class GeometryExporter:
                     'as a separate shape.', 'WARN')
                 self.group_ids[key] = self.EMITTER_FALLBACK
             else:
-                converted = self.convert_parts(b_object, name_clean, None)
+                converted = self.convert_parts(b_object, name_clean)
                 group = {'type': 'shapegroup'}
                 for name, bsdf_id, emitter, mi_mesh in converted:
                     name = name_clean if len(converted) == 1 else name
                     group[export_ctx.sanitize(name)] = \
-                        self.make_entry(name, bsdf_id, emitter, mi_mesh)
+                        self.make_entry(bsdf_id, emitter, mi_mesh)
                 if len(group) > 1:
                     object_id = f'mesh-{name_clean}'
                     export_ctx.data_add(group, name=object_id)
@@ -359,10 +358,9 @@ class GeometryExporter:
                     deg_instance.matrix_world)
             })
 
-    def convert_parts(self, b_object, name_clean, to_world):
+    def convert_parts(self, b_object, name_clean):
         '''Convert the object into one (name, bsdf_id, emitter, mesh) tuple
-        per non-empty material slot. In render mode `to_world` is baked into
-        the geometry, since an instantiated shape cannot carry one.'''
+        per non-empty material slot.'''
         export_ctx = self.export_ctx
         if b_object.type == 'MESH':
             b_mesh = b_object.data
@@ -415,7 +413,7 @@ class GeometryExporter:
             b_object.to_mesh_clear()
         return converted
 
-    def make_entry(self, name, bsdf_id, emitter, mi_mesh, to_world=None):
+    def make_entry(self, bsdf_id, emitter, mi_mesh, to_world=None):
         '''Return the scene dict entry of a converted mesh part.'''
         export_ctx = self.export_ctx
         # Every mesh goes into one shared .serialized file, addressed by the

@@ -6,7 +6,7 @@ work) or an Environment Texture, optionally rotated through a Mapping
 node driven by generated texture coordinates.
 '''
 
-from mathutils import Euler, Matrix, Vector
+from mathutils import Euler, Matrix
 
 from .. import ConversionError
 from ...compat import uses_nodes
@@ -77,7 +77,6 @@ def convert_world(export_ctx, b_world, ignore_background=True):
     '''Convert a Blender world into a Mitsuba emitter dict. Returns None
     when there is nothing to export; raises ConversionError for
     unsupported node setups.'''
-    #ignore_background = False
     if b_world is None:
         export_ctx.log('No Blender world to export.', 'INFO')
         return None
@@ -101,7 +100,7 @@ def convert_world(export_ctx, b_world, ignore_background=True):
 
     strength = _resolve.scalar_from_socket(export_ctx,
                                            node.inputs['Strength'],
-                                           _resolve.NodeRef(node, stack))
+                                           stack)
 
     if strength == 0.0:
         export_ctx.log('Ignoring a world with zero strength.', 'INFO')

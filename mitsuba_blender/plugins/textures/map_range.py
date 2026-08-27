@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import drjit as dr
 from .common import get_texture
 
 if TYPE_CHECKING:
@@ -42,7 +41,6 @@ def register(mi, dr):
             self.to_max = get_texture(props, 'to_max', 1.0)
             self.interpolation_type = props.get('interpolation_type', 'LINEAR')
 
-
         def _safe_divide(self, a, b):
             return dr.select(b != 0.0, a / dr.select(b != 0.0, b, 1.0), 0.0)
 
@@ -75,9 +73,8 @@ def register(mi, dr):
                 v = self._clamp_range(v, to_min, to_max)
             return v
 
-
         def eval(self, si: mi.SurfaceInteraction3f, active=True):
-            mi.UnpolarizedSpectrum(self.eval_3(si, active))
+            return mi.UnpolarizedSpectrum(self.eval_3(si, active))
 
         def eval_1(self, si, active=True):
             return mi.Float(self.process(si, active))
@@ -87,7 +84,6 @@ def register(mi, dr):
 
         def mean(self):
             return 0.5
-
 
         def traverse(self, cb):
             cb.put('steps', self.steps, mi.ParamFlags.Differentiable)
@@ -103,7 +99,10 @@ def register(mi, dr):
         def is_spatially_varying(self):
             return any([t.is_spatially_varying() for t in [
                 self.from_min, self.from_max, self.to_min, self.to_max, self.input
-            ]])
+            ]]) or self.steps.is_spatially_varying()
+
+        def resolution(self):
+            return self.input.resolution()
 
         def to_string(self):
             return (f'MapRange[interpolation_type={self.interpolation_type},\n'
@@ -112,9 +111,6 @@ def register(mi, dr):
                     f'from = [{self.from_min}, {self.from_max}],\n'
                     f'to = [{self.to_min}, {self.to_max}]\n]')
 
-
-        def resolution(self):
-            return self.input.resolution()
     mi.register_texture('map_range', MapRange)
 
 

@@ -106,10 +106,10 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
     filter_glob: StringProperty(default="*.xml", options={'HIDDEN'})
 
     use_selection: BoolProperty(
-	        name = "Selection Only",
-	        description="Export selected objects only",
-	        default = False,
-	    )
+            name = "Selection Only",
+            description = "Export selected objects only",
+            default = False,
+    )
 
     export_ids: BoolProperty(
             name = "Export IDs",
@@ -146,9 +146,9 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
         # Conversion matrix to shift the "Up" Vector. This can be useful when exporting single objects to an existing mitsuba scene.
         axis_mat = axis_conversion(
-	            to_forward=self.axis_forward,
-	            to_up=self.axis_up,
-	        ).to_4x4()
+            to_forward=self.axis_forward,
+            to_up=self.axis_up,
+        ).to_4x4()
 
         self.converter.export_ctx.axis_mat = axis_mat
         # Add IDs to all base plugins (shape, emitter, sensor...)

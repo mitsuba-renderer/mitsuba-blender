@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import drjit as dr
-import mitsuba as mi
-
-from .common import get_texture, rgb2hsl,rgb2hsv
+from .common import get_texture, rgb2hsl, rgb2hsv
 
 if TYPE_CHECKING:
     import mitsuba as mi
@@ -26,7 +23,7 @@ def register(mi, dr):
         ''' One component of a color-valued texture
 
         Blender's Separate Color node has three outputs; each becomes
-        its own instance with a different index, since Mitsuba texture
+        its own instance with a different index, since a Mitsuba texture
         has one output.
         '''
         def __init__(self, props: mi.Properties) -> None:

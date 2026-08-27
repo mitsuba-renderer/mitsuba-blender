@@ -50,7 +50,7 @@ def register(mi, dr):
             elif mode_str == 'cardinal':
                 self.mode = ColorRamp.InterpolationMode.Cardinal
             else:
-                raise NotImplementedError('Interpolation mode {mode_str} is not supported')
+                raise NotImplementedError(f'Interpolation mode {mode_str} is not supported')
             self.mode_str = mode_str
 
             # Load colors and positions
@@ -93,10 +93,6 @@ def register(mi, dr):
             self.band_col[3*last_elem+1] = self.band_col[3*(last_elem-1)+1]
             self.band_col[3*last_elem+2] = self.band_col[3*(last_elem-1)+2]
 
-
-        def parameters_changed(self, keys=None):
-            pass
-
         def process(self, input_pos, active=True):
             col = mi.Color3f(self.band_col[0], self.band_col[1], self.band_col[2])
             for i in range(1, len(self.band_pos)):
@@ -125,14 +121,17 @@ def register(mi, dr):
         def traverse(self, callback):
             callback.put('input', self.input, mi.ParamFlags.Differentiable)
 
+        def parameters_changed(self, keys=None):
+            pass
+
+        def is_spatially_varying(self):
+            return self.input.is_spatially_varying()
+
         def resolution(self):
             return self.input.resolution()
 
         def wavelength_range(self):
             return mi.ScalarVector2f(mi.MI_CIE_MIN, mi.MI_CIE_MAX)
-
-        def is_spatially_varying(self):
-            return self.input.is_spatially_varying()
 
         def to_string(self):
             return f'ColorRamp[input={self.input}, mode={self.mode_str}]'

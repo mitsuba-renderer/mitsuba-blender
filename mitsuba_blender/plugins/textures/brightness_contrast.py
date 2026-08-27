@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
-from enum import Enum
 from .common import get_texture
 
 if TYPE_CHECKING:
@@ -25,7 +23,7 @@ def register(mi, dr):
         ''' Bright/Contrast texture
 
         Follows node_shader_brightness.cc: gain is 1 + constant, offset is
-        brightness - contrast/2 - constrast*0.5... , and the result is clamped
+        brightness - contrast/2 - contrast*0.5... , and the result is clamped
         to zero from below
         '''
 

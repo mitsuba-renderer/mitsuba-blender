@@ -23,8 +23,8 @@ def register(mi, dr):
     class Mix(mi.Texture):
         ''' Blend two textures by a factor
 
-        It mirros Blender's Mix node. Blend modes other than a plain
-        interpolation appy only to colour inputs; a float mix is always
+        It mirrors Blender's Mix node. Blend modes other than a plain
+        interpolation apply only to colour inputs; a float mix is always
         a lerp, so the converter emits 'MIX' for those.
         '''
 
@@ -64,100 +64,6 @@ def register(mi, dr):
                 hi = 1.0 - (facm + 2.0 * t * (1.0 - b)) * (1.0 - a)
                 return dr.select(a < 0.5, lo, hi)
             raise Exception(f'Mix blend type "{blend_type}" is not supported')
-
-
-
-        def _process(self, si, val_a, val_b, active):
-            fac = self.factor.eval_1(si, active)
-            if self.clamp_factor:
-                fac = dr.clip(fac, 0.0, 1.0)
-            result = self._blend(self.blend_type, val_a, val_b, fac)
-
-            if self.clamp_result:
-                return dr.clip(result, 0.0, 1.0)
-            return result
-
-        def eval(self, si, active=True):
-            val_a = self.a.eval(si, active)
-            val_b = self.b.eval(si, active)
-            return mi.UnpolarizedSpectrum(self._process(si, val_a, val_b, active))
-
-
-        def eval_1(self, si, active=True):
-            val_a = self.a.eval_1(si, active)
-            val_b = self.b.eval_1(si, active)
-            return mi.Float(self._process(si, val_a, val_b, active))
-
-        def eval_3(self, si, active=True):
-            val_a = self.a.eval_3(si, active)
-            val_b = self.b.eval_3(si, active)
-
-            return mi.Color3f(self._process(si, val_a, val_b, active))
-
-        def mean(self):
-            return 0.5
-
-        def traverse(self, cb):
-            cb.put('a', self.a, mi.ParamFlags.Differentiable)
-            cb.put('b', self.b, mi.ParamFlags.Differentiable)
-            cb.put('factor', self.factor, mi.ParamFlags.Differentiable)
-
-        def parameters_changed(self, keys=None):
-            pass
-
-        def is_spatially_varying(self):
-            return (self.factor.is_spatially_varying() or
-                    self.a.is_spatially_varying() or
-                    self.b.is_spatially_varying())
-
-
-        def to_string(self):
-            return (f'Mix[blend_type={self.blend_type}, \n'
-                    f' factor = {self.factor}, \n, a = {self.a},\n b = {self.b}\n]')
-
-        def resolution(self):
-            return self.a.resolution
-
-        def eval_1_grad(self, si, active=True):
-            a = self.a.eval_1(si, active)
-            b = self.b.eval_1(si, active)
-            t = self.factor.eval_1(si, active)
-
-            # Spatial gradients (du, dv)
-            grad_a = self.a.eval_1_grad(si, active)
-            grad_b = self.b.eval_1_grad(si, active)
-            grad_t = self.factor.eval_1_grad(si, active)
-
-            # Handle clamp_factor
-            if self.clamp_factor:
-                raw_t = t
-                t = dr.clip(raw_t, 0.0, 1.0)
-
-                # d clip(t)/dt
-                t_mask = (raw_t > 0.0) & (raw_t < 1.0)
-                grad_t = dr.select(t_mask, grad_t, mi.Vector2f(0.0))
-
-            da, db, dt = self._blend_grad(
-                self.blend_type, a, b, t
-            )
-
-            # Chain rule
-            grad = da * grad_a + db * grad_b + dt * grad_t
-
-            # Handle clamp_result
-            if self.clamp_result:
-                result = self._blend(self.blend_type, a, b, t)
-
-                # d clip(result)/d result
-                result_mask = (result > 0.0) & (result < 1.0)
-                grad = dr.select(
-                    result_mask,
-                    grad,
-                    mi.Vector2f(0.0)
-                )
-
-            return mi.Vector2f(grad)
-
 
         def _blend_grad(self, blend_type, a, b, t):
             facm = 1.0 - t
@@ -257,6 +163,96 @@ def register(mi, dr):
                 )
 
             return da, db, dt
+
+        def _process(self, si, val_a, val_b, active):
+            fac = self.factor.eval_1(si, active)
+            if self.clamp_factor:
+                fac = dr.clip(fac, 0.0, 1.0)
+            result = self._blend(self.blend_type, val_a, val_b, fac)
+
+            if self.clamp_result:
+                return dr.clip(result, 0.0, 1.0)
+            return result
+
+        def eval(self, si, active=True):
+            val_a = self.a.eval(si, active)
+            val_b = self.b.eval(si, active)
+            return mi.UnpolarizedSpectrum(self._process(si, val_a, val_b, active))
+
+        def eval_1(self, si, active=True):
+            val_a = self.a.eval_1(si, active)
+            val_b = self.b.eval_1(si, active)
+            return mi.Float(self._process(si, val_a, val_b, active))
+
+        def eval_1_grad(self, si, active=True):
+            a = self.a.eval_1(si, active)
+            b = self.b.eval_1(si, active)
+            t = self.factor.eval_1(si, active)
+
+            # Spatial gradients (du, dv)
+            grad_a = self.a.eval_1_grad(si, active)
+            grad_b = self.b.eval_1_grad(si, active)
+            grad_t = self.factor.eval_1_grad(si, active)
+
+            # Handle clamp_factor
+            if self.clamp_factor:
+                raw_t = t
+                t = dr.clip(raw_t, 0.0, 1.0)
+
+                # d clip(t)/dt
+                t_mask = (raw_t > 0.0) & (raw_t < 1.0)
+                grad_t = dr.select(t_mask, grad_t, mi.Vector2f(0.0))
+
+            da, db, dt = self._blend_grad(
+                self.blend_type, a, b, t
+            )
+
+            # Chain rule
+            grad = da * grad_a + db * grad_b + dt * grad_t
+
+            # Handle clamp_result
+            if self.clamp_result:
+                result = self._blend(self.blend_type, a, b, t)
+
+                # d clip(result)/d result
+                result_mask = (result > 0.0) & (result < 1.0)
+                grad = dr.select(
+                    result_mask,
+                    grad,
+                    mi.Vector2f(0.0)
+                )
+
+            return mi.Vector2f(grad)
+
+        def eval_3(self, si, active=True):
+            val_a = self.a.eval_3(si, active)
+            val_b = self.b.eval_3(si, active)
+
+            return mi.Color3f(self._process(si, val_a, val_b, active))
+
+        def mean(self):
+            return 0.5
+
+        def traverse(self, cb):
+            cb.put('a', self.a, mi.ParamFlags.Differentiable)
+            cb.put('b', self.b, mi.ParamFlags.Differentiable)
+            cb.put('factor', self.factor, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
+
+        def is_spatially_varying(self):
+            return (self.factor.is_spatially_varying() or
+                    self.a.is_spatially_varying() or
+                    self.b.is_spatially_varying())
+
+        def resolution(self):
+            return self.a.resolution()
+
+        def to_string(self):
+            return (f'Mix[blend_type={self.blend_type}, \n'
+                    f' factor = {self.factor}, \n, a = {self.a},\n b = {self.b}\n]')
+
     mi.register_texture('mix', Mix)
 
 

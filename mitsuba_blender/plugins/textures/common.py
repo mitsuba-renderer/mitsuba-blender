@@ -14,7 +14,6 @@ class ConstantVector(mi.Texture):
         else:
             self.value = mi.Color3f(value[0], value[1], value[2])
 
-
     def eval(self, si, active=True):
         return mi.UnpolarizedSpectrum(self.value)
 
@@ -24,17 +23,20 @@ class ConstantVector(mi.Texture):
     def eval_3(self, si, active=True):
         return self.value
 
+    def mean(self):
+        return 0.5
+
     def traverse(self, cb):
         cb.put('value', self.value, mi.ParamFlags.Differentiable)
 
     def parameters_changed(self, keys=None):
         pass
 
-    def mean(self):
-        return 0.5
-
     def is_spatially_varying(self):
         return False
+
+    def to_string(self):
+        return f'ConstantVector[value = {self.value}]'
 
 
 def register(mi, dr):

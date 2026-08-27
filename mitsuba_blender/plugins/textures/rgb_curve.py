@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from enum import Enum
 from .common import get_texture
 
 if TYPE_CHECKING:
@@ -29,11 +28,6 @@ def register(mi, dr):
         Each curve arrives as a 2xN bitmap sampled with wrap_map clamp,
         since Properties cannot hold a float array.
         '''
-        def _sample(self, table, x, active):
-            lut_si = dr.zeros(mi.SurfaceInteraction3f)
-            lut_si.uv = mi.Point2f(x, 0.5)
-            return table.eval_1(lut_si, active)
-
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
@@ -46,7 +40,10 @@ def register(mi, dr):
             self.curve_g = get_texture(props, 'curve_g')
             self.curve_b = get_texture(props, 'curve_b')
 
-
+        def _sample(self, table, x, active):
+            lut_si = dr.zeros(mi.SurfaceInteraction3f)
+            lut_si.uv = mi.Point2f(x, 0.5)
+            return table.eval_1(lut_si, active)
 
         def eval(self, si, active):
             return mi.UnpolarizedSpectrum(self.eval_3(si, active))
@@ -87,7 +84,7 @@ def register(mi, dr):
                     self.curve_c.is_spatially_varying() or
                     self.curve_r.is_spatially_varying() or
                     self.curve_g.is_spatially_varying() or
-                    self.curve_r.is_spatially_varying())
+                    self.curve_b.is_spatially_varying())
 
         def to_string(self):
             return (f'RGBCurve[\n color = {self.color}, \n fac = {self.fac}\n]')

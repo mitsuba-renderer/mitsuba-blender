@@ -175,7 +175,7 @@ def apply_mi_film_properties(mi_context, mi_props):
     if mi_film_type not in _mi_film_properties_converters:
         mi_context.log(f'Mitsuba Film "{mi_film_type}" is not supported.', 'ERROR')
         return False
-    
+
     return _mi_film_properties_converters[mi_film_type](mi_context, mi_props)
 
 ###########################

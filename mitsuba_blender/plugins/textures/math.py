@@ -139,7 +139,6 @@ def register(mi, dr):
             self.op : str = props.get('op')
 
         def _process(self, a, b, c):
-            import drjit as dr
             result = _MATH_OPS[self.op](a, b, c)
             if self.use_clamp:
                 return dr.clip(result, 0.0, 1.0)
@@ -180,7 +179,7 @@ def register(mi, dr):
                     self.c.is_spatially_varying())
 
         def to_string(self):
-            return (f'Math[op={self.op}, use_clamp=[{self.use_clamp},\n'
+            return (f'Math[op={self.op}, use_clamp={self.use_clamp},\n'
                     f'a = {self.a}\n b = {self.b}\n c = {self.c}]\n')
 
     mi.register_texture('math', Math)

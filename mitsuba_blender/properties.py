@@ -366,7 +366,7 @@ class MitsubaRenderSettings(PropertyGroup):
 
     export_mode: EnumProperty(
         name='Exporting mode',
-        items=MODE_EXP_ITEMS, 
+        items=MODE_EXP_ITEMS,
         default='strict'
     )
 

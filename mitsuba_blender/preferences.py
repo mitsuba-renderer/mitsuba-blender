@@ -7,7 +7,6 @@ os.environ.setdefault('DRJIT_NO_RTLD_DEEPBIND', '1')
 import bpy
 from bpy.props import StringProperty
 from bpy.types import AddonPreferences
-from bpy.utils import register_class, unregister_class
 
 # Version string of the loaded mitsuba module, or None with the reason in
 # init_error. Filled in by register().

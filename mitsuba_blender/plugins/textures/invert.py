@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from enum import Enum
 from .common import get_texture
 
 if TYPE_CHECKING:

@@ -59,14 +59,13 @@ def _average(texture):
     ''' Mean of a texture over a 5x5 grid of UV samples
 
     Some Mitsuba parameters are read as float at construction and cannot
-    take a texture, so a subgraph driving one has to collaps to a number.
+    take a texture, so a subgraph driving one has to collapse to a number.
     Callers check is_spatially_varying() first, so this is only reached
     when the value genuinely varies and the result is an approximation.
     The grid size is arbitrary: 25 samples are cheap at export time and no
-    choice is correct, since the parameters is constant over  the surface
+    choice is correct, since the parameter is constant over the surface
     either way.
     '''
-    import drjit as dr
     n = 5
     if 'scalar' in mi.variant():
         total = 0.0
@@ -88,7 +87,6 @@ def _average(texture):
 
 def _average_vector(texture):
     '''As _average, but per channel, for parameters that take three floats'''
-    import drjit as dr
     n = 5
     if 'scalar' in mi.variant():
         total = [0.0, 0.0, 0.0 ]
@@ -122,6 +120,8 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
         v = result.value
         return float(v) if np.isscalar(v) else float(np.mean(v))
     if isinstance(result, Unsupported):
+        if export_ctx.strict:
+            raise ConversionError(result.reason)
         return socket_default(socket)
     # Texture: build it once and average over a UV grid
     params = dict(result.params)
@@ -137,7 +137,7 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
 
 def vector_from_socket(export_ctx: ExportContext, ref, socket):
     '''
-    Average a subgraph down to a vector for paramters Mitsuba reads as vector
+    Average a subgraph down to a vector for parameters Mitsuba reads as vector
     '''
     import os
     result = resolve(export_ctx, socket, stack=ref.stack)
@@ -177,9 +177,9 @@ def texture_converter(*node_types):
 def _active_output(tree):
     '''The live NodeGroupOutput node of a node group tree, or None
 
-    A tree may hold several Group output nodes, onlty the one flagged
+    A tree may hold several Group output nodes, only the one flagged
     is_active_output is evaluated, the rest are inert. If nothing is flagged,
-    it take the first one'''
+    it takes the first one'''
 
     outs = [n for n in tree.nodes if n.type == 'GROUP_OUTPUT']
     return next((n for n in outs if n.is_active_output), None) or (outs[0] if outs else None)
@@ -194,17 +194,17 @@ def _index_of(sockets, socket):
 
 
 def trace_source(socket, stack=()):
-    '''Given an input socket and the current path, return where its values comes from
+    '''Given an input socket and the current path, return where its value comes from
     This gives us two cases:
         - (node, out_socket, stack) a real node produces the value
         - (node, terminal, stack)   nothing does: `terminal` is where the walk stopped
 
-    Raise a ConversionError when the link form a cycle (Blender permits cycles made
-    of retoutes or muted nodes).'''
+    Raise a ConversionError when the links form a cycle (Blender permits cycles made
+    of reroutes or muted nodes).'''
 
     visited = set()
     # The loop rewrites `socket` and `stack` in place and iterates.
-    # Every branch either moves or stop (return)
+    # Every branch either moves or stops (return)
     #
     # At the top of each iteration
     # - `socket` is an input socket which we want its feeding value
@@ -250,7 +250,7 @@ def trace_source(socket, stack=()):
 
             socket = active.inputs[i]
 
-        # We are going outside the current group, hence we pop it, map the 
+        # We are going outside the current group, hence we pop it, map the
         # Group input node's output to the same position input on the group node
         elif node.type == 'GROUP_INPUT':
             if not stack:
@@ -307,8 +307,7 @@ def resolve(export_ctx, socket, stack=()):
                        f'supported (feeding socket "{socket.name}" of node '
                        f'"{socket.node.name}")')
     try:
-            return Constant(_convert(getter(ref, source), socket.type))
-
+        return Constant(_convert(getter(ref, source), socket.type))
     except _Uncastable as e:
         return Unsupported(f'{e} (feeding socket "{socket.name}" of node '
                            f'"{socket.node.name}")')
@@ -345,7 +344,7 @@ def eval_color(export_ctx, socket, default=None, stack=()):
 
     export_ctx.log(f'{result.reason}; using the default color', 'WARN')
 
-    return _to_color(default if default is not None else socket_default(socket)) 
+    return _to_color(default if default is not None else socket_default(socket))
 
 
 def eval_vector(export_ctx, socket, default=None, stack=()):

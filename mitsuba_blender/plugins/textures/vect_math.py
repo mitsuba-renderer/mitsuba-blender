@@ -74,7 +74,7 @@ def register(mi, dr):
         ''' Math operation on vector
 
             Equivalent to the Math texture but applied on vector, hence
-            new operations such as as dot product, normalize, cross product,
+            new operations such as dot product, normalize, cross product,
             etc. can be used on the inputs.
         '''
         def __init__(self, props: mi.Properties):
@@ -86,7 +86,7 @@ def register(mi, dr):
             self.scale = get_vector_texture(props, 'scale', 1.0)
 
             # FIXME: change the 'ADD' to a more plausible fallback operation
-            self.op_fn =props.get('op', 'ADD')
+            self.op_fn = props.get('op', 'ADD')
 
         def _process(self, si, active):
             return _VECTOR_OPS[self.op_fn](self.vec_0.eval_3(si, active),

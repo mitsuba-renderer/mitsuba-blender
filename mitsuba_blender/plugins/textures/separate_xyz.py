@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import drjit as dr
 from .common import get_texture
 
 if TYPE_CHECKING:
@@ -25,7 +24,7 @@ def register(mi, dr):
         ''' One component of a vector-valued texture
 
         Blender's Separate XYZ node has three outputs; each becomes
-        its own instance with a different index, since Mitsuba texture
+        its own instance with a different index, since a Mitsuba texture
         has one output.
         '''
 
@@ -56,8 +55,7 @@ def register(mi, dr):
             pass
 
         def is_spatially_varying(self):
-            return (self.vector.is_spatially_varying() or
-                        self.index.is_spatially_varying())
+            return self.vector.is_spatially_varying()
 
         def to_string(self):
             return (f'SeparateXYZ[vector = {self.vector},\n index = {self.index}\n]')

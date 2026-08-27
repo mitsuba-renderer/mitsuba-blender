@@ -46,6 +46,9 @@ def register(mi, dr):
 
             return n * 0.5 + 0.5
 
+        def mean(self):
+            return 0.5
+
         def traverse(self, cb: mi.TraversalCallback):
             cb.put('texture', self.texture, mi.ParamFlags.Differentiable)
             cb.put('strength', self.strength, mi.ParamFlags.Differentiable)
@@ -57,8 +60,8 @@ def register(mi, dr):
             return (self.texture.is_spatially_varying() or
                     self.strength.is_spatially_varying())
 
-        def mean(self):
-            return 0.5
-
+        def to_string(self):
+            return (f'NormalMapWrapper[\n texture = {self.texture},\n'
+                    f' strength = {self.strength}\n]')
 
     mi.register_texture('normal_map', NormalMapWrapper)

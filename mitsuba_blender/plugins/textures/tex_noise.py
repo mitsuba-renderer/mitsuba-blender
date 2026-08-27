@@ -154,6 +154,9 @@ def register(mi, dr):
             self.lacunarity = float(props.get('lacunarity', 2.0))
             self.normalize = bool(props.get('normalize', True))
 
+        def eval(self, si, active=True):
+            return mi.UnpolarizedSpectrum(self.eval_1(si, active))
+
         def eval_1(self, si, active=True):
             p = si.p if self.vector is None else self.vector.eval_3(si, active)
             p = p * self.scale.eval_1(si, active)
@@ -164,14 +167,8 @@ def register(mi, dr):
             v = self.eval_1(si, active)
             return mi.Color3f(v, v, v)
 
-        def eval(self, si, active=True):
-            return mi.UnpolarizedSpectrum(self.eval_1(si, active))
-
         def mean(self):
             return 0.5 if self.normalize else 0.0
-
-        def is_spatially_varying(self):
-            return True
 
         def traverse(self, cb):
             # 'vector' is optional: with the input unconnected it is None,
@@ -182,6 +179,9 @@ def register(mi, dr):
 
         def parameters_changed(self, keys=None):
             pass
+
+        def is_spatially_varying(self):
+            return True
 
         def to_string(self):
             return (f'TexNoise[detail={self.detail}, '

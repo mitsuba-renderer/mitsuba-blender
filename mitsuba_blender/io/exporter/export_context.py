@@ -87,7 +87,7 @@ class ExportContext:
 
     def data_add(self, mts_dict, name=''):
         '''
-        Function to add new elements to the scene dict. The element is a 
+        Function to add new elements to the scene dict. The element is a
         plugin dict. If a name is provided it will be used as the key of
         the element. Otherwise the Id of the element is used if it exists
         or a new key is generated incrementally.

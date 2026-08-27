@@ -22,7 +22,7 @@ def register(mi, dr):
     class CombineColor(mi.Texture):
         ''' Texture combining inputs into a color
 
-        Converts three value, red, green, blue into a color, either
+        Converts three values, red, green, blue into a color, either
         in RGB, HSV or HSL.
         '''
         def __init__(self, props: mi.Properties):
@@ -39,6 +39,7 @@ def register(mi, dr):
 
         def eval_1(self, si, active=True):
             c = self.eval_3(si, active)
+            return (c.x + c.y + c.z) * (1.0 / 3.0)
 
         def eval_3(self, si, active=True):
             color = mi.Color3f(self.red.eval_1(si, active),
@@ -49,8 +50,6 @@ def register(mi, dr):
             elif self.mode == 'HSL':
                 return hsl2rgb(color)
             return color
-
-            return (c.x + c.y + c.z) * (1.0 / 3.0)
 
         def mean(self):
             return 0.5
