@@ -18,6 +18,12 @@ from ... import ConversionError
 
 ERROR_COLOR = [1.0, 0.0, 0.3]
 FALLBACK_COLOR = [0.5, 0.5, 0.5]
+_CONSTANT_FALLBACKS = {
+    'ShaderNodeAmbientOcclusion' : {
+        'Color' : [1.0, 1.0, 1.0],
+        'AO': 1.0,
+    }
+}
 
 class Constant:
     '''A constant: a float, or a tuple for vectors and colors.'''
@@ -287,6 +293,12 @@ def resolve(export_ctx, socket, stack=()):
     if ref.node.type in _GETTERS:
         getter = _GETTERS[ref.node.type]
     else:
+        fallback = _CONSTANT_FALLBACKS.get(node.bl_idname)
+        if fallback is not None:
+            export_ctx.log(f'Node "{node.name}" of type {node.bl_idname} has no Mitsuba '
+                           'equivalent; substituting a constant.', 'WARN')
+            return Constant(fallback[source.name])
+
         return Unsupported(f'node "{node.name}" of type {node.type} is not '
                        f'supported (feeding socket "{socket.name}" of node '
                        f'"{socket.node.name}")')
