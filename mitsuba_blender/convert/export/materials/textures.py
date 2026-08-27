@@ -663,6 +663,16 @@ def convert_tex_noise(export_ctx: ExportContext, ref: NodeRef, out_socket):
 
     return params
 
+@texture_converter('AMBIENT_OCCLUSION')
+def convert_ambient_occlusion(export_ctx, ref, out_socket):
+    export_ctx.log(
+        f'Ambient Occlusion node "{ref.node.name}" has no Mitsuba '
+        'equivalent; substituting 1.0 (no occlusion).', 'WARN')
+    if out_socket.name == 'Color':
+        return {'type': 'rgb', 'value': [1.0, 1.0, 1.0]}
+    # 'AO' output
+    return None  
+
 ###########################
 ##  Normal and bump map  ##
 ###########################
