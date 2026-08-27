@@ -671,7 +671,7 @@ def convert_ambient_occlusion(export_ctx, ref, out_socket):
     if out_socket.name == 'Color':
         return {'type': 'rgb', 'value': [1.0, 1.0, 1.0]}
     # 'AO' output
-    return None  
+    return None
 
 ###########################
 ##  Normal and bump map  ##
@@ -687,6 +687,9 @@ def _texture_input(export_ctx, socket, stack):
 
 
 def _wrap_normalmap(export_ctx, ref, bsdf):
+    import os
+    import mitsuba as mi
+
     node = ref.node
     if node.space != 'TANGENT':
         raise ConversionError(f'normal map node "{node.name}" uses '
@@ -698,6 +701,24 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
         export_ctx.log(f'The color of normal map node "{node.name}" is '
                        'constant and has no effect; ignoring it.', 'WARN')
         return bsdf
+
+
+    if texture.get('type') == 'bitmap' and texture.get('filename'):
+        img_path = texture['filename']
+        if not os.path.isabs(img_path):
+            img_path = os.path.join(export_ctx.directory, img_path)
+
+        try:
+            bmp = mi.Bitmap(img_path)
+            if bmp.channel_count() < 3:
+                raise ConversionError(
+                    f'normal map node "{node.name}" uses a grayscale image '
+                    f'("{os.path.basename(texture["filename"])}"); '
+                        'a normal map requires an RGB image')
+        except ConversionError:
+            raise
+        except Exception:
+            pass
 
     strength = eval_float(export_ctx, node.inputs['Strength'], ref.stack)
     params = texture
