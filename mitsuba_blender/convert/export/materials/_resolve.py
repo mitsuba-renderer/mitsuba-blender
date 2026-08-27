@@ -122,7 +122,7 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
         v = result.value
         return float(v) if np.isscalar(v) else float(np.mean(v))
     if isinstance(result, Unsupported):
-        return socket_default(socket) 
+        return socket_default(socket)
     # Texture: build it once and average over a UV grid
     params = dict(result.params)
     if 'filename' in params and not os.path.isabs(params['filename']):
@@ -139,6 +139,7 @@ def vector_from_socket(export_ctx: ExportContext, ref, socket):
     '''
     Average a subgraph down to a vector for paramters Mitsuba reads as vector
     '''
+    import os
     result = resolve(export_ctx, socket, stack=ref.stack)
     if isinstance(result, Constant):
         return _to_vector(result.value)
@@ -146,7 +147,10 @@ def vector_from_socket(export_ctx: ExportContext, ref, socket):
         if export_ctx.strict:
             raise ConversionError(result.reason)
         return socket_default(socket)
-    texture = mi.load_dict(result.params)
+    params = dict(result.params)
+    if 'filename' in params and not os.path.isabs(params['filename']):
+        params['filename'] = os.path.join(export_ctx.directory, params['filename'])
+    texture = mi.load_dict(params)
 
     if not texture.is_spatially_varying():
         si = dr.zeros(mi.SurfaceInteraction3f)
