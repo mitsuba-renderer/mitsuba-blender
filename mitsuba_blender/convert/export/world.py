@@ -121,8 +121,12 @@ def convert_world(export_ctx, b_world, ignore_background=True):
             else 'only environment textures and constant colors are supported'
         raise ConversionError(reason)
 
-    radiance = [c * strength for c in _constant_color(result)]
-    if ignore_background and radiance == DEFAULT_BACKGROUND:
+    color = _constant_color(result)
+    radiance = [c * strength for c in color]
+    # Test the color and the strength separately: comparing their product
+    # would also drop worlds the user did set up, such as twice the default
+    # color at half strength.
+    if ignore_background and strength == 1.0 and color == DEFAULT_BACKGROUND:
         export_ctx.log("Ignoring Blender's default background.", 'INFO')
         return None
     if sum(radiance) == 0.0:
