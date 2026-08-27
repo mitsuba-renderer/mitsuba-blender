@@ -110,6 +110,7 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     Average a subgraph down to a scalar for parameters Mitsuba reads as floats.
     '''
     import numpy as np
+    import os
     result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
         v = result.value
@@ -117,7 +118,10 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     if isinstance(result, Unsupported):
         return socket_default(socket) 
     # Texture: build it once and average over a UV grid
-    texture = mi.load_dict(result.params)
+    params = dict(result.params)
+    if 'filename' in params and not os.path.isabs(params['filename']):
+        params['filename'] = os.path.join(export_ctx.directory, params['filename'])
+    texture = mi.load_dict(params)
 
     if not texture.is_spatially_varying():
         si = dr.zeros(mi.SurfaceInteraction3f)
