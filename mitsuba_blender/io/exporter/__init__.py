@@ -1,3 +1,5 @@
+from os import supports_effective_ids
+
 from . import export_context
 from ...convert.export import camera, lights, mesh, world
 
@@ -97,7 +99,21 @@ class SceneConverter:
             return True
         return False
 
+
+    def _check_dict(self, d, path="root"):
+        if d is None:
+            raise ValueError(f"None at {path}")
+        if isinstance(d, dict):
+            for k, v in d.items():
+                self._check_dict(v, f"{path}.{k}")
+        elif isinstance(d, (list, tuple)):
+            for i, v in enumerate(d):
+                self._check_dict(v, f"{path}[{i}]")
+
     def dict_to_xml(self, filename):
+        import os
+        if os.environ.get("MITSUBA_BLENDER_DEBUG"):
+            self._check_dict(self.export_ctx.scene_data)
         import mitsuba as mi
         # The shapes reference sub-meshes of the shared file, which is only
         # readable once its end-of-file dictionary is in place

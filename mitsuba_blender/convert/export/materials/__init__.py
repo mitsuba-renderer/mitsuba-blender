@@ -78,6 +78,7 @@ def convert_material(export_ctx, b_mat):
     '''Convert a Blender material into {'bsdf': dict|None,
     'emitter': dict|None}. Never raises: failures produce a warning and a
     gray diffuse fallback.'''
+    import os
     try:
         if not uses_nodes(b_mat):
             return {'bsdf': {
@@ -91,6 +92,10 @@ def convert_material(export_ctx, b_mat):
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
         if export_ctx.strict:
+            if os.environ.get('MITSUBA_BLENDER_DEBUG'):
+                import traceback
+                traceback.print_exc()
+
             export_ctx.log(f'Failed to convert material "{b_mat.name}": {e}. '
                            'Exporting an ERROR diffuse fallback.', 'WARN')
             return {'bsdf': copy.deepcopy(ERROR_BSDF), 'emitter': None}
