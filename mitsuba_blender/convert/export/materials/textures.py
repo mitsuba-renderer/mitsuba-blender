@@ -684,6 +684,11 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
                               'supported')
 
     texture = _texture_input(export_ctx, node.inputs['Color'], ref.stack)
+    if texture is None:
+        export_ctx.log(f'The color of normal map node "{node.name}" is '
+                       'constant and has no effect; ignoring it.', 'WARN')
+        return bsdf
+
     strength = eval_float(export_ctx, node.inputs['Strength'], ref.stack)
     params = texture
 
@@ -697,10 +702,6 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
             'strength': strength
         }
 
-    if params is None:
-        export_ctx.log(f'The color of normal map node "{node.name}" is '
-                       'constant and has no effect; ignoring it.', 'WARN')
-        return bsdf
     if texture.get('type') == 'bitmap' and not texture.get('raw'):
         export_ctx.log(f'The image of normal map node "{node.name}" should '
                        'use a Non-Color space; interpreting it as raw '
