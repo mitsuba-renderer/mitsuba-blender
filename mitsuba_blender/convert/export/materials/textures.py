@@ -215,8 +215,45 @@ def convert_image_texture(export_ctx, ref, out_socket):
         raise ConversionError(f'image texture node "{node.name}" has no '
                               'image')
     if out_socket.name == 'Alpha':
-        raise ConversionError(f'the Alpha output of image texture node '
-                              f'"{node.name}" is not supported')
+        if image.channels < 4:
+            raise ConversionError(f'image "{image.name}" has no alpha channel')
+
+        import numpy as np
+        pixels = np.empty(len(image.pixels), dtype=np.float32)
+        image.pixels.foreach_get(pixels)
+        alpha = pixels.reshape(-1, image.channels)[:, 3]
+
+        # Create a single-channel image for the alpha
+        alpha_img = bpy.data.images.new(
+            f'{image.name}_alpha', image.size[0], image.size[1],
+            alpha=False, float_buffer=image.is_float)
+        try:
+            # Grayscale stored as RGB: repeat into 4 channels (RGBA)
+            rgba = np.zeros((len(alpha), 4), dtype=np.float32)
+            rgba[:, 0] = alpha
+            rgba[:, 1] = alpha
+            rgba[:, 2] = alpha
+            rgba[:, 3] = 1.0
+            alpha_img.pixels.foreach_set(rgba.ravel())
+            alpha_img.colorspace_settings.name = 'Non-Color'
+
+            params: dict[str, object] = {'type': 'bitmap'}
+            params['filename'], _ = export_image(export_ctx, alpha_img)
+            params['raw'] = True
+        finally:
+            bpy.data.images.remove(alpha_img)
+
+        if node.interpolation == 'Closest':
+            params['filter_type'] = 'nearest'
+        if node.extension in ('EXTEND', 'CLIP'):
+            params['wrap_mode'] = 'clamp'
+        elif node.extension == 'MIRROR':
+            params['wrap_mode'] = 'mirror'
+
+        to_uv = _vector_to_uv(export_ctx, ref)
+        if to_uv is not None:
+            params['to_uv'] = to_uv
+        return params
 
     params: dict[str, object] = {'type': 'bitmap'}
     colorspace = image.colorspace_settings.name
