@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mitsuba-blender"
+version = "0.1.0"
+dependencies = [
+    "mitsuba>=3.10,<4",
+]
+
+[project.entry-points.mitsuba]
+blender = "mitsuba_blender.plugins"
+
+[tool.setuptools.packages.find]
+include = ["mitsuba_blender.plugins*"]

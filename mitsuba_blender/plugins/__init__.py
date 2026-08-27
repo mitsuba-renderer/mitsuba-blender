@@ -1,16 +1,13 @@
 
-
-def register_plugins():
-    '''
-    Register the addon's Python texture plugins with Mitsuba
-    '''
+def _register_all():
     import mitsuba as mi
     import drjit as dr
 
     from .textures import (color_ramp, math, hue_saturation, rgb_curve, mix,
-                        invert, brightness_contrast, rgb_to_bw, map_range,
-                        combine_xyz, separate_xyz, separate_color, combine_color,
-                        vect_math, common, normal_map, tex_noise)
+                           invert, brightness_contrast, rgb_to_bw, map_range,
+                           combine_xyz, separate_xyz, separate_color,
+                           combine_color, vect_math, common, normal_map,
+                           tex_noise)
 
     color_ramp.register(mi, dr)
     math.register(mi, dr)
@@ -29,3 +26,15 @@ def register_plugins():
     common.register(mi, dr)
     normal_map.register(mi, dr)
     tex_noise.register(mi, dr)
+
+
+def register_plugins():
+    '''Called by the Blender addon after set_variant.'''
+    _register_all()
+
+
+# Entry-point auto-discovery: Mitsuba imports this module after
+# set_variant and reloads it on every variant change.
+import mitsuba as mi
+if mi.variant() is not None:
+    _register_all()
