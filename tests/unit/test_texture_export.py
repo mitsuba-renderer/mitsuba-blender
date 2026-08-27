@@ -409,8 +409,7 @@ def test_vertex_color_export(fresh_scene, exporter, tmp_path):
     params = reflectance_of(converter, 'mat-Textured')
     assert params == {'type': 'mesh_attribute', 'name': 'vertex_Col'}
 
-
-def test_alpha_output_is_unsupported(fresh_scene, export_ctx, registry):
+def test_alpha_output(fresh_scene, export_ctx, registry):
     b_mat, tex = make_diffuse_with_texture('ShaderNodeTexImage')
     tex.image = make_image()
     diffuse = next(n for n in b_mat.node_tree.nodes
@@ -419,7 +418,9 @@ def test_alpha_output_is_unsupported(fresh_scene, export_ctx, registry):
                               diffuse.inputs['Roughness'])
 
     result = registry.resolve(export_ctx, diffuse.inputs['Roughness'])
-    assert isinstance(result, registry.Unsupported)
+    assert isinstance(result, registry.Texture)
+    assert result.params['type'] == 'bitmap'
+    assert result.params.get('raw') is True
 
 
 ###########################
