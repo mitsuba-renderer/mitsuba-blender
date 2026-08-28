@@ -660,15 +660,34 @@ def convert_separate_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
         'vector': eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack)
     }
 
-
 @texture_converter('SEPARATE_COLOR')
 def convert_separate_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    node = ref.node
+    color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
+
+    if node.mode == 'RGB':
+        channel = {'Red': 'r', 'Green': 'g', 'Blue': 'b'}.get(out_socket.name)
+        if channel is None:
+            raise ConversionError(
+                f'output "{out_socket.name}" of Separate Color node '
+                f'"{node.name}" is not supported')
+        return _math(f'in[0].{channel}', color)
+
+    # HSV/HSL — fall through to the Python plugin
+    channel_map = {'Red': 0, 'Green': 1, 'Blue': 2}
+    idx = channel_map.get(out_socket.name)
+    if idx is None:
+        raise ConversionError(
+            f'output "{out_socket.name}" of Separate Color node '
+            f'"{node.name}" is not supported')
+
     return {
         'type': 'separate_color',
-        'color': eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
-        'mode': ref.node.mode,
-        'index': ('Red', 'Green', 'Blue').index(out_socket.name)
+        'mode': node.mode,
+        'color': color,
+        'index': idx,
     }
+
 
 @texture_converter('COMBINE_COLOR')
 def convert_combine_color(export_ctx: ExportContext, ref: NodeRef, out_socket):

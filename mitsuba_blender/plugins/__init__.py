@@ -3,11 +3,10 @@ def _register_all():
     import mitsuba as mi
     import drjit as dr
 
-    from .textures import (color_ramp, math, hue_saturation, rgb_curve, mix,
-                           invert, brightness_contrast, rgb_to_bw, map_range,
-                           combine_xyz, separate_xyz, separate_color,
-                           combine_color, vect_math, common, normal_map,
-                           tex_noise)
+    from .textures import (color_ramp, hue_saturation, rgb_curve, mix, invert,
+                            brightness_contrast, map_range, combine_xyz,
+                            separate_xyz, combine_color, vect_math, common,
+                            normal_map, tex_noise, separate_color)
 
     color_ramp.register(mi, dr)
     hue_saturation.register(mi, dr)
