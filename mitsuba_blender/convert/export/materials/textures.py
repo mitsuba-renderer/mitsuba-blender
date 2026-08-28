@@ -262,9 +262,14 @@ def _math(expr, *inputs):
     final_expr = expr
     for i, value in enumerate(inputs):
         if isinstance(value, dict):
-            final_expr = final_expr.replace(f'in[{i}]', f'in[{tex_index}]')
-            params[f'input_{tex_index}'] = value
-            tex_index += 1
+            if value.get('type') == 'rgb':
+                v = value['value']
+                final_expr = final_expr.replace(
+                    f'in[{i}]', f'rgb({v[0]}, {v[1]}, {v[2]})')
+            else:
+                final_expr = final_expr.replace(f'in[{i}]', f'in[{tex_index}]')
+                params[f'input_{tex_index}'] = value
+                tex_index += 1
         else:
             final_expr = final_expr.replace(f'in[{i}]', f'({float(value)})')
     params['expr'] = final_expr
@@ -594,12 +599,7 @@ def convert_rgb_to_bw(export_ctx: ExportContext, ref: NodeRef, out_socket):
 def convert_gamma(export_ctx: ExportContext, ref: NodeRef, out_socket):
     color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
     gamma = eval_float(export_ctx, ref.node.inputs['Gamma'], stack=ref.stack)
-
-    if isinstance(color, dict) and color.get('type') == 'rgb':
-        color = {'type': 'constant_vector', 'value': color['value']}
-
     return _math('in[0] >= 0 ? pow(in[0], in[1]) : 0.0', color, gamma)
-
 
 @texture_converter('CLAMP')
 def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
