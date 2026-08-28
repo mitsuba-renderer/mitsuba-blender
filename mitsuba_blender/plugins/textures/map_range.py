@@ -25,7 +25,7 @@ def register(mi, dr):
         Follows node_shader_map_range.cc: the input is not clamped to the
         from-range, the smoothstep variants clamp the factor to [0, 1]
         regardless of the clamp setting, and clamp applies to the result only.
-        Float and vector modes differ only in which eval wiedth the caller uses.
+        Float and vector modes differ only in which eval width the caller uses.
         '''
         def __init__(self, props: mi.Properties):
             super().__init__(props)

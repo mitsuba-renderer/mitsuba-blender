@@ -3,8 +3,7 @@
 Image data is referenced without side effects on the .blend file: images
 that already exist on disk are copied verbatim, everything else (packed,
 generated or edited images) is saved through a temporary copy of the
-datablock. In render mode no files are written at all; pixel data is handed
-to Mitsuba as in-memory bitmaps.
+datablock.
 
 Besides the registered texture converters, this module provides two helpers
 for other converters: BSDF converters call `convert_normal_input` on their
