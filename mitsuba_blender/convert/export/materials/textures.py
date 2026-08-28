@@ -203,6 +203,72 @@ _ONE_VECTOR_OPS = {'LENGTH', 'SCALE', 'NORMALIZE',
                     'ABSOLUTE', 'FLOOR', 'CEIL',
                     'FRACTION', 'SINE', 'COSINE',
                     'TANGENT'}
+_MATH_EXPRESSIONS = {
+    # Two-input arithmetic
+    'ADD':            'in[0] + in[1]',
+    'SUBTRACT':       'in[0] - in[1]',
+    'MULTIPLY':       'in[0] * in[1]',
+    'DIVIDE':         'in[1] != 0 ? in[0] / in[1] : 0.0',
+    'POWER':          'in[0] >= 0 ? pow(in[0], in[1]) : 0.0',
+    'LOGARITHM':      'in[0] > 0 && in[1] > 0 ? log(in[0]) / log(in[1]) : 0.0',
+    'MODULO':         'in[1] != 0 ? fmod(in[0], in[1]) : 0.0',
+    'FLOORED_MODULO': 'in[1] != 0 ? in[0] - floor(in[0] / in[1]) * in[1] : 0.0',
+    'MINIMUM':        'min(in[0], in[1])',
+    'MAXIMUM':        'max(in[0], in[1])',
+    'LESS_THAN':      'in[0] < in[1] ? 1.0 : 0.0',
+    'GREATER_THAN':   'in[0] > in[1] ? 1.0 : 0.0',
+    'COMPARE':        'abs(in[0] - in[1]) <= in[2] ? 1.0 : 0.0',
+    'ARCTAN2':        'atan2(in[0], in[1])',
+    'SNAP':           'in[1] != 0 ? floor(in[0] / in[1]) * in[1] : in[0]',
+
+    # One-input
+    'SQRT':           'sqrt(max(in[0], 0))',
+    'INVERSE_SQRT':   'in[0] > 0 ? rsqrt(in[0]) : 0.0',
+    'ABSOLUTE':       'abs(in[0])',
+    'NEGATE':         '-in[0]',
+    'SIGN':           'in[0] > 0 ? 1.0 : (in[0] < 0 ? -1.0 : 0.0)',
+    'ROUND':          'floor(abs(in[0]) + 0.5) * sign(in[0])',
+    'FLOOR':          'floor(in[0])',
+    'CEIL':           'ceil(in[0])',
+    'TRUNC':          'trunc(in[0])',
+    'FRACT':          'in[0] - floor(in[0])',
+    'SINE':           'sin(in[0])',
+    'COSINE':         'cos(in[0])',
+    'TANGENT':        'tan(in[0])',
+    'ARCSINE':        'asin(clip(in[0], -1, 1))',
+    'ARCCOSINE':      'acos(clip(in[0], -1, 1))',
+    'ARCTANGENT':     'atan(in[0])',
+    'EXPONENT':       'exp(in[0])',
+    'RADIANS':        'in[0] * pi / 180.0',
+    'DEGREES':        'in[0] * 180.0 / pi',
+    'SINH':           'sinh(in[0])',
+    'COSH':           'cosh(in[0])',
+    'TANH':           'tanh(in[0])',
+
+    # Three-input
+    'MULTIPLY_ADD':   'fma(in[0], in[1], in[2])',
+
+    # Complex — need verification
+    'PINGPONG':       'tmp[0] = in[1] != 0 ? fmod(in[0], in[1] * 2.0) : 0.0; abs(tmp[0] - in[1])',
+    'WRAP':           'tmp[0] = in[1] - in[2]; tmp[0] != 0 ? in[0] - tmp[0] * floor((in[0] - in[2]) / tmp[0]) : in[2]',
+    'SMOOTH_MIN':     None,
+    'SMOOTH_MAX':     None,
+}
+
+
+def _math(expr, *inputs):
+    params = {'type': 'math'}
+    tex_index = 0
+    final_expr = expr
+    for i, value in enumerate(inputs):
+        if isinstance(value, dict):
+            final_expr = final_expr.replace(f'in[{i}]', f'in[{tex_index}]')
+            params[f'input_{tex_index}'] = value
+            tex_index += 1
+        else:
+            final_expr = final_expr.replace(f'in[{i}]', f'({float(value)})')
+    params['expr'] = final_expr
+    return params
 
 
 @texture_converter('TEX_IMAGE')
@@ -356,21 +422,43 @@ def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
 
     return params
 
-
-_MATH_INPUT_NAMES = ('a', 'b', 'c')
-
-@texture_converter("MATH")
-def convert_math(export_ctx: ExportContext, ref : NodeRef, out_socket):
+@texture_converter('MATH')
+def convert_math(export_ctx, ref, out_socket):
     node = ref.node
+    op = node.operation
+    expr = _MATH_EXPRESSIONS.get(op)
+    if expr is None:
+        raise ConversionError(
+            f'Math operation {op} of node "{node.name}" is not supported')
 
-    params = {
-        'type': 'math',
-        'op': node.operation,
-        'use_clamp' : node.use_clamp
-    }
+    input_sockets = [s for s in node.inputs if s.enabled]
 
-    for i, socket in enumerate(node.inputs):
-        params[_MATH_INPUT_NAMES[i]] = eval_float(export_ctx, socket, stack=ref.stack)
+    # First pass: resolve all inputs
+    resolved = []
+    for socket in input_sockets:
+        result = resolve(export_ctx, socket, stack=ref.stack)
+        if isinstance(result, (Constant, Texture)):
+            resolved.append(result)
+        else:
+            raise ConversionError(result.reason)
+
+    # Second pass: inline constants, renumber texture inputs
+    params = {'type': 'math', 'expr': expr}
+    tex_index = 0
+    for i, result in enumerate(resolved):
+        if isinstance(result, Constant):
+            params['expr'] = params['expr'].replace(
+                f'in[{i}]', f'({float(result.value)})')
+        else:
+            if tex_index != i:
+                params['expr'] = params['expr'].replace(
+                    f'in[{i}]', f'in[{tex_index}]')
+            params[f'input_{tex_index}'] = result.params
+            tex_index += 1
+
+    if node.use_clamp:
+        params['expr'] = f'clip({params["expr"]}, 0, 1)'
+
     return params
 
 
@@ -504,9 +592,13 @@ def convert_rgb_to_bw(export_ctx: ExportContext, ref: NodeRef, out_socket):
 
 @texture_converter('GAMMA')
 def convert_gamma(export_ctx: ExportContext, ref: NodeRef, out_socket):
-    return _math('POWER',
-                 eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
-                 eval_float(export_ctx, ref.node.inputs['Gamma'], stack=ref.stack))
+    color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
+    gamma = eval_float(export_ctx, ref.node.inputs['Gamma'], stack=ref.stack)
+
+    if isinstance(color, dict) and color.get('type') == 'rgb':
+        color = {'type': 'constant_vector', 'value': color['value']}
+
+    return _math('in[0] >= 0 ? pow(in[0], in[1]) : 0.0', color, gamma)
 
 
 @texture_converter('CLAMP')
@@ -517,17 +609,10 @@ def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
     hi = eval_float(export_ctx, node.inputs['Max'], stack=stack)
 
     if node.clamp_type == 'RANGE':
-        # Blender's Range mode tolerates min > max by using the smaller
-        # bound as the lower one
-        lo, hi = (_math('MINIMUM', lo, hi), _math('MAXIMUM', lo, hi))
+        lo, hi = (_math('min(in[0], in[1])', lo, hi),
+                  _math('max(in[0], in[1])', lo, hi))
 
-    return _math('MINIMUM', _math('MAXIMUM', value, lo), hi)
-
-
-def _math(op, a, b):
-    return {'type': 'math', 'op': op, 'use_clamp': False,
-            'a': a, 'b': b}
-
+    return _math('clip(in[0], in[1], in[2])', value, lo, hi)
 
 
 @texture_converter('MAP_RANGE')
@@ -723,6 +808,8 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
 
 
 def _wrap_bumpmap(export_ctx, ref, bsdf):
+    import os
+    import mitsuba as mi
     node = ref.node
     # A chained perturbation on the Normal input applies before the bump
     bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf,

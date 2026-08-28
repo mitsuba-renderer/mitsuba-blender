@@ -5,7 +5,7 @@ import math
 
 from . import node_converter
 from ._resolve import Constant, eval_color, eval_float, resolve, scalar_from_socket
-from .textures import convert_normal_input
+from .textures import convert_normal_input, _math
 
 # Mapping from MULTI_GGX is an approximation which diverges with high roughness
 _DISTRIBUTIONS = {
@@ -24,13 +24,7 @@ def _eval_roughness(export_ctx, socket, stack):
     '''
     value = eval_float(export_ctx, socket, stack=stack)
     if isinstance(value, dict):
-        return {
-                'type': 'math',
-                'op' : 'POWER',
-                'use_clamp' : False,
-                'a': value,
-                'b': 2.0
-                }
+        return _math('in[0] >= 0 ? pow(in[0], in[1]) : 0.0', value, 2.0)
     return value * value
 
 

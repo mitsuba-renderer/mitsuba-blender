@@ -7,12 +7,18 @@ class ConstantVector(mi.Texture):
     carries no reflectance semantics, so components outside [0, 1] are
     allowed.'''
 
-    def __init__(self, value):
-        super().__init__(mi.Properties())
+    def __init__(self, props_or_value):
+        if isinstance(props_or_value, mi.Properties):
+            super().__init__(props_or_value)
+            value = props_or_value['value']
+        else:
+            super().__init__(mi.Properties())
+            value = props_or_value
+
         if isinstance(value, (int, float)):
             self.value = mi.Color3f(value)
         else:
-            self.value = mi.Color3f(value[0], value[1], value[2])
+            self.value = mi.Color3f(value.x, value.y, value.z)
 
     def eval(self, si, active=True):
         return mi.UnpolarizedSpectrum(self.value)

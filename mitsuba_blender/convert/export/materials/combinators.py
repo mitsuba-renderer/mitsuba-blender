@@ -3,6 +3,7 @@ Emission and Holdout.'''
 
 from ... import ConversionError
 from . import convert_shader_node, node_converter
+from .textures import _math
 from ._resolve import Constant, NodeRef, Texture, resolve, eval_float, trace_source, scalar_from_socket
 
 
@@ -27,13 +28,7 @@ def _emission_radiance(export_ctx, ref):
     if isinstance(color, Texture):
         params = color.params
         if strength != 1.0:
-            params = {
-                'type' : 'math',
-                'op' : 'MULTIPLY',
-                'use_clamp': False,
-                'a' : params,
-                'b' : strength
-            }
+            params = _math('in[0] * in[1]', color, strength)
         return params
     if isinstance(color, Constant):
         rgb = color.value

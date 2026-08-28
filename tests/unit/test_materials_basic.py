@@ -131,10 +131,8 @@ def test_export_glossy_textured_roughness(fresh_scene, exporter, tmp_path,
         entry = export_entry(exporter, tmp_path)
         # Texture-driven roughness passes through without squaring
         assert entry['bsdf']['alpha'] == {'type': 'math',
-                                          'op': 'POWER',
-                                          'use_clamp': False,
-                                          'a': {'type': 'checkerboard'},
-                                          'b': 2.0,}
+                                          'expr' : 'in[0] >= 0 ? pow(in[0], (2.0)) : 0.0',
+                                          'input_0' : {'type' : 'checkerboard'}}
     finally:
         del registry._resolve._texture_converters['TEX_BRICK']
 

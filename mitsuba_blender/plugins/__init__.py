@@ -10,7 +10,6 @@ def _register_all():
                            tex_noise)
 
     color_ramp.register(mi, dr)
-    math.register(mi, dr)
     hue_saturation.register(mi, dr)
     rgb_curve.register(mi, dr)
     mix.register(mi, dr)
