@@ -34,19 +34,19 @@ def convert_mi_film(mi_context, node_id):
 
 def convert_mi_rfilter(mi_context, node_id):
     if not mi_context.import_render_settings:
-        return None
+        return
     mi_props = mi_context.mi_state.nodes[node_id].props
     renderer.apply_mi_rfilter_properties(mi_context, mi_props)
 
 def convert_mi_sampler(mi_context, node_id):
     if not mi_context.import_render_settings:
-        return None
+        return
     mi_props = mi_context.mi_state.nodes[node_id].props
     renderer.apply_mi_sampler_properties(mi_context, mi_props)
 
 def convert_mi_integrator(mi_context, node_id):
     if not mi_context.import_render_settings:
-        return None
+        return
     mi_props = mi_context.mi_state.nodes[node_id].props
     renderer.apply_mi_integrator_properties(mi_context, mi_props)
 
