@@ -589,10 +589,8 @@ def convert_brightness_contrast(export_ctx: ExportContext, ref : NodeRef, out_so
 
 @texture_converter('RGBTOBW')
 def convert_rgb_to_bw(export_ctx: ExportContext, ref: NodeRef, out_socket):
-    return {
-        'type' : 'rgb_to_bw',
-        'color' : eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
-    }
+    color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
+    return _math('luminance(in[0])', color)
 
 
 @texture_converter('GAMMA')

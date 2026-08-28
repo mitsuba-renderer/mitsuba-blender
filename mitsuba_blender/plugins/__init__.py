@@ -15,7 +15,6 @@ def _register_all():
     mix.register(mi, dr)
     invert.register(mi, dr)
     brightness_contrast.register(mi, dr)
-    rgb_to_bw.register(mi, dr)
     map_range.register(mi, dr)
     combine_xyz.register(mi, dr)
     separate_xyz.register(mi, dr)
