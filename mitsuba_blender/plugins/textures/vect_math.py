@@ -85,8 +85,10 @@ def register(mi, dr):
             self.vec_2 = get_vector_texture(props, 'vec_2', 0.0)
             self.scale = get_vector_texture(props, 'scale', 1.0)
 
-            # FIXME: change the 'ADD' to a more plausible fallback operation
-            self.op_fn = props.get('op', 'ADD')
+            self.op_fn = props.get('op')
+            if self.op_fn is None:
+                raise RuntimeError('vect_math plugin require an "op" parameter')
+                                
 
         def _process(self, si, active):
             return _VECTOR_OPS[self.op_fn](self.vec_0.eval_3(si, active),
