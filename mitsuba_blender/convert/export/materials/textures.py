@@ -570,11 +570,9 @@ def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
 
 @texture_converter('INVERT')
 def convert_invert(export_ctx: ExportContext, ref : NodeRef, out_socket):
-    return {
-        'type': 'invert',
-        'color': eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
-        'fac' : eval_float(export_ctx, ref.node.inputs['Fac'], stack=ref.stack)
-    }
+    fac = eval_float(export_ctx, ref.node.inputs['Fac'], stack=ref.stack)
+    color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
+    return _math('lerp(in[0], (1.0) - in[0], in[1])', color, fac)
 
 
 @texture_converter('BRIGHTCONTRAST')
@@ -673,7 +671,6 @@ def convert_separate_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
                 f'"{node.name}" is not supported')
         return _math(f'in[0].{channel}', color)
 
-    # HSV/HSL — fall through to the Python plugin
     channel_map = {'Red': 0, 'Green': 1, 'Blue': 2}
     idx = channel_map.get(out_socket.name)
     if idx is None:
@@ -691,12 +688,18 @@ def convert_separate_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
 
 @texture_converter('COMBINE_COLOR')
 def convert_combine_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
+    node = ref.node
+    if node.mode == 'RGB':
+        return _math('rgb(in[0], in[1], in[2])',
+                     eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
+                     eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack),
+                     eval_float(export_ctx, node.inputs['Green'], stack=ref.stack))
     return {
         'type': 'combine_color',
-        'mode' : ref.node.mode,
-        'red' : eval_float(export_ctx, ref.node.inputs['Red'], stack=ref.stack),
-        'green' : eval_float(export_ctx, ref.node.inputs['Green'], stack=ref.stack),
-        'blue' : eval_float(export_ctx, ref.node.inputs['Blue'], stack=ref.stack)
+        'mode' : node.mode,
+        'red' : eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
+        'green' : eval_float(export_ctx, node.inputs['Green'], stack=ref.stack),
+        'blue' : eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack)
     }
 
 
