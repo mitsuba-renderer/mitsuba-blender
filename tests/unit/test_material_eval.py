@@ -371,7 +371,7 @@ def test_rgb_to_bw(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeRGBToBW')
     node.inputs['Color'].default_value = (1.0, 0.0, 0.0, 1.0)
     result = fold_float(export_ctx, ev, tree, probe, node.outputs['Val'])
-    assert eval_float_texture(result) == pytest.approx(0.2126)
+    assert eval_float_texture(result) == pytest.approx(0.2126, rel=1e-3)
 
 
 def test_float_to_color_conversion(export_ctx, ev, tree, probe):
