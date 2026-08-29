@@ -7,7 +7,7 @@ and the Normal input wraps it in normalmap/bumpmap adapters.
 
 from . import node_converter
 from ._resolve import Constant, Texture, Unsupported, eval_color, eval_float, resolve, scalar_from_socket
-from .textures import convert_normal_input
+from .textures import convert_normal_input, _math
 
 
 def _spec_tint(export_ctx, ref):
@@ -34,10 +34,9 @@ def _emitter(export_ctx, ref):
     result = resolve(export_ctx, node.inputs['Emission Color'],
                      stack=ref.stack)
     if isinstance(result, Texture):
+        params = result.params
         if strength != 1.0:
-            export_ctx.log(f'Cannot scale the textured emission color of '
-                           f'node "{node.name}" by the emission strength; '
-                           'exporting the texture unscaled', 'WARN')
+            params = _math('in[0] * in[1]', params, strength)
         return {'type': 'area', 'radiance': result.params}
     if isinstance(result, Unsupported):
         export_ctx.log(f'{result.reason}; ignoring the emission of node '
