@@ -28,7 +28,7 @@ def _emission_radiance(export_ctx, ref):
     if isinstance(color, Texture):
         params = color.params
         if strength != 1.0:
-            params = _math('in[0] * in[1]', color, strength)
+            params = _math('in[0] * in[1]', params, strength)
         return params
     if isinstance(color, Constant):
         rgb = color.value
