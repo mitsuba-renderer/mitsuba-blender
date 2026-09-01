@@ -210,7 +210,10 @@ DEFAULT_BSDF = {
     'type': 'twosided',
     'bsdf': {'type': 'diffuse'}
 }
-
+DEFAULT_NULL_BSDF_ID = 'default_null_bsdf'
+NULL_BSDF = {
+        'type' : 'null'
+}
 
 def material_refs(export_ctx, b_mat):
     '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
@@ -230,6 +233,12 @@ def default_bsdf_id(export_ctx):
     if export_ctx.data_get(DEFAULT_BSDF_ID) is None:
         export_ctx.data_add(dict(DEFAULT_BSDF), name=DEFAULT_BSDF_ID)
     return DEFAULT_BSDF_ID
+
+def default_null_bsdf_id(export_ctx):
+    '''Return the id of the null material, adding ity to the dict once.'''
+    if export_ctx.data_get(DEFAULT_NULL_BSDF_ID) is None:
+        export_ctx.data_add(dict(NULL_BSDF), name=DEFAULT_NULL_BSDF_ID)
+
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
@@ -400,6 +409,12 @@ class GeometryExporter:
                 if n_refs >= 1:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
+
+                if not b_object.visible_camera:
+                    if emitter is not None:
+                        emitter['visible'] = False
+                    bsdf_id = default_null_bsdf_id(export_ctx)
+
                 parts.append((name, bsdf_id, emitter, prim_mask))
 
         # The material suffix only serves to tell several parts apart. An
