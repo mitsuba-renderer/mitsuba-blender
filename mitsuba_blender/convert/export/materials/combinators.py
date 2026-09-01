@@ -43,7 +43,10 @@ def _emitter_result(export_ctx, radiance):
     back to a black diffuse BSDF since Mitsuba rejects black emitters.'''
     if isinstance(radiance, dict):
         return {'bsdf': None,
-                'emitter': {'type': 'area', 'radiance': radiance}}
+                'emitter': {'type': 'area',
+                            'radiance': radiance,
+                            'twosided': True}
+                }
     if sum(radiance) == 0:
         export_ctx.log('Ignoring emitter with zero emission.', 'WARN')
         return {'bsdf': {'type': 'diffuse',

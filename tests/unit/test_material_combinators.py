@@ -157,7 +157,7 @@ def test_emission_textured_color(fresh_scene, exporter, tmp_path, registry):
                                 {'type': 'checkerboard'}):
         ctx = exporter(tmp_path).export_ctx
     assert ctx.exported_mats['mat-TexGlow']['emitter'] == \
-        {'type': 'area', 'radiance': {'type': 'checkerboard'}}
+            {'type': 'area', 'radiance': {'type': 'checkerboard'}, 'twosided' : True}
 
 
 ###################

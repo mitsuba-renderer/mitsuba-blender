@@ -45,7 +45,11 @@ def _emitter(export_ctx, ref):
     radiance = [c * strength for c in result.value[:3]]
     if max(radiance) == 0.0:
         return None
-    return {'type': 'area', 'radiance': export_ctx.spectrum(radiance)}
+    return {
+            'type': 'area',
+            'radiance': export_ctx.spectrum(radiance),
+            'twosided': True
+            }
 
 
 @node_converter('BSDF_PRINCIPLED')

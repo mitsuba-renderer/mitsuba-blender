@@ -177,6 +177,7 @@ def _convert_area(export_ctx, b_light, matrix_world):
         'emitter': {
             'type': 'area',
             'radiance': export_ctx.spectrum(radiance),
+            'twosided' : True
         },
         'bsdf': {'type': 'null'},
     }
