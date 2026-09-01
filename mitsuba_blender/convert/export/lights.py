@@ -200,7 +200,14 @@ def convert_light(export_ctx, b_light, matrix_world=None):
                               'supported')
     if matrix_world is None:
         matrix_world = b_light.matrix_world
-    return converter(export_ctx, b_light, matrix_world)
+    emitter = converter(export_ctx, b_light, matrix_world)
+
+    if not b_light.visible_camera:
+        if 'emitter' in emitter and isinstance(emitter['emitter'], dict):
+            emitter['emitter']['visible'] = False
+        else:
+            emitter['visible'] = False
+    return emitter
 
 
 def export_light(export_ctx, light_instance):
