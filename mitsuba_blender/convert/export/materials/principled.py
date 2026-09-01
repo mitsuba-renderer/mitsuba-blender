@@ -37,7 +37,12 @@ def _emitter(export_ctx, ref):
         params = result.params
         if strength != 1.0:
             params = _math('in[0] * in[1]', params, strength)
-        return {'type': 'area', 'radiance': params}
+        return {
+                'type': 'area',
+                'radiance': params,
+                'twosided' : True,
+                'visible' : False
+                }
     if isinstance(result, Unsupported):
         export_ctx.log(f'{result.reason}; ignoring the emission of node '
                        f'"{node.name}"', 'WARN')
@@ -48,7 +53,8 @@ def _emitter(export_ctx, ref):
     return {
             'type': 'area',
             'radiance': export_ctx.spectrum(radiance),
-            'twosided': True
+            'twosided': True,
+            'visible' : False
             }
 
 
