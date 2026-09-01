@@ -337,13 +337,9 @@ def convert_image_texture(export_ctx, ref, out_socket):
     elif node.extension == 'MIRROR':
         params['wrap_mode'] = 'mirror'
 
-<<<<<<< HEAD
     to_uv = _vector_to_uv(export_ctx, ref)
     if to_uv is not None:
         params['to_uv'] = to_uv
-=======
-    params['to_uv'] = _vector_to_uv(export_ctx, node)
->>>>>>> 863e63a (Port the add-on to the rewritten Mitsuba ``Mesh``)
     return params
 
 
@@ -352,18 +348,12 @@ def convert_checker_texture(export_ctx, ref, out_socket):
     node = ref.node
     params = {
         'type': 'checkerboard',
-<<<<<<< HEAD
         # Once the UV flip is folded into to_uv below, Blender's Color1
         # cells land exactly on Mitsuba's color1 cells
         'color1': eval_color(export_ctx, node.inputs['Color1'],
                              stack=ref.stack),
         'color0': eval_color(export_ctx, node.inputs['Color2'],
                              stack=ref.stack),
-=======
-        # Both patterns start their first cell at the UV origin
-        'color0': eval_color(export_ctx, node.inputs['Color1']),
-        'color1': eval_color(export_ctx, node.inputs['Color2']),
->>>>>>> 863e63a (Port the add-on to the rewritten Mitsuba ``Mesh``)
     }
 
     scale_input = resolve(export_ctx, node.inputs['Scale'], stack=ref.stack)

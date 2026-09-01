@@ -10,6 +10,7 @@ from contextlib import contextmanager
 import bpy
 import numpy as np
 import pytest
+import mitsuba as mi
 from mathutils import Matrix
 
 # The v -> 1 - v flip the mesh exporter applies to UV coordinates
@@ -362,9 +363,9 @@ def test_checker_export(fresh_scene, exporter, tmp_path):
     converter = exporter(tmp_path)
     params = reflectance_of(converter, 'mat-Textured')
     assert params['type'] == 'checkerboard'
-    assert params['color0'] == {'type': 'rgb',
-                                'value': pytest.approx([1.0, 0.0, 0.0])}
     assert params['color1'] == {'type': 'rgb',
+                                'value': pytest.approx([1.0, 0.0, 0.0])}
+    assert params['color0'] == {'type': 'rgb',
                                 'value': pytest.approx([0.0, 0.0, 1.0])}
     expected = [[2, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
     assert np.allclose(np.array(params['to_uv'].matrix), expected,
@@ -377,8 +378,8 @@ def test_checker_matches_blender_pattern(fresh_scene, exporter, tmp_path):
 
     scale = 3.0
     b_mat, tex = make_diffuse_with_texture('ShaderNodeTexChecker')
-    tex.inputs['Color1'].default_value = (1.0, 1.0, 1.0, 1.0)
-    tex.inputs['Color2'].default_value = (0.0, 0.0, 0.0, 1.0)
+    tex.inputs['Color2'].default_value = (1.0, 1.0, 1.0, 1.0)
+    tex.inputs['Color1'].default_value = (0.0, 0.0, 0.0, 1.0)
     tex.inputs['Scale'].default_value = scale
     assign_material(b_mat)
 

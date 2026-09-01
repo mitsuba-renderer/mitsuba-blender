@@ -132,9 +132,9 @@ def test_checker_roundtrip(mi_addon, fresh_scene, exporter, tmp_path):
 
     b_mat = bpy.data.materials['mat-Textured']
     checker = find_node(b_mat, 'ShaderNodeTexChecker')
-    assert tuple(checker.inputs['Color1'].default_value) == \
-        pytest.approx((1.0, 0.0, 0.0, 1.0))
     assert tuple(checker.inputs['Color2'].default_value) == \
+        pytest.approx((1.0, 0.0, 0.0, 1.0))
+    assert tuple(checker.inputs['Color1'].default_value) == \
         pytest.approx((0.0, 0.0, 1.0, 1.0))
     assert checker.inputs['Scale'].default_value == pytest.approx(5.0)
     assert not checker.inputs['Vector'].is_linked
