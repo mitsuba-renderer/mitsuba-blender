@@ -300,7 +300,6 @@ class GeometryExporter:
         to_world = export_ctx.transform_matrix(deg_instance.matrix_world)
         converted = self.convert_parts(deg_instance.object, name_clean)
         for name, bsdf_id, emitter, mi_mesh in converted:
-            name = name_clean if len(converted) == 1 else name
             entry = self.make_entry(bsdf_id, emitter, mi_mesh, to_world)
             if export_ctx.export_ids:
                 export_ctx.data_add(entry, name=f'mesh-{name}')
@@ -333,7 +332,6 @@ class GeometryExporter:
                 converted = self.convert_parts(b_object, name_clean)
                 group = {'type': 'shapegroup'}
                 for name, bsdf_id, emitter, mi_mesh in converted:
-                    name = name_clean if len(converted) == 1 else name
                     group[export_ctx.sanitize(name)] = \
                         self.make_entry(bsdf_id, emitter, mi_mesh)
                 if len(group) > 1:
@@ -382,12 +380,14 @@ class GeometryExporter:
         else:
             refs_per_mat = {}
             for mat_nr, slot in enumerate(slots):
+                prim_mask = mesh_data.prim_mats == mat_nr
+                if not prim_mask.any():
+                    continue
                 if slot.material is None:
                     # Blender renders faces assigned to an empty slot with
                     # its default material
                     parts.append((f'{name_clean}-slot{mat_nr}',
-                                  default_bsdf_id(export_ctx), None,
-                                  mesh_data.prim_mats == mat_nr))
+                                  default_bsdf_id(export_ctx), None, prim_mask))
                     continue
                 # Ensure unique part names even if multiple slots refer to
                 # the same material
@@ -400,14 +400,17 @@ class GeometryExporter:
                 if n_refs >= 1:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
-                parts.append((name, bsdf_id, emitter,
-                              mesh_data.prim_mats == mat_nr))
+                parts.append((name, bsdf_id, emitter, prim_mask))
 
-        converted = []
-        for name, bsdf_id, emitter, prim_mask in parts:
-            mi_mesh = make_mesh(mesh_data, name, prim_mask, None)
-            if mi_mesh is not None:
-                converted.append((name, bsdf_id, emitter, mi_mesh))
+        # The material suffix only serves to tell several parts apart. An
+        # object that stays in one piece keeps its own name, and the bsdf
+        # reference of the shape already records the material.
+        if len(parts) == 1:
+            parts[0] = (name_clean, *parts[0][1:])
+
+        converted = [(name, bsdf_id, emitter,
+                      make_mesh(mesh_data, name, prim_mask, None))
+                     for name, bsdf_id, emitter, prim_mask in parts]
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
