@@ -54,7 +54,8 @@ def _emitter_result(export_ctx, radiance):
                 'emitter': None}
     return {'bsdf': None,
             'emitter': {'type': 'area',
-                        'radiance': export_ctx.spectrum(radiance)}}
+                        'radiance': export_ctx.spectrum(radiance),
+                        'twosided' : True}}
 
 
 @node_converter('EMISSION')

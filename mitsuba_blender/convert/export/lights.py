@@ -88,6 +88,7 @@ def _convert_point(export_ctx, b_light, matrix_world):
             'emitter': {
                 'type': 'area',
                 'radiance': export_ctx.spectrum(radiance),
+                'twosided' : True,
             },
             'bsdf': {'type': 'null'},
         }
