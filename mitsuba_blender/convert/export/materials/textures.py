@@ -77,6 +77,17 @@ def export_image(export_ctx, image):
     raw = False
     if image.filepath_raw:
         source = bpy.path.abspath(image.filepath_raw, library=image.library)
+    # Fallback: resolve by basename when the full path doesn't exist
+    # (common with scenes authored on Windows and opened on Linux)
+    if source and not os.path.isfile(source):
+        basename = os.path.basename(source)
+        blend_dir = os.path.dirname(bpy.data.filepath)
+        if blend_dir:
+            for root, dirs, files in os.walk(blend_dir):
+                if basename in files:
+                    source = os.path.join(root, basename)
+                    break
+
     if source and os.path.isfile(source) and not image.is_dirty \
             and os.path.splitext(source)[1].lower() in _READABLE_EXTS:
         name = _unique_name(cache, os.path.basename(source))
