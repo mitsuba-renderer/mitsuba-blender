@@ -235,10 +235,10 @@ def default_bsdf_id(export_ctx):
     return DEFAULT_BSDF_ID
 
 def default_null_bsdf_id(export_ctx):
-    '''Return the id of the null material, adding ity to the dict once.'''
+    '''Return the id of the null material, adding it to the dict once.'''
     if export_ctx.data_get(DEFAULT_NULL_BSDF_ID) is None:
         export_ctx.data_add(dict(NULL_BSDF), name=DEFAULT_NULL_BSDF_ID)
-
+    return DEFAULT_NULL_BSDF_ID
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
