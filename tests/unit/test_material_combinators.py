@@ -104,7 +104,8 @@ def test_emission_export(fresh_scene, exporter, tmp_path):
         'bsdf': 'empty-emitter-bsdf',
         'emitter': {'type': 'area',
                     'radiance': {'type': 'rgb',
-                                 'value': pytest.approx([2.0, 1.0, 0.5])}},
+                                 'value': pytest.approx([2.0, 1.0, 0.5])},
+                    'twosided': True},
     }
 
     # The render-mode scene dict must load, emitter and shape included
@@ -180,7 +181,8 @@ def test_add_emission_and_bsdf(fresh_scene, exporter, tmp_path):
         'bsdf': 'mat-GlowingDiffuse',
         'emitter': {'type': 'area',
                     'radiance': {'type': 'rgb',
-                                 'value': pytest.approx([2.0, 1.0, 0.5])}},
+                                 'value': pytest.approx([2.0, 1.0, 0.5])},
+                    'twosided': True},
     }
 
 
