@@ -20,7 +20,7 @@ ERROR_COLOR = [1.0, 0.0, 0.3]
 FALLBACK_COLOR = [0.5, 0.5, 0.5]
 _CONSTANT_FALLBACKS = {
     'ShaderNodeAmbientOcclusion' : {
-        'Color' : [1.0, 1.0, 1.0],
+        'Color' : 1.0,
         'AO': 1.0,
     },
     'ShaderNodeNewGeometry' : {
@@ -112,6 +112,16 @@ def _average_vector(texture):
     avg_vector = dr.slice(dr.mean(colors, axis=1), 0)
     return avg_vector
 
+def _absolutify_filenames(params, directory):
+    import os
+    params = dict(params)
+    for k, v in params.items():
+        if k == 'filename' and isinstance(v, str) and not os.path.isabs(v):
+            params[k] = os.path.join(directory, v)
+        elif isinstance(v, dict):
+            params[k] = _absolutify_filenames(v, directory)
+    return params
+
 
 def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     '''
@@ -128,9 +138,8 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
             raise ConversionError(result.reason)
         return socket_default(socket)
     # Texture: build it once and average over a UV grid
-    params = dict(result.params)
-    if 'filename' in params and not os.path.isabs(params['filename']):
-        params['filename'] = os.path.join(export_ctx.directory, params['filename'])
+    params = _absolutify_filenames(result.params, export_ctx.directory)
+
     texture = mi.load_dict(params)
 
     if not texture.is_spatially_varying():
