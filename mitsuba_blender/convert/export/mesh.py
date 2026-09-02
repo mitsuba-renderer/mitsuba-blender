@@ -385,7 +385,16 @@ class GeometryExporter:
         parts = []
         slots = b_object.material_slots
         if len(slots) == 0:
-            parts.append((name_clean, default_bsdf_id(export_ctx), None, None))
+            if not b_object.visible_camera:
+                parts.append((name_clean,
+                              default_null_bsdf_id(export_ctx),
+                              None,
+                              None))
+            else:
+                parts.append((name_clean,
+                              default_bsdf_id(export_ctx),
+                              None,
+                              None))
         else:
             refs_per_mat = {}
             for mat_nr, slot in enumerate(slots):
@@ -395,8 +404,16 @@ class GeometryExporter:
                 if slot.material is None:
                     # Blender renders faces assigned to an empty slot with
                     # its default material
-                    parts.append((f'{name_clean}-slot{mat_nr}',
-                                  default_bsdf_id(export_ctx), None, prim_mask))
+                    if not b_object.visible_camera:
+                        parts.append((f'{name_clean}-slot{mat_nr}',
+                                     default_null_bsdf_id(export_ctx),
+                                     None,
+                                     prim_mask))
+                    else:
+                        parts.append((f'{name_clean}-slot{mat_nr}',
+                                      default_bsdf_id(export_ctx),
+                                      None,
+                                      prim_mask))
                     continue
                 # Ensure unique part names even if multiple slots refer to
                 # the same material
@@ -412,6 +429,7 @@ class GeometryExporter:
 
                 if not b_object.visible_camera:
                     if emitter is not None:
+                        emitter = dict(emitter)
                         emitter['visible'] = False
                     bsdf_id = default_null_bsdf_id(export_ctx)
 
