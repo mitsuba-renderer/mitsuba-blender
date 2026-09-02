@@ -95,6 +95,21 @@ def export_image(export_ctx, image):
         if os.path.abspath(source) != os.path.abspath(target):
             shutil.copy2(source, target)
     else:
+        if not image.has_data:
+            stem = image.name.split('.')[0]
+            for sibling in bpy.data.images:
+                if sibling.name.split('.')[0] == stem and sibling != image:
+                    if sibling.packed_file and not sibling.has_data:
+                        sibling.buffers_free()
+                        _ = sibling.pixels[0]
+                    if sibling.has_data:
+                        image = sibling
+                        break
+        if image.packed_file and not image.has_data:
+            image.buffers_free()
+            _ = image.pixels[0] # for lazy load
+            if not image.has_data:
+                raise RuntimeError(f'Failed to load packed image "{image.name}"')
         import numpy as np
         file_format = image.file_format
         if file_format not in _SAVE_FORMATS:
