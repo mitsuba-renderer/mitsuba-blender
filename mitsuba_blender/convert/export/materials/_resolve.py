@@ -22,7 +22,11 @@ _CONSTANT_FALLBACKS = {
     'ShaderNodeAmbientOcclusion' : {
         'Color' : [1.0, 1.0, 1.0],
         'AO': 1.0,
-    }
+    },
+    'ShaderNodeNewGeometry' : {
+        'Backfacing' : 0.0,
+        'Pointiness' : 0.5,
+    },
 }
 
 class Constant:
