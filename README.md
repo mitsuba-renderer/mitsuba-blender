@@ -52,7 +52,7 @@ Blender.
 - **Blender**: 4.2 LTS and newer. The test suite runs against the 4.2 and
   4.5 LTS releases on every change, and weekly against Blender's daily
   development build.
-- **Mitsuba**: 3.9.0 (bundled with the release zips).
+- **Mitsuba**: 3.10.0 (bundled with the release zips).
 
 ## Feature coverage
 
@@ -98,7 +98,8 @@ Nodes outside the tables above are handle according to the **export mode**, set 
 - **Strict** (default): any unsupported input fails the whole material, which exports as a pink error BSDF. The problem is then visible in the render rather than buried in the console.
 - **Relaxed**: the socket default is used and a warning is logged, which gives a usable scene from one that contains nodes the exporter cannot represent.
 
-Currently unsupported: procedural textures (Noise, Voronoiu, Wave, ...) and `Object info`, whose ouputs depend on which instance is baing shaded. A Mitsuba texture is evaluated from a `SurfaceInteraction`, which carries no per-instance identity, so it converts to zero for now.
+Currently unsupported: procedural textures (Voronoi, Wave, Musgrave, ...)
+except for Noise Texture (3D FBM, Fac output only).
 
 ### Material import
 
@@ -124,6 +125,17 @@ wheels in the source tree, Mitsuba must be available in Blender's Python:
 ```bash
 /path/to/blender/4.2/python/bin/python3.11 -m pip install mitsuba==3.9.0
 ```
+### Standalone plugin installation
+
+The add-on's Python texture plugins can also be made available to Mitsuba
+without Blender by installing the package:
+
+```bash
+pip install mitsuba-blender
+```
+
+Mitsuba discovers the plugins automatically through an entry point after
+    `set_variant` is called. No manual imports are needed.
 
 ### Running the tests
 
