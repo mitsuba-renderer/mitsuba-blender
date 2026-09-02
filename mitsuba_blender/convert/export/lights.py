@@ -90,7 +90,8 @@ def _convert_point(export_ctx, b_light, matrix_world):
                 'radiance': export_ctx.spectrum(radiance),
                 'twosided' : True,
             },
-            'bsdf': {'type': 'null'},
+            'bsdf': {'type': 'diffuse',
+                     'reflectance' : export_ctx.spectrum(0.0)},
         }
     return {
         'type': 'point',
@@ -180,7 +181,7 @@ def _convert_area(export_ctx, b_light, matrix_world):
             'radiance': export_ctx.spectrum(radiance),
             'twosided' : True
         },
-        'bsdf': {'type': 'null'},
+        'bsdf': {'type': 'diffuse', 'reflectance' : export_ctx.spectrum(0.0)},
     }
 
 
