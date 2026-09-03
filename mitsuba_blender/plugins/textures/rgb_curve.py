@@ -45,16 +45,16 @@ def register(mi, dr):
             lut_si.uv = mi.Point2f(x, 0.5)
             return table.eval_1(lut_si, active)
 
-        def eval(self, si, active):
+        def eval(self, si, active=True):
             return mi.UnpolarizedSpectrum(self.eval_3(si, active))
 
-        def eval_1(self, si, active):
+        def eval_1(self, si, active=True):
             return mi.luminance(self.eval_3(si, active))
 
         def eval_1_grad(self, si, active=True):
             return mi.Vector2f(0.0)
 
-        def eval_3(self, si, active):
+        def eval_3(self, si, active=True):
             rgb = self.color.eval_3(si, active)
             fac = self.fac.eval_1(si, active)
 

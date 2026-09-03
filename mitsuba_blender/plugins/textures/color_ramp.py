@@ -103,16 +103,16 @@ def register(mi, dr):
                 col = dr.select(input_pos >= lo, dr.lerp(c0, c1, t), col)
             return col
 
-        def eval(self, si, active):
+        def eval(self, si, active=True):
             return self.eval_3(si, active)
 
-        def eval_1(self, si, active):
+        def eval_1(self, si, active=True):
             return mi.luminance(self.process(self.input.eval_1(si, active), active))
 
         def eval_1_grad(self, si, active=True):
             return mi.Vector2f(0.0)
 
-        def eval_3(self, si, active):
+        def eval_3(self, si, active=True):
             return self.process(self.input.eval_1(si, active), active)
 
         def mean(self):

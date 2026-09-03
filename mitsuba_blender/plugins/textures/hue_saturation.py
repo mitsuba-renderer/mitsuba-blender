@@ -36,13 +36,13 @@ def register(mi, dr):
             self.input      = get_texture(props, 'input', 1.0)
 
 
-        def eval(self, si, active):
+        def eval(self, si, active=True):
             return self.eval_3(si, active)
 
-        def eval_1(self, si, active):
+        def eval_1(self, si, active=True):
             return self.input.eval_1(si, active) * self.value.eval_1(si, active)
 
-        def eval_3(self, si, active):
+        def eval_3(self, si, active=True):
             hue        = self.hue.eval_1(si, active)
             saturation = self.saturation.eval_1(si, active)
             value      = self.value.eval_1(si, active)
