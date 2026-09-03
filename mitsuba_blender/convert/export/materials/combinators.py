@@ -85,9 +85,10 @@ def convert_add(export_ctx, ref):
         raise ConversionError(f'Add Shader node "{node.name}" needs both '
                               'shader inputs linked')
     if a is None:
-        return b
+        return _child_bsdf(export_ctx, a)
     if b is None:
-        return a
+        return _child_bsdf(export_ctx, b)
+
     a_emits = a.node.type == 'EMISSION'
     b_emits = b.node.type == 'EMISSION'
     if a_emits and b_emits:
