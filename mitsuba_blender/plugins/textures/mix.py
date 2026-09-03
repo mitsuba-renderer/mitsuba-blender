@@ -250,8 +250,9 @@ def register(mi, dr):
             return self.a.resolution()
 
         def to_string(self):
-            return (f'Mix[blend_type={self.blend_type}, \n'
-                    f' factor = {self.factor}, \n, a = {self.a},\n b = {self.b}\n]')
+            return (f'Mix[blend_type={self.blend_type},\n'
+                    f' factor = {self.factor}, \n a = {self.a},\n'
+                    f' b = {self.b}\n]')
 
     mi.register_texture('mix', Mix)
 

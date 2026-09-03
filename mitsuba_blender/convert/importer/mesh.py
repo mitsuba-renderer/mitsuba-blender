@@ -154,11 +154,11 @@ def mi_sphere_to_bl_shape(mi_context, mi_shape):
     world_matrix = mi_context.mi_space_to_bl_space(
         to_world @ Matrix.Translation(center))
 
-    # create_uvsphare's calc_uvs produces no UV layer (measured), so UVs are built explicitly
+    # create_uvsphere's calc_uvs produces no UV layer (measured), so UVs are built explicitly
     bmesh.ops.create_uvsphere(bl_bmesh, u_segments=32, v_segments=16,
                               radius=radius)
 
-    # bmesh has no foreach_get; UVs are build on the MESH after to_mesh
+    # bmesh has no foreach_get; UVs are built onto the MESH after to_mesh
     bl_bmesh.to_mesh(bl_mesh)
     bl_bmesh.free()
 
@@ -186,7 +186,7 @@ _analytic_ops = {
     'rectangle': ('create_grid',
                   dict(x_segments=1, y_segments=1, size=1.0)),
     'cube': ('create_cube', dict(size=2.0)),
-    #TODO: create a new mapping for other shape
+    #TODO: create a new mapping for other shapes
 }
 
 def _loop_coords(me):

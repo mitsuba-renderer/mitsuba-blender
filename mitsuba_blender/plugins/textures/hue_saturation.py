@@ -79,7 +79,7 @@ def register(mi, dr):
 
         def to_string(self):
             return (f'HueSaturationValue[\n input = {self.input},\n mix = {self.mix},\n'
-                    f'value = {self.value},\n saturation {self.saturation},\n hue = {self.hue}\n]')
+                    f'value = {self.value},\n saturation = {self.saturation},\n hue = {self.hue}\n]')
 
 
     mi.register_texture('hue_saturation_value', HueSaturationValue)

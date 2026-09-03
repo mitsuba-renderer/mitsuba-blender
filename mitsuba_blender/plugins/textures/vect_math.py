@@ -85,7 +85,7 @@ def register(mi, dr):
 
             self.op_fn = props.get('op')
             if self.op_fn is None:
-                raise RuntimeError('vect_math plugin require an "op" parameter')
+                raise RuntimeError('vect_math plugin requires an "op" parameter')
 
 
         def _process(self, si, active):

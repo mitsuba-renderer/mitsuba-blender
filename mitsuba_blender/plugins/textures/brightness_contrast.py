@@ -23,8 +23,7 @@ def register(mi, dr):
         ''' Bright/Contrast texture
 
         Follows node_shader_brightness.cc: gain is 1 + constant, offset is
-        brightness - contrast/2 - contrast*0.5... , and the result is clamped
-        to zero from below
+        brightness - contrast/2, and the result is clamped to zero from below
         '''
 
         def __init__(self, props : mi.Properties) -> None:
@@ -68,6 +67,6 @@ def register(mi, dr):
 
         def to_string(self):
             return (f'BrightnessContrast[\n color = {self.input},\n brightness = {self.brightness},\n'
-                    f'contrast = {self.contrast}\n]')
+                    f' contrast = {self.contrast}\n]')
 
     mi.register_texture('brightness_contrast', BrightnessContrast)

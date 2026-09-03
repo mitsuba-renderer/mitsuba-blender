@@ -289,7 +289,7 @@ def load_mitsuba_scene(bl_scene, bl_collection, filepath, global_mat, merge_shap
     if mi_context.bl_scene.world is None:
         mi_context.bl_scene.world = world.create_default_bl_world()
 
-    # TODO: maybeCheck that every property was accessed at least once as a sanity check
+    # TODO: check that every property was accessed at least once as a sanity check
 
     end_time = time.time()
     mi_context.log(f'Finished loading Mitsuba scene. Took {end_time-start_time:.2f}s.', 'INFO')

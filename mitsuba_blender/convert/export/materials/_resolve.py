@@ -5,7 +5,7 @@ what feeds an input socket:
 
 - `Constant(value)`: the socket is unlinked
 - `Texture(params)`: the socket is fed by a node with a registered texture
-  converter, and `params` is the resulting Mitsuba texture dict,
+  converter, and `params` is the resulting Mitsuba texture dict.
 - `Unsupported(reason)`: anything else, with a message naming the node that
   could not be handled.
 '''

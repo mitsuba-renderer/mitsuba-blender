@@ -25,7 +25,7 @@ def register(mi, dr):
         ''' Blender's RGB Curve node.
 
         The combined curve is applied first, then per channel curve.
-        Each curve arrives as a 2xN bitmap sampled with wrap_map clamp,
+        Each curves arrive as a 2xN bitmap sampled with wrap mode `clamp`,
         since Properties cannot hold a float array.
         '''
         def __init__(self, props: mi.Properties) -> None:

@@ -28,7 +28,7 @@ def _direction_matrix(direction, up):
     '''A rotation matrix whose +Z axis points along `direction`.'''
     z = direction
     x = up.cross(z)
-    # An arbitrary orthogonal vector when `direction` is colinear with `up`
+    # An arbitrary orthogonal vector when `direction` is collinear with `up`
     if x.length_squared == 0:
         x = up.orthogonal()
     y = z.cross(x)
