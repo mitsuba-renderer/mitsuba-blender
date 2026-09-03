@@ -83,7 +83,10 @@ def test_point_light_with_radius(fresh_scene, export_ctx, lights):
     params = lights.convert_light(export_ctx, obj)
     assert params['type'] == 'sphere'
     assert params['radius'] == pytest.approx(0.5)
-    assert params['bsdf'] == {'type': 'null'}
+    assert params['bsdf'] == {
+        'type': 'diffuse',
+        'reflectance': {'type' : 'rgb', 'value' : 0.0}
+    }
     # The sphere must emit the same total power: L = P / (4 pi^2 r^2)
     radiance = 100.0 / (4.0 * math.pi ** 2 * 0.5 ** 2)
     assert params['emitter']['type'] == 'area'
@@ -157,7 +160,15 @@ def test_area_light(fresh_scene, export_ctx, lights, shape, size, size_y,
     params = lights.convert_light(export_ctx, obj)
     assert params['type'] == expected_type
     assert params['flip_normals'] is True
-    assert params['bsdf'] == {'type': 'null'}
+    assert params['bsdf'] == {
+        'type' : 'diffuse',
+        'reflectance' : {
+            'type' : 'rgb',
+            'value' : 0.0
+        }
+    }
+
+
     radiance = 90.0 / (math.pi * expected_area)
     assert params['emitter']['radiance']['value'] == \
         pytest.approx([radiance] * 3, rel=1e-5)
