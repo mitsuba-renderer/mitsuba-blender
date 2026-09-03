@@ -708,8 +708,8 @@ def convert_combine_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
     if node.mode == 'RGB':
         return _math('rgb(in[0], in[1], in[2])',
                      eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
-                     eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack),
-                     eval_float(export_ctx, node.inputs['Green'], stack=ref.stack))
+                     eval_float(export_ctx, node.inputs['Green'], stack=ref.stack),
+                     eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack))
     return {
         'type': 'combine_color',
         'mode' : node.mode,
