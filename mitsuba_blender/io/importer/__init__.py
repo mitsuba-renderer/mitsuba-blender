@@ -140,11 +140,12 @@ def convert_mi_shape(mi_context, node_id):
         mi_emitters = mi_emitters[:1]
 
     # A supported shape that only carries an area emitter (no BSDF or a
-    # null one) is a light source and comes back as a real Blender light
+    # placeholder one) is a light source and comes back as a real Blender light
     mi_mats = get_references_by_type(mi_context, mi_props, [ObjectType.BSDF])
     if mi_emitters and lights.can_convert_area_emitter(mi_props) \
             and (not mi_mats or (len(mi_mats) == 1 and
-                 mi_context.mi_state.nodes[mi_mats[0]].props.plugin_name() == 'null')):
+                 lights.is_placeholder_bsdf(
+                     mi_context.mi_state.nodes[mi_mats[0]].props))):
         em_props = mi_context.mi_state.nodes[mi_emitters[0]].props
         result = lights.mi_area_emitter_to_bl_light(mi_context, em_props, mi_props)
         if result is not None:

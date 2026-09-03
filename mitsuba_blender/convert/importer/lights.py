@@ -126,6 +126,25 @@ def can_convert_area_emitter(mi_shape_props):
     return mi_shape_props.plugin_name() in _area_shapes
 
 
+def is_placeholder_bsdf(mi_bsdf_props):
+    '''Whether a BSDF only exists to satisfy Mitsuba, which requires one on
+    every shape. The exporter gives emitter-only materials and Blender
+    lights the black diffuse BSDF shared as "empty-emitter-bsdf"; such a
+    shape is a light source, not an emissive surface.'''
+    from mitsuba import Properties
+    plugin_name = mi_bsdf_props.plugin_name()
+    if plugin_name == 'null':
+        return True
+    if plugin_name != 'diffuse' or 'reflectance' not in mi_bsdf_props:
+        return False
+    prop_type = mi_bsdf_props.type('reflectance')
+    if prop_type == Properties.Type.Color:
+        return max(list(mi_bsdf_props['reflectance'])) == 0.0
+    if prop_type == Properties.Type.Float:
+        return float(mi_bsdf_props['reflectance']) == 0.0
+    return False
+
+
 def mi_area_emitter_to_bl_light(mi_context, mi_emitter, mi_shape):
     '''Convert an area emitter attached to a rectangle, disk or sphere
     shape into a Blender area or point light. Returns (bl_light,
