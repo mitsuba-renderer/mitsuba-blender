@@ -7,6 +7,11 @@ from .textures import _math
 from ._resolve import Constant, NodeRef, Texture, resolve, eval_float, trace_source, scalar_from_socket
 
 
+DEFAULT_BSDF = {
+    'type' : 'diffuse',
+    'reflectance' : {'type': 'rgb', 'value': 0.0}
+}
+
 def _child_bsdf(export_ctx, ref):
     '''Convert a nested shader node into a plain BSDF dict.'''
     result = convert_shader_node(export_ctx, ref)
@@ -42,20 +47,28 @@ def _emitter_result(export_ctx, radiance):
     '''Wrap a radiance value in an area emitter pair. A zero radiance falls
     back to a black diffuse BSDF since Mitsuba rejects black emitters.'''
     if isinstance(radiance, dict):
-        return {'bsdf': None,
-                'emitter': {'type': 'area',
-                            'radiance': radiance,
-                            'twosided': True}
-                }
+        return {
+            'bsdf': DEFAULT_BSDF,
+            'emitter': {
+                'type': 'area',
+                'radiance': radiance,
+                'twosided': True,
+            }
+        }
     if sum(radiance) == 0:
         export_ctx.log('Ignoring emitter with zero emission.', 'WARN')
-        return {'bsdf': {'type': 'diffuse',
-                         'reflectance': export_ctx.spectrum(0.0)},
-                'emitter': None}
-    return {'bsdf': None,
-            'emitter': {'type': 'area',
-                        'radiance': export_ctx.spectrum(radiance),
-                        'twosided' : True}}
+        return {
+            'bsdf' : DEFAULT_BSDF,
+            'emitter': None
+        }
+    return {
+        'bsdf': DEFAULT_BSDF,
+        'emitter': {
+            'type': 'area',
+            'radiance': export_ctx.spectrum(radiance),
+            'twosided' : True,
+        }
+    }
 
 
 @node_converter('EMISSION')

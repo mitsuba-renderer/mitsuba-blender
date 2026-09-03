@@ -234,11 +234,10 @@ def default_bsdf_id(export_ctx):
 def default_black_diffuse_id(export_ctx):
     if export_ctx.data_get(DEFAULT_BLACK_DIFFUSE_ID) is None:
         export_ctx.data_add({
-            'type' : 'diffuse',
-            'reflectance' : export_ctx.spectrum(0.0)
-        })
+            'type': 'diffuse',
+            'reflectance': export_ctx.spectrum(0.0)
+        }, name=DEFAULT_BLACK_DIFFUSE_ID)
     return DEFAULT_BLACK_DIFFUSE_ID
-
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
