@@ -2,50 +2,50 @@ import mitsuba as mi
 import drjit as dr
 
 
-class ConstantVector(mi.Texture):
-    ''' A fixed three-component value. Unlike Mitsuba's rgb texture this
-    carries no reflectance semantics, so components outside [0, 1] are
-    allowed.'''
-
-    def __init__(self, props_or_value):
-        if isinstance(props_or_value, mi.Properties):
-            super().__init__(props_or_value)
-            value = props_or_value['value']
-        else:
-            super().__init__(mi.Properties())
-            value = props_or_value
-
-        if isinstance(value, (int, float)):
-            self.value = mi.Color3f(value)
-        else:
-            self.value = mi.Color3f(value.x, value.y, value.z)
-
-    def eval(self, si, active=True):
-        return mi.UnpolarizedSpectrum(self.value)
-
-    def eval_1(self, si, active=True):
-        return (self.value.x + self.value.y + self.value.z) * (1.0 / 3.0)
-
-    def eval_3(self, si, active=True):
-        return self.value
-
-    def mean(self):
-        return 0.5
-
-    def traverse(self, cb):
-        cb.put('value', self.value, mi.ParamFlags.Differentiable)
-
-    def parameters_changed(self, keys=None):
-        pass
-
-    def is_spatially_varying(self):
-        return False
-
-    def to_string(self):
-        return f'ConstantVector[value = {self.value}]'
-
-
 def register(mi, dr):
+    class ConstantVector(mi.Texture):
+        ''' A fixed three-component value. Unlike Mitsuba's rgb texture this
+        carries no reflectance semantics, so components outside [0, 1] are
+        allowed.'''
+
+        def __init__(self, props_or_value):
+            if isinstance(props_or_value, mi.Properties):
+                super().__init__(props_or_value)
+                value = props_or_value['value']
+            else:
+                super().__init__(mi.Properties())
+                value = props_or_value
+
+            if isinstance(value, (int, float)):
+                self.value = mi.Color3f(value)
+            else:
+                self.value = mi.Color3f(value.x, value.y, value.z)
+
+        def eval(self, si, active=True):
+            return mi.UnpolarizedSpectrum(self.value)
+
+        def eval_1(self, si, active=True):
+            return (self.value.x + self.value.y + self.value.z) * (1.0 / 3.0)
+
+        def eval_3(self, si, active=True):
+            return self.value
+
+        def mean(self):
+            return 0.5
+
+        def traverse(self, cb):
+            cb.put('value', self.value, mi.ParamFlags.Differentiable)
+
+        def parameters_changed(self, keys=None):
+            pass
+
+        def is_spatially_varying(self):
+            return False
+
+        def to_string(self):
+            return f'ConstantVector[value = {self.value}]'
+
+
     mi.register_texture('constant_vector', ConstantVector)
 
 
