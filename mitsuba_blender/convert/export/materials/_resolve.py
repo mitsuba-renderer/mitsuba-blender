@@ -159,9 +159,8 @@ def vector_from_socket(export_ctx: ExportContext, ref, socket):
         if export_ctx.strict:
             raise ConversionError(result.reason)
         return socket_default(socket)
-    params = dict(result.params)
-    if 'filename' in params and not os.path.isabs(params['filename']):
-        params['filename'] = os.path.join(export_ctx.directory, params['filename'])
+    params = _absolutify_filenames(result.params, export_ctx.directory)
+
     texture = mi.load_dict(params)
 
     if not texture.is_spatially_varying():
