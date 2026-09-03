@@ -652,7 +652,9 @@ def convert_map_range(export_ctx: ExportContext, ref : NodeRef, out_socket):
         params['from_max'] = eval_vector(export_ctx, node.inputs['From Max'], stack=ref.stack)
         params['to_min'] = eval_vector(export_ctx, node.inputs['To Min'], stack=ref.stack)
         params['to_max'] = eval_vector(export_ctx, node.inputs['To Max'], stack=ref.stack)
-        params['steps'] = eval_vector(export_ctx, node.inputs['Steps'], stack=ref.stack)
+        steps = next((s for s in node.inputs if s.identifier == 'Steps'), None)
+        if steps is not None:
+            params['steps'] = eval_float(export_ctx, steps, stack=ref.stack)
     return params
 
 
