@@ -46,8 +46,8 @@ _VECTOR_OPS = {
     'SCALE': lambda a, b, c, s: a * s,
     'NORMALIZE': lambda a, b, c, s: _normalize(a),
     'ABSOLUTE': lambda a, b, c, s: dr.abs(a),
-    'MINIMUM': lambda a, b, c, s: dr.min(a, b),
-    'MAXIMUM': lambda a, b, c, s: dr.max(a, b),
+    'MINIMUM': lambda a, b, c, s: dr.minimum(a, b),
+    'MAXIMUM': lambda a, b, c, s: dr.maximum(a, b),
     'FLOOR': lambda a, b, c, s: dr.floor(a),
     'CEIL': lambda a, b, c, s: dr.ceil(a),
     'FRACTION': lambda a, b, c, s: _fract(a),
@@ -88,7 +88,7 @@ def register(mi, dr):
             self.op_fn = props.get('op')
             if self.op_fn is None:
                 raise RuntimeError('vect_math plugin require an "op" parameter')
-                                
+
 
         def _process(self, si, active):
             return _VECTOR_OPS[self.op_fn](self.vec_0.eval_3(si, active),
