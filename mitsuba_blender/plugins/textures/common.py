@@ -2,6 +2,7 @@ import mitsuba as mi
 import drjit as dr
 
 
+
 def register(mi, dr):
     class ConstantVector(mi.Texture):
         ''' A fixed three-component value. Unlike Mitsuba's rgb texture this
@@ -48,6 +49,7 @@ def register(mi, dr):
 
     mi.register_texture('constant_vector', ConstantVector)
 
+register(mi, dr)
 
 def get_texture(props: mi.Properties,
                 name: str,
@@ -76,11 +78,11 @@ def get_vector_texture(props, name, default=0.0):
     range would reject components outside [0, 1].
     '''
     if name not in props:
-        return ConstantVector(default)
+        return mi.load_dict({'type' : 'constant_vector', 'value' : default})
     value = props.get(name)
     if isinstance(value, mi.Texture):
         return value
-    return ConstantVector(value)
+    return mi.load_dict({'type' : 'constant_vector', 'value' : value})
 
 # Those functions are taken directly from Blender implementation
 # see: https://github.com/blender/blender/blob/main/source/blender/blenlib/intern/math_color.cc
