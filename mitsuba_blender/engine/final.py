@@ -5,7 +5,6 @@ import bpy
 import numpy as np
 import mitsuba as mi
 import shutil
-import tempfile
 from ..io.exporter import SceneConverter
 
 

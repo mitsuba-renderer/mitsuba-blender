@@ -128,7 +128,6 @@ def scalar_from_socket(export_ctx: ExportContext, socket, stack=()) -> float:
     Average a subgraph down to a scalar for parameters Mitsuba reads as floats.
     '''
     import numpy as np
-    import os
     result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
         v = result.value

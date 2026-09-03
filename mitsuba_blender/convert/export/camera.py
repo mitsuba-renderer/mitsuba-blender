@@ -79,7 +79,7 @@ def focus_distance(b_camera_data, matrix_world):
 ##   Converters     ##
 ######################
 
-def _fov_params(export_ctx, b_camera_data, res_x, res_y):
+def _fov_params(b_camera_data, res_x, res_y):
     sensor_fit = b_camera_data.sensor_fit
     if sensor_fit == 'VERTICAL':
         return {'fov_axis': 'y', 'fov': math.degrees(b_camera_data.angle_y)}
@@ -91,7 +91,7 @@ def _fov_params(export_ctx, b_camera_data, res_x, res_y):
 
 def _convert_perspective(export_ctx, b_camera, matrix_world, res_x, res_y):
     data = b_camera.data
-    params = _fov_params(export_ctx, data, res_x, res_y)
+    params = _fov_params(data, res_x, res_y)
     offset_x, offset_y = shift_to_principal_point(
         data.shift_x, data.shift_y, data.sensor_fit, res_x, res_y)
 

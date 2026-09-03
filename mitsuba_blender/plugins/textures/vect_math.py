@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-import drjit as dr
-import mitsuba as mi
 
 from .common import get_vector_texture
 
@@ -10,54 +8,6 @@ if TYPE_CHECKING:
     import mitsuba as mi
     import drjit as dr
 
-
-
-##################
-##  Arithmetic  ##
-##################
-
-def _safe_divide(a, b):
-    ok = b != 0.0
-    return dr.select(ok, a / dr.select(ok, b, 1.0), 0.0)
-
-def _normalize(a):
-    n = dr.norm(a)
-    ok = n > 0.0
-    return dr.select(ok, a / dr.select(ok, n, 1.0), mi.Color3f(0.0))
-
-def _fract(a):
-    return a - dr.floor(a)
-
-def _modulo(a, b):
-    return _safe_divide(a, b) * 0.0 + dr.select(b != 0.0,
-        a - dr.trunc(a / dr.select(b != 0.0, b, 1.0)) * b, 0.0)
-
-
-_VECTOR_OPS = {
-    'ADD': lambda a, b, c, s: a + b,
-    'SUBTRACT': lambda a, b, c, s: a - b,
-    'MULTIPLY': lambda a, b, c, s: a * b,
-    'DIVIDE': lambda a, b, c, s: _safe_divide(a, b),
-    'MULTIPLY_ADD': lambda a, b, c, s: a * b + c,
-    'CROSS_PRODUCT': lambda a, b, c, s: dr.cross(a, b),
-    'DOT_PRODUCT': lambda a, b, c, s: dr.dot(a, b),
-    'DISTANCE': lambda a, b, c, s: dr.norm(a - b),
-    'LENGTH': lambda a, b, c, s: dr.norm(a),
-    'SCALE': lambda a, b, c, s: a * s,
-    'NORMALIZE': lambda a, b, c, s: _normalize(a),
-    'ABSOLUTE': lambda a, b, c, s: dr.abs(a),
-    'MINIMUM': lambda a, b, c, s: dr.minimum(a, b),
-    'MAXIMUM': lambda a, b, c, s: dr.maximum(a, b),
-    'FLOOR': lambda a, b, c, s: dr.floor(a),
-    'CEIL': lambda a, b, c, s: dr.ceil(a),
-    'FRACTION': lambda a, b, c, s: _fract(a),
-    'MODULO': lambda a, b, c, s: _modulo(a, b),
-    'SINE': lambda a, b, c, s: dr.sin(a),
-    'COSINE': lambda a, b, c, s: dr.cos(a),
-    'TANGENT': lambda a, b, c, s: dr.tan(a)
-}
-
-_SCALAR_OPS = {'DOT_PRODUCT', 'DISTANCE', 'LENGTH'}
 
 def register(mi, dr):
     '''
@@ -69,6 +19,54 @@ def register(mi, dr):
     register_plugins() can be called again after every set_variant.
     The class body should not be moved out of this function.
     '''
+
+    ##################
+    ##  Arithmetic  ##
+    ##################
+
+    def _safe_divide(a, b):
+        ok = b != 0.0
+        return dr.select(ok, a / dr.select(ok, b, 1.0), 0.0)
+
+    def _normalize(a):
+        n = dr.norm(a)
+        ok = n > 0.0
+        return dr.select(ok, a / dr.select(ok, n, 1.0), mi.Color3f(0.0))
+
+    def _fract(a):
+        return a - dr.floor(a)
+
+    def _modulo(a, b):
+        return _safe_divide(a, b) * 0.0 + dr.select(b != 0.0,
+            a - dr.trunc(a / dr.select(b != 0.0, b, 1.0)) * b, 0.0)
+
+
+    _VECTOR_OPS = {
+        'ADD': lambda a, b, c, s: a + b,
+        'SUBTRACT': lambda a, b, c, s: a - b,
+        'MULTIPLY': lambda a, b, c, s: a * b,
+        'DIVIDE': lambda a, b, c, s: _safe_divide(a, b),
+        'MULTIPLY_ADD': lambda a, b, c, s: a * b + c,
+        'CROSS_PRODUCT': lambda a, b, c, s: dr.cross(a, b),
+        'DOT_PRODUCT': lambda a, b, c, s: dr.dot(a, b),
+        'DISTANCE': lambda a, b, c, s: dr.norm(a - b),
+        'LENGTH': lambda a, b, c, s: dr.norm(a),
+        'SCALE': lambda a, b, c, s: a * s,
+        'NORMALIZE': lambda a, b, c, s: _normalize(a),
+        'ABSOLUTE': lambda a, b, c, s: dr.abs(a),
+        'MINIMUM': lambda a, b, c, s: dr.minimum(a, b),
+        'MAXIMUM': lambda a, b, c, s: dr.maximum(a, b),
+        'FLOOR': lambda a, b, c, s: dr.floor(a),
+        'CEIL': lambda a, b, c, s: dr.ceil(a),
+        'FRACTION': lambda a, b, c, s: _fract(a),
+        'MODULO': lambda a, b, c, s: _modulo(a, b),
+        'SINE': lambda a, b, c, s: dr.sin(a),
+        'COSINE': lambda a, b, c, s: dr.cos(a),
+        'TANGENT': lambda a, b, c, s: dr.tan(a)
+    }
+
+    _SCALAR_OPS = {'DOT_PRODUCT', 'DISTANCE', 'LENGTH'}
+
 
     class VectMath(mi.Texture):
         ''' Math operation on vector

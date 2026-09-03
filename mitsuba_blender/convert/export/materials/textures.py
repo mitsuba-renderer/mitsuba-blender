@@ -152,7 +152,7 @@ def _to_uv_param(matrix):
 
 
 def _mapping_matrix(export_ctx, ref):
-    node, stack = ref.node, ref.stack
+    node = ref.node
     location = vector_from_socket(export_ctx, ref, node.inputs['Location'])
     rotation = vector_from_socket(export_ctx, ref, node.inputs['Rotation'])
     scale = vector_from_socket(export_ctx, ref, node.inputs['Scale'])
@@ -846,8 +846,6 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
 
 
 def _wrap_bumpmap(export_ctx, ref, bsdf):
-    import os
-    import mitsuba as mi
     node = ref.node
     # A chained perturbation on the Normal input applies before the bump
     bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf,
