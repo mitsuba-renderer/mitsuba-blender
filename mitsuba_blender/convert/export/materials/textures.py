@@ -96,7 +96,7 @@ def export_image(export_ctx, image):
             shutil.copy2(source, target)
     else:
 
-        if image.packed_file and not image.has_data:
+        if not image.has_data:
             image.buffers_free()
             _ = image.pixels[0] # for lazy load
 
@@ -120,11 +120,14 @@ def export_image(export_ctx, image):
                     sibling.buffers_free()
                     _ = sibling.pixels[0]
                 if sibling.has_data:
+                    export_ctx.log(f'Image "{image.name}" has no data; using'
+                        f'sibling "{sibling.name}" instead',
+                        'WARN')
                     image = sibling
                     break
 
         if not image.has_data:
-                raise RuntimeError(f'Failed to load packed image "{image.name}"')
+            raise RuntimeError(f'Failed to load packed image "{image.name}"')
 
         import numpy as np
         file_format = image.file_format
