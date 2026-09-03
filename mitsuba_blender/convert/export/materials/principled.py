@@ -6,7 +6,7 @@ and the Normal input wraps it in normalmap/bumpmap adapters.
 '''
 
 from . import node_converter
-from ._resolve import Constant, Texture, Unsupported, eval_color, eval_float, resolve, scalar_from_socket
+from ._resolve import Constant, Texture, Unsupported, eval_color, eval_float, resolve, scalar_from_socket, vector_from_socket
 from .textures import convert_normal_input, _math
 
 
@@ -19,9 +19,7 @@ def _spec_tint(export_ctx, ref):
     result = resolve(export_ctx, socket, stack=ref.stack)
     if isinstance(result, Constant):
         return 1.0 - min(result.value[:3])
-    export_ctx.log(f'Specular Tint of node "{node.name}" only supports '
-                   'constant colors; using the default value', 'WARN')
-    return 0.0
+    return 1.0 - min(vector_from_socket(export_ctx, ref, socket)[:3])
 
 
 def _emitter(export_ctx, ref):
