@@ -567,7 +567,7 @@ def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
         'type': 'mix',
         'clamp_factor': node.clamp_factor,
         'clamp_result': node.clamp_result,
-        'factor': eval_float(export_ctx, _socket(node.inputs, 'Factor_Float')),
+        'factor': eval_float(export_ctx, _socket(node.inputs, 'Factor_Float'), stack=ref.stack),
     }
 
     if data_type == 'FLOAT':
