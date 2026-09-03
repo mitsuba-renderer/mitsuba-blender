@@ -17,7 +17,7 @@ from . import importer
 from . import exporter
 
 @orientation_helper(axis_forward='-Z', axis_up='Y')
-class ImportMistuba(bpy.types.Operator, ImportHelper):
+class ImportMitsuba(bpy.types.Operator, ImportHelper):
     """Import a Mitsuba scene"""
     bl_idname = "import_scene.mitsuba"
     bl_label = "Mitsuba Import"
@@ -185,11 +185,11 @@ def menu_export_func(self, context):
     self.layout.operator(ExportMitsuba.bl_idname, text="Mitsuba (.xml)")
 
 def menu_import_func(self, context):
-    self.layout.operator(ImportMistuba.bl_idname, text="Mitsuba (.xml)")
+    self.layout.operator(ImportMitsuba.bl_idname, text="Mitsuba (.xml)")
 
 
 classes = (
-    ImportMistuba,
+    ImportMitsuba,
     ExportMitsuba
 )
 
