@@ -95,21 +95,37 @@ def export_image(export_ctx, image):
         if os.path.abspath(source) != os.path.abspath(target):
             shutil.copy2(source, target)
     else:
-        if not image.has_data:
-            stem = image.name.split('.')[0]
-            for sibling in bpy.data.images:
-                if sibling.name.split('.')[0] == stem and sibling != image:
-                    if sibling.packed_file and not sibling.has_data:
-                        sibling.buffers_free()
-                        _ = sibling.pixels[0]
-                    if sibling.has_data:
-                        image = sibling
-                        break
+
         if image.packed_file and not image.has_data:
             image.buffers_free()
             _ = image.pixels[0] # for lazy load
-            if not image.has_data:
+
+        if not image.has_data:
+            for sibling in bpy.data.images:
+                if sibling == image:
+                    continue
+                # Strong match: same file on disk
+                if sibling.filepath and sibling.filepath == image.filepath:
+                    pass
+                # Weak match: same stem, but only if same dimensions and colorspace
+                elif (sibling.name.split('.')[0] == image.name.split('.')[0]
+                    and sibling.size[:] == image.size[:]
+                    and sibling.size[0] > 0
+                    and sibling.colorspace_settings.name == image.colorspace_settings.name):
+                    pass
+                else:
+                    continue
+                # Try to load the candidate
+                if sibling.packed_file and not sibling.has_data:
+                    sibling.buffers_free()
+                    _ = sibling.pixels[0]
+                if sibling.has_data:
+                    image = sibling
+                    break
+
+        if not image.has_data:
                 raise RuntimeError(f'Failed to load packed image "{image.name}"')
+
         import numpy as np
         file_format = image.file_format
         if file_format not in _SAVE_FORMATS:
