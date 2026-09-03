@@ -1,6 +1,8 @@
 '''Converters for the shader combinator nodes: Mix Shader, Add Shader,
 Emission and Holdout.'''
 
+import copy
+
 from ... import ConversionError
 from . import convert_shader_node, node_converter
 from .textures import _math
@@ -48,7 +50,7 @@ def _emitter_result(export_ctx, radiance):
     back to a black diffuse BSDF since Mitsuba rejects black emitters.'''
     if isinstance(radiance, dict):
         return {
-            'bsdf': DEFAULT_BSDF,
+            'bsdf': copy.deepcopy(DEFAULT_BSDF),
             'emitter': {
                 'type': 'area',
                 'radiance': radiance,
@@ -58,11 +60,11 @@ def _emitter_result(export_ctx, radiance):
     if sum(radiance) == 0:
         export_ctx.log('Ignoring emitter with zero emission.', 'WARN')
         return {
-            'bsdf' : DEFAULT_BSDF,
+            'bsdf' : copy.deepcopy(DEFAULT_BSDF),
             'emitter': None
         }
     return {
-        'bsdf': DEFAULT_BSDF,
+        'bsdf': copy.deepcopy(DEFAULT_BSDF),
         'emitter': {
             'type': 'area',
             'radiance': export_ctx.spectrum(radiance),

@@ -178,12 +178,6 @@ def test_add_material_to_dict_layouts(mi_addon, registry):
     assert ctx.exported_mats['mat-b'] == {'bsdf': 'mat-b',
                                                'emitter': emitter}
 
-    # Emitter only: shared black BSDF
-    ctx = export_context.ExportContext()
-    materials.add_material_to_dict(ctx, 'mat-c', None, dict(emitter))
-    assert ctx.data_get('empty-emitter-bsdf') is not None
-    assert ctx.exported_mats['mat-c']['bsdf'] == 'empty-emitter-bsdf'
-
 
 def test_shared_material_exported_once(fresh_scene, exporter, tmp_path):
     b_mat = make_diffuse_material('Shared')

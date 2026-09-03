@@ -98,10 +98,14 @@ def test_emission_export(fresh_scene, exporter, tmp_path):
 
     converter = exporter(tmp_path)
     ctx = converter.export_ctx
-    assert ctx.data_get('mat-Glow') is None
-    assert ctx.data_get('empty-emitter-bsdf') is not None
+    # Mitsuba defaults a shape without a BSDF to a mid-gray diffuse, so an
+    # emitter-only material carries its own explicit black diffuse
+    assert ctx.data_get('mat-Glow') == {
+        'type': 'diffuse',
+        'reflectance': {'type': 'rgb', 'value': 0.0},
+    }
     assert ctx.exported_mats['mat-Glow'] == {
-        'bsdf': 'empty-emitter-bsdf',
+        'bsdf': 'mat-Glow',
         'emitter': {'type': 'area',
                     'radiance': {'type': 'rgb',
                                  'value': pytest.approx([2.0, 1.0, 0.5])},
@@ -589,9 +593,9 @@ def test_roundtrip_emission(mi_addon, fresh_scene, exporter, tmp_path):
     assign_material(b_mat)
 
     roundtrip(exporter, tmp_path)
-    # An emitter-only material is exported as the shared black BSDF plus an
-    # area emitter on the shape, so the original material name is lost
-    b_mat, node = imported_material('empty-emitter-bsdf')
+    # An emitter-only material is exported as a black BSDF under the material
+    # id plus an area emitter on the shape
+    b_mat, node = imported_material('mat-Glow')
     assert node.bl_idname == 'ShaderNodeAddShader'
     emission = nodes_of_type(b_mat, 'ShaderNodeEmission')
     assert len(emission) == 1

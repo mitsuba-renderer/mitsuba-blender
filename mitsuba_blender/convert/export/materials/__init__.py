@@ -4,7 +4,7 @@ Converter modules in this package register functions with
 @node_converter('<node.type>'). A converter receives (export_ctx, ref),
 where `ref` is a resolve.NodeRef pairing the shader node with the group
 instance path it was reached through, and returns either a Mitsuba BSDF
-dict, or a {'bsdf': dict|None, 'emitter': dict|None} pair when the node
+dict, or a {'bsdf': dict, 'emitter': dict|None} pair when the node
 (also) emits light. Converters signal failure by raising ConversionError;
 convert_material catches everything and substitutes an error BSDF, so a
 broken material never aborts an export.
@@ -75,7 +75,7 @@ def surface_ref(b_mat):
 
 
 def convert_material(export_ctx, b_mat):
-    '''Convert a Blender material into {'bsdf': dict|None,
+    '''Convert a Blender material into {'bsdf': dict,
     'emitter': dict|None}. Never raises: failures produce a warning and a
     gray diffuse fallback.'''
     import os
@@ -108,22 +108,10 @@ def add_material_to_dict(export_ctx, mat_id, bsdf, emitter):
     '''Store a converted BSDF/emitter pair in the scene dict, in the layout
     the shape exporter expects: the BSDF under mat_id, mixed pairs in the
     exported materials cache.'''
+    export_ctx.data_add(bsdf, mat_id)
     if emitter is None:
-        export_ctx.data_add(bsdf, mat_id)
         return
-    if bsdf is None:
-        # An emitter-only material still needs a BSDF in Mitsuba; a shared
-        # black diffuse makes the shape "shadeless"
-        if not export_ctx.data_get('empty-emitter-bsdf'):
-            export_ctx.data_add({
-                'type': 'diffuse',
-                'reflectance': export_ctx.spectrum(0.0),
-            }, 'empty-emitter-bsdf')
-        bsdf_id = 'empty-emitter-bsdf'
-    else:
-        export_ctx.data_add(bsdf, mat_id)
-        bsdf_id = mat_id
-    export_ctx.exported_mats[mat_id] = {'bsdf': bsdf_id, 'emitter': emitter}
+    export_ctx.exported_mats[mat_id] = {'bsdf': mat_id, 'emitter': emitter}
 
 
 def export_material(export_ctx, b_mat):
