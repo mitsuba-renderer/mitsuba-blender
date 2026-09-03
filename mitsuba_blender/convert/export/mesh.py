@@ -210,10 +210,7 @@ DEFAULT_BSDF = {
     'type': 'twosided',
     'bsdf': {'type': 'diffuse'}
 }
-DEFAULT_NULL_BSDF_ID = 'default_null_bsdf'
-NULL_BSDF = {
-        'type' : 'null'
-}
+DEFAULT_BLACK_DIFFUSE_ID = 'default_black_diffuse'
 
 def material_refs(export_ctx, b_mat):
     '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
@@ -234,11 +231,14 @@ def default_bsdf_id(export_ctx):
         export_ctx.data_add(dict(DEFAULT_BSDF), name=DEFAULT_BSDF_ID)
     return DEFAULT_BSDF_ID
 
-def default_null_bsdf_id(export_ctx):
-    '''Return the id of the null material, adding it to the dict once.'''
-    if export_ctx.data_get(DEFAULT_NULL_BSDF_ID) is None:
-        export_ctx.data_add(dict(NULL_BSDF), name=DEFAULT_NULL_BSDF_ID)
-    return DEFAULT_NULL_BSDF_ID
+def default_black_diffuse_id(export_ctx):
+    if export_ctx.data_get(DEFAULT_BLACK_DIFFUSE_ID) is None:
+        export_ctx.data_add({
+            'type' : 'diffuse',
+            'reflectance' : export_ctx.spectrum(0.0)
+        })
+    return DEFAULT_BLACK_DIFFUSE_ID
+
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
@@ -386,15 +386,12 @@ class GeometryExporter:
         slots = b_object.material_slots
         if len(slots) == 0:
             if not b_object.visible_camera:
-                parts.append((name_clean,
-                              default_null_bsdf_id(export_ctx),
-                              None,
-                              None))
-            else:
-                parts.append((name_clean,
-                              default_bsdf_id(export_ctx),
-                              None,
-                              None))
+                return []
+
+            parts.append((name_clean,
+                          default_bsdf_id(export_ctx),
+                          None,
+                          None))
         else:
             refs_per_mat = {}
             for mat_nr, slot in enumerate(slots):
@@ -405,15 +402,12 @@ class GeometryExporter:
                     # Blender renders faces assigned to an empty slot with
                     # its default material
                     if not b_object.visible_camera:
-                        parts.append((f'{name_clean}-slot{mat_nr}',
-                                     default_null_bsdf_id(export_ctx),
-                                     None,
-                                     prim_mask))
-                    else:
-                        parts.append((f'{name_clean}-slot{mat_nr}',
-                                      default_bsdf_id(export_ctx),
-                                      None,
-                                      prim_mask))
+                        continue
+
+                    parts.append((f'{name_clean}-slot{mat_nr}',
+                                  default_bsdf_id(export_ctx),
+                                  None,
+                                  prim_mask))
                     continue
                 # Ensure unique part names even if multiple slots refer to
                 # the same material
@@ -428,10 +422,11 @@ class GeometryExporter:
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
 
                 if not b_object.visible_camera:
-                    if emitter is not None:
-                        emitter = dict(emitter)
-                        emitter['visible'] = False
-                    bsdf_id = default_null_bsdf_id(export_ctx)
+                    if emitter is None:
+                        continue
+                    emitter = dict(emitter)
+                    emitter['visible'] = False
+                    bsdf_id = default_black_diffuse_id(export_ctx)
 
                 parts.append((name, bsdf_id, emitter, prim_mask))
 
