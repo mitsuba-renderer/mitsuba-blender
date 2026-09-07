@@ -86,6 +86,7 @@ def test_export_default_material(fresh_scene, exporter, tmp_path):
     assert params['metallic'] == 0.0
     assert params['anisotropic'] == 0.0
     assert params['spec_trans'] == 0.0
+    # IOR 1.5 and Specular IOR Level 0.5: F0 = 0.04 = 0.08 * 0.5
     assert params['specular'] == pytest.approx(0.5)
     assert params['spec_tint'] == pytest.approx(0.0)
     assert params['sheen'] == 0.0
@@ -120,12 +121,27 @@ def test_export_reflective_values(fresh_scene, exporter, tmp_path):
     assert params['roughness'] == pytest.approx(0.3)
     assert params['metallic'] == pytest.approx(0.7)
     assert params['anisotropic'] == pytest.approx(0.2)
+    # Specular IOR Level 0.4 scales F0 by 0.8
     assert params['specular'] == pytest.approx(0.4)
     assert params['spec_tint'] == pytest.approx(0.75)
     assert params['sheen'] == pytest.approx(0.6)
     assert params['sheen_tint'] == pytest.approx(0.5)
     assert params['clearcoat'] == pytest.approx(0.8)
     assert params['clearcoat_gloss'] == pytest.approx(0.9)
+
+
+def test_export_zero_ior_reflects_fully(fresh_scene, exporter, tmp_path):
+    """Cycles clamps the IOR away from zero, so an IOR of 0 gives a
+    dielectric that reflects everything at normal incidence."""
+    node = principled_node()
+    node.inputs['IOR'].default_value = 0.0
+    _, entry = exported_entry(exporter, tmp_path)
+    params = entry['bsdf']
+    assert params['specular'] == pytest.approx(0.99 / 0.08, rel=1e-3)
+    assert 'eta' not in params
+
+    import mitsuba as mi
+    assert mi.load_dict(entry) is not None
 
 
 def test_export_transmissive_uses_eta(fresh_scene, exporter, tmp_path):

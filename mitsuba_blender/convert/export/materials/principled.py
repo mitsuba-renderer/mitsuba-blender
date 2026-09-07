@@ -92,9 +92,14 @@ def convert_principled(export_ctx, ref):
         params['eta'] = max(ior, 1.0 + 1e-3)
         bsdf = params
     else:
-        specular = scalar_from_socket(export_ctx,
+        # Cycles derives the reflectance at normal incidence from the IOR
+        # (clamped away from zero, so IOR 0 gives F0 = 1) and doubles it
+        # per unit of Specular IOR Level; Mitsuba's 'specular' is F0 / 0.08
+        ior = max(scalar_from_socket(export_ctx, node.inputs['IOR'], stack), 1e-5)
+        level = scalar_from_socket(export_ctx,
                                    node.inputs['Specular IOR Level'], stack)
-        params['specular'] = max(specular, 1e-3)
+        f0 = min(((ior - 1.0) / (ior + 1.0)) ** 2 * 2.0 * level, 0.99)
+        params['specular'] = max(f0 / 0.08, 1e-3)
         bsdf = {'type': 'twosided', 'bsdf': params}
 
     bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack)
