@@ -206,9 +206,13 @@ def make_mesh(mesh_data, name, prim_mask, props=None):
 
 
 DEFAULT_BSDF_ID = 'default-bsdf'
+# Cycles shades objects without a material with a 0.8 grey diffuse BSDF
 DEFAULT_BSDF = {
     'type': 'twosided',
-    'bsdf': {'type': 'diffuse'}
+    'bsdf': {
+        'type': 'diffuse',
+        'reflectance': {'type': 'rgb', 'value': [0.8, 0.8, 0.8]},
+    }
 }
 
 def material_refs(export_ctx, b_mat):

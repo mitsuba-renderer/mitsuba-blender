@@ -365,6 +365,9 @@ def test_empty_material_slot_uses_default_bsdf(fresh_scene, exporter,
             if isinstance(v, dict) and v.get('type') == 'packed']
     assert len(parts) == 2
     assert {p['bsdf']['id'] for p in parts} == {'default-bsdf', 'mat-Second'}
+    # Cycles shades faces without a material with a 0.8 grey diffuse
+    default = converter.export_ctx.data_get('default-bsdf')
+    assert default['bsdf']['reflectance']['value'] == [0.8, 0.8, 0.8]
 
     scene = converter.dict_to_scene()
     assert sorted(m.face_count() for m in scene_meshes(scene)) == [4, 8]
