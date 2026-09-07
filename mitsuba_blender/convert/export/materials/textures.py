@@ -911,23 +911,40 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
 
 def _wrap_bumpmap(export_ctx, ref, bsdf):
     node = ref.node
-    # A chained perturbation on the Normal input applies before the bump
-    bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf,
-                                ref.stack)
+    # A chained perturbation on the Normal input becomes the outer plugin. The
+    # bump texture then sees its result as the shading frame of the
+    # interaction, which is the input normal that Cycles perturbs.
     texture = _texture_input(export_ctx, node.inputs['Height'], ref.stack)
-    if texture is None:
+    if texture is not None:
+        bsdf = _bump_bsdf(export_ctx, ref, texture, bsdf)
+    else:
         export_ctx.log(f'The height of bump node "{node.name}" is constant '
                        'and has no effect; ignoring it.', 'WARN')
-        return bsdf
+    return convert_normal_input(export_ctx, node.inputs['Normal'], bsdf,
+                                ref.stack)
+
+
+def _bump_bsdf(export_ctx, ref, texture, bsdf):
+    node = ref.node
     strength = scalar_from_socket(export_ctx, node.inputs['Strength'], stack=ref.stack)
     distance = scalar_from_socket(export_ctx, node.inputs['Distance'], stack=ref.stack)
-    scale = strength * distance
     if node.invert:
-        scale = -scale
-    return {
-        'type': 'bumpmap',
+        distance = -distance
+    # The blender_bumpmap texture plugin reproduces the Bump node and returns
+    # a tangent space normal. Cycles has no shadowing term.
+    bump = {
+        'type': 'blender_bumpmap',
         'texture': texture,
-        'scale': scale,
+        'scale': distance,
+        'strength': strength,
+    }
+    filter_width = node.inputs.get('Filter Width')
+    if filter_width is not None:
+        bump['filter_width'] = scalar_from_socket(export_ctx, filter_width, stack=ref.stack)
+    return {
+        'type': 'normalmap',
+        'normalmap': bump,
+        'use_shadowing_function': False,
         'bsdf': bsdf,
     }
 

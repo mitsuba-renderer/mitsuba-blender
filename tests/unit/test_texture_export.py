@@ -530,9 +530,13 @@ def test_bumpmap_wrap(fresh_scene, export_ctx, textures):
 
     result = textures.convert_normal_input(
         export_ctx, diffuse.inputs['Normal'], {'type': 'diffuse'})
-    assert result['type'] == 'bumpmap'
-    assert result['scale'] == pytest.approx(0.15)
-    assert result['texture']['type'] == 'bitmap'
+    assert result['type'] == 'normalmap'
+    assert result['use_shadowing_function'] is False
+    bump = result['normalmap']
+    assert bump['type'] == 'blender_bumpmap'
+    assert bump['scale'] == pytest.approx(0.3)
+    assert bump['strength'] == pytest.approx(0.5)
+    assert bump['texture']['type'] == 'bitmap'
 
     import mitsuba as mi
     with saved_file_resolver() as fr:
@@ -553,8 +557,9 @@ def test_bump_over_normalmap(fresh_scene, export_ctx, textures):
 
     result = textures.convert_normal_input(
         export_ctx, diffuse.inputs['Normal'], {'type': 'diffuse'})
-    assert result['type'] == 'bumpmap'
+    assert result['normalmap']['type'] == 'bitmap'
     assert result['bsdf']['type'] == 'normalmap'
+    assert result['bsdf']['normalmap']['type'] == 'blender_bumpmap'
     assert result['bsdf']['bsdf'] == {'type': 'diffuse'}
 
 

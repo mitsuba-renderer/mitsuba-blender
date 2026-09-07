@@ -284,14 +284,14 @@ def test_import_bumpmap_over_normalmap(mi_addon, fresh_scene, tmp_path):
     write_png(tmp_path / 'height.png')
     import_xml(tmp_path, '''
         <shape type="sphere">
-            <bsdf type="bumpmap" id="mat-chain">
-                <texture type="bitmap">
-                    <string name="filename" value="height.png"/>
+            <bsdf type="normalmap" id="mat-chain">
+                <texture type="bitmap" name="normalmap">
+                    <string name="filename" value="normal.png"/>
+                    <boolean name="raw" value="true"/>
                 </texture>
-                <bsdf type="normalmap">
-                    <texture type="bitmap" name="normalmap">
-                        <string name="filename" value="normal.png"/>
-                        <boolean name="raw" value="true"/>
+                <bsdf type="bumpmap">
+                    <texture type="bitmap">
+                        <string name="filename" value="height.png"/>
                     </texture>
                     <bsdf type="diffuse"/>
                 </bsdf>

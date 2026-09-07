@@ -6,7 +6,8 @@ def _register_all():
     from .textures import (color_ramp, hue_saturation, rgb_curve, mix,
                             brightness_contrast, map_range, combine_xyz,
                             separate_xyz, combine_color, vect_math, common,
-                            normal_map, tex_noise, separate_color)
+                            normal_map, blender_bumpmap, tex_noise,
+                            separate_color)
 
     color_ramp.register(mi, dr)
     hue_saturation.register(mi, dr)
@@ -21,6 +22,7 @@ def _register_all():
     vect_math.register(mi, dr)
     common.register(mi, dr)
     normal_map.register(mi, dr)
+    blender_bumpmap.register(mi, dr)
     tex_noise.register(mi, dr)
 
 

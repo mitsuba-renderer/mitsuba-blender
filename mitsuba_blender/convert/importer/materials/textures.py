@@ -230,25 +230,21 @@ def convert_mesh_attribute(builder, mi_props):
 ##  Normal and bump maps  ##
 ############################
 
-def _attach_normal(builder, source, bsdf_socket, chain_input=None):
+def _attach_normal(builder, source, bsdf_socket):
     '''Link a Normal Map or Bump output into the Normal input of the shader
-    node behind bsdf_socket. An already linked Normal input is rerouted
-    through chain_input when one is available.'''
-    target = bsdf_socket.node.inputs.get('Normal')
+    node behind bsdf_socket. Perturbations that are already linked come from
+    nested plugins, which perturb the frame produced by this one. The output
+    therefore goes to the Normal input at the start of their chain.'''
+    node = bsdf_socket.node
+    target = node.inputs.get('Normal')
+    while target is not None and target.is_linked:
+        node = target.links[0].from_node
+        target = node.inputs.get('Normal')
     if target is None:
         builder.mi_context.log(
-            f'Shader node "{bsdf_socket.node.name}" has no Normal input; '
-            'dropping a normal/bump perturbation.', 'WARN')
+            f'Shader node "{node.name}" has no Normal input; dropping a '
+            'normal/bump perturbation.', 'WARN')
         return
-    if target.is_linked:
-        existing = target.links[0].from_socket
-        if chain_input is None:
-            builder.mi_context.log(
-                f'The Normal input of "{bsdf_socket.node.name}" is already '
-                'occupied; dropping a normal/bump perturbation.', 'WARN')
-            return
-        builder.tree.links.remove(target.links[0])
-        builder.link(existing, chain_input)
     builder.link(source, target)
 
 
@@ -264,7 +260,18 @@ def _child_bsdf(builder, mi_props):
 
 @material_converter('normalmap')
 def convert_normalmap(builder, mi_props):
+    from mitsuba import ObjectType
     bsdf_socket = _child_bsdf(builder, mi_props)
+
+    # The exporter writes Bump nodes as a normal map driven by the
+    # blender_bumpmap texture plugin
+    refs = _references(builder, mi_props, ObjectType.Texture)
+    if refs:
+        tex_props = builder.child_props(refs[0])
+        if tex_props.plugin_name() == 'blender_bumpmap':
+            _add_bump(builder, tex_props, bsdf_socket)
+            return bsdf_socket
+
     node = builder.node('ShaderNodeNormalMap')
     builder.set_color(node.inputs['Color'], mi_props, 'normalmap',
                       default=(0.5, 0.5, 1.0))
@@ -272,20 +279,29 @@ def convert_normalmap(builder, mi_props):
     return bsdf_socket
 
 
-@material_converter('bumpmap')
-def convert_bumpmap(builder, mi_props):
+def _add_bump(builder, mi_props, bsdf_socket):
+    '''Create a Bump node from a bumpmap BSDF or a blender_bumpmap texture,
+    which both name their height texture and Distance alike.'''
     from mitsuba import ObjectType
-    bsdf_socket = _child_bsdf(builder, mi_props)
     node = builder.node('ShaderNodeBump')
     node.inputs['Distance'].default_value = float(mi_props.get('scale', 1.0))
+    if 'strength' in mi_props:
+        node.inputs['Strength'].default_value = float(mi_props['strength'])
+    if 'filter_width' in mi_props and 'Filter Width' in node.inputs:
+        node.inputs['Filter Width'].default_value = \
+            float(mi_props['filter_width'])
     refs = _references(builder, mi_props, ObjectType.Texture)
     if refs:
         source = builder.convert_texture(refs[0])
         if source is not None:
             builder.link(source, node.inputs['Height'])
     else:
-        builder.mi_context.log('Bumpmap BSDF without a height texture.',
-                               'WARN')
-    _attach_normal(builder, node.outputs['Normal'], bsdf_socket,
-                   chain_input=node.inputs['Normal'])
+        builder.mi_context.log('Bump map without a height texture.', 'WARN')
+    _attach_normal(builder, node.outputs['Normal'], bsdf_socket)
+
+
+@material_converter('bumpmap')
+def convert_bumpmap(builder, mi_props):
+    bsdf_socket = _child_bsdf(builder, mi_props)
+    _add_bump(builder, mi_props, bsdf_socket)
     return bsdf_socket

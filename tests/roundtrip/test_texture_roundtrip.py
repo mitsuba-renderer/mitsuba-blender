@@ -170,6 +170,7 @@ def test_normal_and_bump_roundtrip(mi_addon, fresh_scene, tmp_path):
     diffuse = tree.nodes.new('ShaderNodeBsdfDiffuse')
     bump = tree.nodes.new('ShaderNodeBump')
     bump.inputs['Distance'].default_value = 0.4
+    bump.inputs['Strength'].default_value = 0.7
     tree.links.new(bump.outputs['Normal'], diffuse.inputs['Normal'])
     height = tree.nodes.new('ShaderNodeTexImage')
     height.image = bpy.data.images.new('Height', 4, 4)
@@ -184,8 +185,8 @@ def test_normal_and_bump_roundtrip(mi_addon, fresh_scene, tmp_path):
 
     wrapped = textures.convert_normal_input(
         ctx, diffuse.inputs['Normal'], {'type': 'diffuse'})
-    assert wrapped['type'] == 'bumpmap'
     assert wrapped['bsdf']['type'] == 'normalmap'
+    assert wrapped['bsdf']['normalmap']['type'] == 'blender_bumpmap'
 
     scene_dict = {
         'type': 'scene',
@@ -208,3 +209,4 @@ def test_normal_and_bump_roundtrip(mi_addon, fresh_scene, tmp_path):
     assert diffuse.inputs['Normal'].links[0].from_node == bump
     assert bump.inputs['Normal'].links[0].from_node == normal_map
     assert bump.inputs['Distance'].default_value == pytest.approx(0.4)
+    assert bump.inputs['Strength'].default_value == pytest.approx(0.7)
