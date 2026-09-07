@@ -383,11 +383,13 @@ def _convert_image_texture(export_ctx, ref, out_socket):
             f'{image.name}_alpha', image.size[0], image.size[1],
             alpha=False, float_buffer=image.is_float)
         try:
+            # Changing the color space frees the pixel buffer of a generated
+            # image, so it has to be set before the values are written.
+            alpha_img.colorspace_settings.name = 'Non-Color'
             rgba = np.zeros((len(alpha), 4), dtype=np.float32)
             rgba[:, :3] = alpha[:, np.newaxis]
             rgba[:, 3] = 1.0
             alpha_img.pixels.foreach_set(rgba.ravel())
-            alpha_img.colorspace_settings.name = 'Non-Color'
             params['filename'], _ = export_image(export_ctx, alpha_img)
         finally:
             bpy.data.images.remove(alpha_img)

@@ -446,6 +446,28 @@ def test_alpha_output(fresh_scene, export_ctx, registry):
     assert result.params.get('raw') is True
 
 
+def test_alpha_output_keeps_the_alpha_values(fresh_scene, export_ctx,
+                                             registry):
+    b_mat, tex = make_diffuse_with_texture('ShaderNodeTexImage')
+    image = bpy.data.images.new('AlphaTex', 4, 4, alpha=True)
+    image.colorspace_settings.name = 'Non-Color'
+    rgba = np.zeros((16, 4), dtype=np.float32)
+    rgba[:, 3] = 0.75
+    image.pixels.foreach_set(rgba.ravel())
+    tex.image = image
+    diffuse = next(n for n in b_mat.node_tree.nodes
+                   if n.type == 'BSDF_DIFFUSE')
+    b_mat.node_tree.links.new(tex.outputs['Alpha'],
+                              diffuse.inputs['Roughness'])
+
+    result = registry.resolve(export_ctx, diffuse.inputs['Roughness'])
+    path = os.path.join(export_ctx.directory, result.params['filename'])
+    # The file is read back with the raw = True the converter declares
+    values = np.array(mi.Bitmap(path).convert(
+        mi.Bitmap.PixelFormat.Y, mi.Struct.Type.Float32, True), copy=False)
+    assert values.min() > 0.74 and values.max() < 0.76
+
+
 ###########################
 ##  Normal and bump map  ##
 ###########################
