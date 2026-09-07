@@ -21,7 +21,7 @@ def chdir(path):
         os.chdir(old_cwd)
 
 
-def test_export_writes_into_target_dir(mi_addon, fresh_scene, tmp_path):
+def test_export_writes_into_target_dir(mi_addon, jit_variant, fresh_scene, tmp_path):
     target = tmp_path / 'export'
     target.mkdir()
     cwd = tmp_path / 'cwd'
@@ -39,7 +39,7 @@ def test_export_writes_into_target_dir(mi_addon, fresh_scene, tmp_path):
 
     # The exported XML must be loadable, i.e. its file references resolve
     import mitsuba as mi
-    mi.set_variant('scalar_rgb')
+    mi.set_variant(jit_variant)
     scene = mi.load_file(str(xml_file))
     assert scene.shapes()
 

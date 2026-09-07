@@ -24,6 +24,8 @@ def test_export_collects_warnings(mi_addon, fresh_scene, tmp_path):
 
 
 def test_clean_export_has_no_warnings(mi_addon, fresh_scene, tmp_path):
+    # The default AgX view transform is not exportable and warns
+    fresh_scene.view_settings.view_transform = 'Standard'
     converter = _scene_converter(mi_addon)
     converter.export_ctx.directory = str(tmp_path)
     depsgraph = bpy.context.evaluated_depsgraph_get()

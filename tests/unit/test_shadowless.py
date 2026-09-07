@@ -198,11 +198,11 @@ def test_traverse_reaches_the_nested_bsdf(plugins):
 ######################
 
 @pytest.fixture
-def exporter(mi_addon):
+def exporter(mi_addon, jit_variant):
     import mitsuba as mi
 
     def _export(directory):
-        mi.set_variant('scalar_rgb')
+        mi.set_variant(jit_variant)
         bpy.context.scene.render.engine = 'MITSUBA'
         converter = sys.modules[mi_addon].io.exporter.SceneConverter(
             render=False)

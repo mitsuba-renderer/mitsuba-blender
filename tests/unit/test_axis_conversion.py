@@ -29,12 +29,12 @@ def offset_cube(fresh_scene):
 
 
 @pytest.fixture
-def exporter(mi_addon):
+def exporter(mi_addon, jit_variant):
     """Exports the current scene and returns the SceneConverter."""
     import mitsuba as mi
 
     def _export(directory, render=False):
-        mi.set_variant('scalar_rgb')
+        mi.set_variant(jit_variant)
         bpy.context.scene.render.engine = 'MITSUBA'
         converter = sys.modules[mi_addon].io.exporter.SceneConverter(render=render)
         converter.export_ctx.directory = str(directory)

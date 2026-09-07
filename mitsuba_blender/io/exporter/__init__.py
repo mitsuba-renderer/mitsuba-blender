@@ -9,6 +9,8 @@ class SceneConverter:
     def __init__(self, render=False):
         self.export_ctx = export_context.ExportContext()
         self.export_ctx.render = render
+        # Blender applies the display transform itself to render results
+        self.export_ctx.bake_display_transform = not render
 
     def scene_to_dict(self, depsgraph, window_manager=None, use_selection=False, ignore_background=True):
         """

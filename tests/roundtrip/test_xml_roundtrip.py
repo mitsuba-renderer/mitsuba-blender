@@ -21,8 +21,10 @@ def test_xml_scene_ztest_roundtrip(mi_addon, fresh_scene, tmp_path):
     assert bpy.ops.import_scene.mitsuba(
         filepath=ref_scene_file, import_render_settings=True) == {'FINISHED'}
     bpy.context.scene.render.engine = 'MITSUBA'
+    # A display transform would change the render of the exported scene
     assert bpy.ops.export_scene.mitsuba(
-        filepath=output_scene_file, ignore_background=True) == {'FINISHED'}
+        filepath=output_scene_file, ignore_background=True,
+        bake_display_transform=False) == {'FINISHED'}
 
     tester = MitsubaRenderTester(MitsubaSceneRenderer())
     assert tester.compare_scenes(ref_scene_file, output_scene_file, spp,

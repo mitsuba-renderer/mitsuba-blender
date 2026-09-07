@@ -61,11 +61,11 @@ def textures(mi_addon):
 
 
 @pytest.fixture
-def exporter(mi_addon):
+def exporter(mi_addon, jit_variant):
     import mitsuba as mi
 
     def _export(directory, render=False):
-        mi.set_variant('scalar_rgb')
+        mi.set_variant(jit_variant)
         bpy.context.scene.render.engine = 'MITSUBA'
         converter = sys.modules[mi_addon].io.exporter.SceneConverter(
             render=render)
@@ -422,6 +422,7 @@ def test_checker_matches_blender_pattern(fresh_scene, exporter, tmp_path):
     assign_material(b_mat)
 
     converter = exporter(tmp_path)
+    mi.set_variant('scalar_rgb')
     texture = mi.load_dict(reflectance_of(converter, 'mat-Textured'))
 
     si = mi.SurfaceInteraction3f()

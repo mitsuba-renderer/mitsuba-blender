@@ -131,6 +131,15 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = False
     )
 
+    bake_display_transform: BoolProperty(
+            name = "Bake Display Transform",
+            description = "Add the 'filmic' post-processing stage to the "
+                          "film so that Mitsuba applies the scene's color "
+                          "management (view transform, look, exposure, gamma "
+                          "and curves) when writing 8-bit images",
+            default = True
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -155,6 +164,7 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         # Add IDs to all base plugins (shape, emitter, sensor...)
         self.converter.export_ctx.export_ids = self.export_ids
         self.converter.export_ctx.blender_triangulation = self.blender_triangulation
+        self.converter.export_ctx.bake_display_transform = self.bake_display_transform
         # Meshes and textures are written to subfolders of the target directory
         self.converter.export_ctx.directory = os.path.dirname(self.filepath)
 

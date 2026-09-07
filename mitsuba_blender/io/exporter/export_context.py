@@ -44,6 +44,10 @@ class ExportContext:
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
         self.blender_triangulation = False
+        # Add the filmic post-processing stage to the film so that the
+        # scene's color management (view transform, look, exposure, gamma,
+        # curves) is applied to 8-bit output
+        self.bake_display_transform = True
         # Shared .packed containers of the exported meshes and curves, and
         # their entry counts
         self.packed_file = None

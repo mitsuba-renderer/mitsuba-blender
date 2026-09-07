@@ -19,6 +19,9 @@ def exporter(mi_addon):
         bpy.context.scene.render.engine = 'MITSUBA'
         converter = sys.modules[mi_addon].io.exporter.SceneConverter(render=render)
         converter.export_ctx.directory = str(directory)
+        # The filmic stage of exported films needs a JIT variant, and these
+        # tests inspect meshes in scalar_rgb
+        converter.export_ctx.bake_display_transform = False
         converter.export_ctx.blender_triangulation = blender_triangulation
         depsgraph = bpy.context.evaluated_depsgraph_get()
         converter.scene_to_dict(depsgraph)

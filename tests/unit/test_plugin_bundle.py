@@ -59,6 +59,7 @@ def _export(mi_addon, directory):
 
 
 def test_export_bundles_used_plugins(mi_addon, fresh_scene, tmp_path):
+    fresh_scene.view_settings.view_transform = 'Filmic'
     fresh_scene.render.resolution_percentage = 4
     light = bpy.data.objects['Light'].data
     assert light.type == 'POINT' and light.shadow_soft_size > 0
@@ -67,7 +68,8 @@ def test_export_bundles_used_plugins(mi_addon, fresh_scene, tmp_path):
     (tmp_path / 'plugins' / 'stale.py').write_text('raise RuntimeError\n')
 
     filename = _export(mi_addon, tmp_path)
-    assert sorted(os.listdir(tmp_path / 'plugins')) == ['__init__.py', 'shapes']
+    assert sorted(os.listdir(tmp_path / 'plugins')) == ['__init__.py', 'postprocess', 'shapes']
+    assert os.listdir(tmp_path / 'plugins' / 'postprocess') == ['filmic.py']
     assert os.listdir(tmp_path / 'plugins' / 'shapes') == ['cycles_lights.py']
 
     lines = [line.strip() for line in open(filename)]
@@ -83,8 +85,8 @@ import sys
 import mitsuba as mi
 mi.set_variant({variant!r})
 scene = mi.load_file({filename!r})
-shape = scene.shapes()[0]
-assert type(shape).__module__.startswith('_mitsuba_import_'), type(shape).__module__
+stage = scene.sensors()[0].film().postprocess()[0]
+assert type(stage).__module__.startswith('_mitsuba_import_'), type(stage).__module__
 assert not any('mitsuba_blender' in name or name == 'plugins' for name in sys.modules)
 image = mi.render(scene, spp=1)
 assert image.shape[:2] == (43, 76), image.shape
@@ -98,10 +100,12 @@ print('RENDERED')
 
 
 def test_export_without_python_plugins(mi_addon, fresh_scene, tmp_path):
+    fresh_scene.view_settings.view_transform = 'Filmic'
     bpy.data.objects.remove(bpy.data.objects['Light'])
     from bl_ext.user_default.mitsuba_blender.io.exporter import SceneConverter
     converter = SceneConverter(render=False)
     converter.export_ctx.directory = str(tmp_path)
+    converter.export_ctx.bake_display_transform = False
     converter.scene_to_dict(bpy.context.evaluated_depsgraph_get())
     converter.dict_to_xml(str(tmp_path / 'scene.xml'))
     assert not (tmp_path / 'plugins').exists()

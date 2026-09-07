@@ -145,10 +145,11 @@ class MitsubaRenderEngine(bpy.types.RenderEngine):
 
     def _write_render_result(self, film):
         '''Split the film into its image and AOV components and write them
-        to the render result. Pixel values are passed through unchanged:
-        Blender expects linear data in its render passes.'''
+        to the render result. Pixel values are passed through unchanged and
+        the film's post-processing stages are skipped: Blender expects
+        linear data in its render passes and applies its own view transform.'''
         results = [(name, _pass_channels(bitmap), np.atleast_3d(bitmap))
-                   for name, bitmap in film.bitmap().split()]
+                   for name, bitmap in film.bitmap(postprocess=False).split()]
 
         # All passes must be declared before begin_result
         for name, channels, pixels in results:

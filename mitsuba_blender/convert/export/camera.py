@@ -6,8 +6,11 @@ convert.importer.camera applies their inverses.
 '''
 
 import math
+import os
 
 from mathutils import Matrix
+
+from .. import filmic
 
 
 ###################
@@ -154,7 +157,7 @@ def convert_camera(export_ctx, b_camera, b_scene, matrix_world=None):
     params['near_clip'] = data.clip_start
     params['far_clip'] = data.clip_end
     params['sampler'] = _convert_sampler(b_camera, b_scene)
-    params['film'] = _convert_film(b_camera, b_scene)
+    params['film'] = _convert_film(export_ctx, b_camera, b_scene)
     return params
 
 
@@ -169,13 +172,16 @@ def _convert_sampler(b_camera, b_scene):
     }
 
 
-def _convert_film(b_camera, b_scene):
+def _convert_film(export_ctx, b_camera, b_scene):
     scale = b_scene.render.resolution_percentage / 100.0
     film = {
         'type': 'hdrfilm',
         'width': int(b_scene.render.resolution_x * scale),
         'height': int(b_scene.render.resolution_y * scale),
     }
+    if export_ctx.bake_display_transform:
+        film['postprocess'] = {'type': 'filmic',
+                               **convert_view_settings(export_ctx, b_scene)}
     if b_scene.render.engine == 'MITSUBA':
         film['rfilter'] = b_camera.data.mitsuba.rfilter_to_dict()
     elif b_scene.render.engine == 'CYCLES':
@@ -199,6 +205,57 @@ def _convert_pixel_filter(cycles):
     if cycles.pixel_filter_type == 'GAUSSIAN':
         return {'type': 'gaussian', 'stddev': width / 4}
     return {'type': 'gaussian', 'stddev': 0.277 * width}
+
+
+#######################
+##   View settings   ##
+#######################
+
+def convert_view_settings(export_ctx, b_scene):
+    '''The scene's color management settings as parameters of the filmic
+    post-processing plugin. A view-level curve mapping is written as a table
+    into the luts subfolder of the export directory and referenced by
+    relative path. Views other than Filmic and Standard fall back to
+    Standard.'''
+    vs = b_scene.view_settings
+    view = vs.view_transform
+    if view not in ('Filmic', 'Standard'):
+        export_ctx.log(f'The "{view}" view transform is not supported by the '
+                       'filmic plugin. Falling back to "Standard".', 'WARN')
+        view = 'Standard'
+
+    look = vs.look
+    if look.startswith('Filmic - '):
+        look = look[len('Filmic - '):]
+    if look != 'None' and look not in filmic.LOOK_CONTRAST:
+        export_ctx.log(f'The "{vs.look}" look is not supported by the filmic '
+                       'plugin. Ignoring it.', 'WARN')
+        look = 'None'
+
+    display = b_scene.display_settings.display_device
+    if display != 'sRGB':
+        export_ctx.log(f'The "{display}" display device is not supported by '
+                       'the filmic plugin, which assumes sRGB.', 'WARN')
+    if getattr(vs, 'use_white_balance', False):
+        export_ctx.log('White balance is not supported by the filmic plugin. '
+                       'Ignoring it.', 'WARN')
+
+    params = {
+        'view_transform': view,
+        'exposure': vs.exposure,
+        'gamma': vs.gamma,
+    }
+    if view == 'Filmic' and look != 'None':
+        params['contrast'] = filmic.LOOK_CONTRAST[look]
+    if vs.use_curve_mapping:
+        if vs.curve_mapping.tone != 'STANDARD':
+            export_ctx.log(f'The "{vs.curve_mapping.tone}" curve tone mode is not '
+                           'supported by the filmic plugin. Using the standard mode.', 'WARN')
+        folder = os.path.join(export_ctx.directory, export_ctx.LUTS_FOLDER)
+        os.makedirs(folder, exist_ok=True)
+        params['view_curves'] = filmic.export_view_curves(folder, vs.curve_mapping,
+                                                          export_ctx.LUTS_FOLDER + '/')
+    return params
 
 
 def export_camera(export_ctx, camera_instance, b_scene):

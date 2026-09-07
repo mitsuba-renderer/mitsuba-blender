@@ -65,6 +65,17 @@ def fresh_scene():
 
 
 @pytest.fixture(scope='session')
+def jit_variant(mi_addon):
+    """Name of a JIT variant with the addon's plugins registered. Exported
+    scenes bake the display transform into a ``filmic`` postprocess, which
+    scalar variants cannot load."""
+    import mitsuba as mi
+    mi.set_variant('llvm_ad_rgb', 'cuda_ad_rgb', 'llvm_rgb')
+    sys.modules[mi_addon].plugins.register_plugins()
+    return mi.variant()
+
+
+@pytest.fixture(scope='session')
 def render_dict():
     """Loads a Mitsuba scene dict and renders it, returning a numpy array."""
     import mitsuba as mi

@@ -16,6 +16,8 @@ def exporter(mi_addon):
     def _export(directory):
         mi.set_variant('scalar_rgb')
         bpy.context.scene.render.engine = 'MITSUBA'
+        # The default AgX view transform would add a warning
+        bpy.context.scene.view_settings.view_transform = 'Standard'
         converter = sys.modules[mi_addon].io.exporter.SceneConverter(
             render=False)
         converter.export_ctx.directory = str(directory)
