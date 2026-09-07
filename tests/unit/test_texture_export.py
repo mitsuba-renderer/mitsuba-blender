@@ -234,6 +234,28 @@ def test_image_export_dedup_and_name_clash(fresh_scene, export_ctx,
         ['Shared-1.png', 'Shared.png']
 
 
+@pytest.mark.parametrize('missing', ['file', 'image'])
+def test_unloadable_image_falls_back_to_cycles_constant(fresh_scene,
+                                                        export_ctx, registry,
+                                                        tmp_path, missing):
+    """A texture whose file is gone, or an image node without an image,
+    must not take the material down: Cycles samples a magenta constant
+    there, and so does the export."""
+    b_mat, tex = make_diffuse_with_texture('ShaderNodeTexImage', 'Missing')
+    if missing == 'file':
+        image = save_image(make_image('Gone'), tmp_path / 'gone.png')
+        image.source = 'FILE'
+        os.remove(tmp_path / 'gone.png')
+        image.buffers_free()
+        assert not image.has_data
+        tex.image = image
+    else:
+        tex.image = None
+
+    params = registry.convert_material(export_ctx, b_mat)['bsdf']['bsdf']
+    assert params['reflectance'] == {'type': 'rgb', 'value': [1.0, 0.0, 1.0]}
+
+
 #####################
 ##  Render export  ##
 #####################

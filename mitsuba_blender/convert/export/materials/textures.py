@@ -58,6 +58,26 @@ def _unique_name(cache, name):
     return f'{stem}-{counter}{ext}'
 
 
+class ImageDataError(ConversionError):
+    '''Raised when an image datablock has no usable pixel data.'''
+
+
+# What Cycles samples wherever an image cannot be loaded
+# (TEX_IMAGE_MISSING_* in cycles/kernel/types.h)
+_MISSING_IMAGE = (1.0, 0.0, 1.0)
+_MISSING_ALPHA = 1.0
+
+
+def _lazy_load(image):
+    '''Touch the first pixel to trigger Blender's lazy load. Images whose
+    file is missing stay empty and raise here, which is not an error yet:
+    the caller decides after checking `has_data`.'''
+    try:
+        _ = image.pixels[0]
+    except (IndexError, RuntimeError):
+        pass
+
+
 def export_image(export_ctx, image):
     '''Copy or save an image into the textures subfolder of the export
     directory and return its path relative to the scene file. The Blender
@@ -98,7 +118,7 @@ def export_image(export_ctx, image):
 
         if not image.has_data:
             image.buffers_free()
-            _ = image.pixels[0] # for lazy load
+            _lazy_load(image)
 
         if not image.has_data:
             for sibling in bpy.data.images:
@@ -118,7 +138,7 @@ def export_image(export_ctx, image):
                 # Try to load the candidate
                 if sibling.packed_file and not sibling.has_data:
                     sibling.buffers_free()
-                    _ = sibling.pixels[0]
+                    _lazy_load(sibling)
                 if sibling.has_data:
                     export_ctx.log(f'Image "{image.name}" has no data; using'
                         f'sibling "{sibling.name}" instead',
@@ -127,7 +147,9 @@ def export_image(export_ctx, image):
                     break
 
         if not image.has_data:
-            raise RuntimeError(f'Failed to load packed image "{image.name}"')
+            raise ImageDataError(
+                f'image "{image.name}" has no data (file '
+                f'"{image.filepath_raw}" is missing or unreadable)')
 
         import numpy as np
         file_format = image.file_format
@@ -323,19 +345,36 @@ def _math(expr, *inputs):
 
 @texture_converter('TEX_IMAGE')
 def convert_image_texture(export_ctx, ref, out_socket):
+    '''Convert an image texture node. An image that cannot be loaded is
+    replaced by the constant Cycles samples in its place, so that a single
+    missing file does not take the whole material down.'''
+    try:
+        return _convert_image_texture(export_ctx, ref, out_socket)
+    except ImageDataError as e:
+        export_ctx.log(f'Image texture node "{ref.node.name}": {e}. Using the '
+                       'constant Cycles samples for a missing image.', 'WARN')
+        if out_socket.name == 'Alpha':
+            return export_ctx.spectrum(_MISSING_ALPHA)
+        return export_ctx.spectrum(_MISSING_IMAGE)
+
+
+def _convert_image_texture(export_ctx, ref, out_socket):
     node = ref.node
     image = node.image
     if image is None:
-        raise ConversionError(f'image texture node "{node.name}" has no '
-                              'image')
+        raise ImageDataError(f'image texture node "{node.name}" has no image')
 
     params: dict[str, object] = {'type': 'bitmap'}
 
     if out_socket.name == 'Alpha':
         if image.channels < 4:
-            raise ConversionError(f'image "{image.name}" has no alpha channel')
+            raise ImageDataError(f'image "{image.name}" has no alpha channel')
 
         import numpy as np
+        if not image.has_data:
+            _lazy_load(image)
+        if not image.has_data:
+            raise ImageDataError(f'image "{image.name}" has no data')
         pixels = np.empty(len(image.pixels), dtype=np.float32)
         image.pixels.foreach_get(pixels)
         alpha = pixels.reshape(-1, image.channels)[:, 3]
