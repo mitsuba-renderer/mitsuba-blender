@@ -10,6 +10,7 @@ import math
 
 from mathutils import Matrix
 
+from . import ray_visibility
 from .. import ConversionError
 
 
@@ -198,22 +199,37 @@ _converters = {
 }
 
 
+# Emitters that no ray can intersect. Mitsuba rejects a visibility property
+# on them, and cameras never see them anyway.
+_delta_emitters = ('point', 'spot', 'directional')
+
+
 def convert_light(export_ctx, b_light, matrix_world=None):
-    '''Convert a Blender light object into a Mitsuba plugin dict.
-    Raises ConversionError for unsupported lights.'''
+    '''Convert a Blender light object into a Mitsuba plugin dict. Returns
+    None for a light that contributes nothing to the render. Raises
+    ConversionError for unsupported lights.'''
     converter = _converters.get(b_light.data.type)
     if converter is None:
         raise ConversionError(f'light type {b_light.data.type} is not '
                               'supported')
     if matrix_world is None:
         matrix_world = b_light.matrix_world
+    visibility = ray_visibility(b_light, True)
+    if visibility is None:
+        export_ctx.log(f'Light "{b_light.name_full}" is hidden from every '
+                       'ray type. Skipping it.', 'INFO')
+        return None
     emitter = converter(export_ctx, b_light, matrix_world)
 
-    if not b_light.visible_camera:
-        if 'emitter' in emitter and isinstance(emitter['emitter'], dict):
-            emitter['emitter']['visible'] = False
-        else:
-            emitter['visible'] = False
+    if emitter['type'] in _delta_emitters:
+        if visibility == 'primary':
+            export_ctx.log(f'Light "{b_light.name_full}" is only visible '
+                           'to camera rays. Skipping it.', 'INFO')
+            return None
+    elif visibility != 'all':
+        # The light is a shape carrying an area emitter, and the shape owns
+        # the visibility
+        emitter['visibility'] = visibility
     return emitter
 
 
@@ -227,6 +243,8 @@ def export_light(export_ctx, light_instance):
     except Exception as e:
         export_ctx.log(f'Failed to export light "{b_light.name_full}": {e}. '
                        'Skipping it.', 'WARN')
+        return
+    if params is None:
         return
     if export_ctx.export_ids:
         export_ctx.data_add(params, name=f'emit-{b_light.name_full}')

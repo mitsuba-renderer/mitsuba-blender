@@ -8,6 +8,7 @@ node driven by generated texture coordinates.
 
 from mathutils import Euler, Matrix
 
+from . import visibility_class
 from .. import ConversionError
 from ...compat import uses_nodes
 from .materials import _resolve
@@ -137,6 +138,17 @@ def convert_world(export_ctx, b_world, ignore_background=True):
     }
 
 
+def world_visibility(b_world):
+    '''Mitsuba ``visibility`` value of the world background from its
+    Cycles ray visibility settings, or None when no ray type sees it. The
+    flags are mapped like those of an emissive object.'''
+    flags = getattr(b_world, 'cycles_visibility', None)
+    if flags is None:
+        return 'all'
+    return visibility_class(
+        flags.camera, flags.diffuse or flags.glossy or flags.transmission)
+
+
 def export_world(export_ctx, b_world, ignore_background=True):
     '''Convert the world and add it to the scene dict. Never raises:
     failures produce a warning and the world is skipped.'''
@@ -148,6 +160,13 @@ def export_world(export_ctx, b_world, ignore_background=True):
         return
     if params is None:
         return
+    visibility = world_visibility(b_world)
+    if visibility is None:
+        export_ctx.log('The world background is hidden from every ray '
+                       'type. Skipping it.', 'INFO')
+        return
+    if visibility != 'all':
+        params['visibility'] = visibility
     if export_ctx.export_ids:
         export_ctx.data_add(params, 'World')
     else:

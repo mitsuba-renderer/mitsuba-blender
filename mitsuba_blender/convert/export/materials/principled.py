@@ -39,7 +39,6 @@ def _emitter(export_ctx, ref):
                 'type': 'area',
                 'radiance': params,
                 'twosided' : True,
-                'visible' : False
                 }
     if isinstance(result, Unsupported):
         export_ctx.log(f'{result.reason}; ignoring the emission of node '
@@ -52,7 +51,6 @@ def _emitter(export_ctx, ref):
             'type': 'area',
             'radiance': export_ctx.spectrum(radiance),
             'twosided': True,
-            'visible' : False
             }
 
 

@@ -10,7 +10,7 @@ index and carries its own `to_world`.
 import bpy
 import numpy as np
 
-from . import sanitize_attribute_name
+from . import ray_visibility, sanitize_attribute_name
 
 
 def read_attribute(b_mesh, name, prop, dtype, size, legacy=None):
@@ -210,7 +210,6 @@ DEFAULT_BSDF = {
     'type': 'twosided',
     'bsdf': {'type': 'diffuse'}
 }
-DEFAULT_BLACK_DIFFUSE_ID = 'default_black_diffuse'
 
 def material_refs(export_ctx, b_mat):
     '''Export the material if needed; return (bsdf_id, emitter_dict or None).'''
@@ -231,13 +230,6 @@ def default_bsdf_id(export_ctx):
         export_ctx.data_add(dict(DEFAULT_BSDF), name=DEFAULT_BSDF_ID)
     return DEFAULT_BSDF_ID
 
-def default_black_diffuse_id(export_ctx):
-    if export_ctx.data_get(DEFAULT_BLACK_DIFFUSE_ID) is None:
-        export_ctx.data_add({
-            'type': 'diffuse',
-            'reflectance': export_ctx.spectrum(0.0)
-        }, name=DEFAULT_BLACK_DIFFUSE_ID)
-    return DEFAULT_BLACK_DIFFUSE_ID
 
 class GeometryExporter:
     '''Converts each distinct combination of mesh data and materials once.
@@ -265,7 +257,11 @@ class GeometryExporter:
         b_object = deg_instance.object
         materials = tuple(slot.material.name if slot.material else None
                           for slot in b_object.material_slots)
-        return (b_object.data.session_uid, materials)
+        # The visibility class ends up on the shapes of the group, so
+        # objects with different flags cannot share one
+        visibility = (ray_visibility(b_object, False),
+                      ray_visibility(b_object, True))
+        return (b_object.data.session_uid, materials, visibility)
 
     @staticmethod
     def is_prototype(deg_instance):
@@ -307,8 +303,9 @@ class GeometryExporter:
         export_ctx = self.export_ctx
         to_world = export_ctx.transform_matrix(deg_instance.matrix_world)
         converted = self.convert_parts(deg_instance.object, name_clean)
-        for name, bsdf_id, emitter, mi_mesh in converted:
-            entry = self.make_entry(bsdf_id, emitter, mi_mesh, to_world)
+        for name, bsdf_id, emitter, visibility, mi_mesh in converted:
+            entry = self.make_entry(bsdf_id, emitter, visibility, mi_mesh,
+                                    to_world)
             if export_ctx.export_ids:
                 export_ctx.data_add(entry, name=f'mesh-{name}')
             else:
@@ -339,9 +336,9 @@ class GeometryExporter:
             else:
                 converted = self.convert_parts(b_object, name_clean)
                 group = {'type': 'shapegroup'}
-                for name, bsdf_id, emitter, mi_mesh in converted:
+                for name, bsdf_id, emitter, visibility, mi_mesh in converted:
                     group[export_ctx.sanitize(name)] = \
-                        self.make_entry(bsdf_id, emitter, mi_mesh)
+                        self.make_entry(bsdf_id, emitter, visibility, mi_mesh)
                 if len(group) > 1:
                     object_id = f'mesh-{name_clean}'
                     export_ctx.data_add(group, name=object_id)
@@ -365,8 +362,9 @@ class GeometryExporter:
             })
 
     def convert_parts(self, b_object, name_clean):
-        '''Convert the object into one (name, bsdf_id, emitter, mesh) tuple
-        per non-empty material slot.'''
+        '''Convert the object into one (name, bsdf_id, emitter, visibility,
+        mesh) tuple per non-empty material slot. Parts that no ray type can
+        see are left out.'''
         export_ctx = self.export_ctx
         if b_object.type == 'MESH':
             b_mesh = b_object.data
@@ -380,16 +378,25 @@ class GeometryExporter:
 
             return []
 
-        # One entry per material slot: (name, bsdf_id, emitter_dict, prim_mask)
+        # Mitsuba applies the visibility per shape, and an emissive part is
+        # judged by different flags than a plain one
+        visibility = {
+            False: ray_visibility(b_object, False),
+            True: ray_visibility(b_object, True),
+        }
+
+        # One entry per material slot: (name, bsdf_id, emitter_dict,
+        # visibility, prim_mask)
         parts = []
         slots = b_object.material_slots
         if len(slots) == 0:
-            if not b_object.visible_camera:
+            if visibility[False] is None:
                 return []
 
             parts.append((name_clean,
                           default_bsdf_id(export_ctx),
                           None,
+                          visibility[False],
                           None))
         else:
             refs_per_mat = {}
@@ -400,12 +407,13 @@ class GeometryExporter:
                 if slot.material is None:
                     # Blender renders faces assigned to an empty slot with
                     # its default material
-                    if not b_object.visible_camera:
+                    if visibility[False] is None:
                         continue
 
                     parts.append((f'{name_clean}-slot{mat_nr}',
                                   default_bsdf_id(export_ctx),
                                   None,
+                                  visibility[False],
                                   prim_mask))
                     continue
                 # Ensure unique part names even if multiple slots refer to
@@ -419,15 +427,12 @@ class GeometryExporter:
                 if n_refs >= 1:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
+                part_visibility = visibility[emitter is not None]
+                if part_visibility is None:
+                    continue
 
-                if not b_object.visible_camera:
-                    if emitter is None:
-                        continue
-                    emitter = dict(emitter)
-                    emitter['visible'] = False
-                    bsdf_id = default_black_diffuse_id(export_ctx)
-
-                parts.append((name, bsdf_id, emitter, prim_mask))
+                parts.append((name, bsdf_id, emitter, part_visibility,
+                              prim_mask))
 
         # The material suffix only serves to tell several parts apart. An
         # object that stays in one piece keeps its own name, and the bsdf
@@ -435,15 +440,17 @@ class GeometryExporter:
         if len(parts) == 1:
             parts[0] = (name_clean, *parts[0][1:])
 
-        converted = [(name, bsdf_id, emitter,
+        converted = [(name, bsdf_id, emitter, part_visibility,
                       make_mesh(mesh_data, name, prim_mask, None))
-                     for name, bsdf_id, emitter, prim_mask in parts]
+                     for name, bsdf_id, emitter, part_visibility, prim_mask
+                     in parts]
 
         if b_object.type != 'MESH':
             b_object.to_mesh_clear()
         return converted
 
-    def make_entry(self, bsdf_id, emitter, mi_mesh, to_world=None):
+    def make_entry(self, bsdf_id, emitter, visibility, mi_mesh,
+                   to_world=None):
         '''Return the scene dict entry of a converted mesh part.'''
         export_ctx = self.export_ctx
         # Every mesh goes into one shared .packed container, addressed by
@@ -458,4 +465,6 @@ class GeometryExporter:
             entry['to_world'] = to_world
         if emitter is not None:
             entry['emitter'] = emitter
+        if visibility != 'all':
+            entry['visibility'] = visibility
         return entry
