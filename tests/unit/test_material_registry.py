@@ -105,8 +105,8 @@ def test_default_principled_material(fresh_scene, exporter, tmp_path):
     assert entry['bsdf']['type'] == 'principled'
 
 
-def test_unlinked_surface_exports_fallback(fresh_scene, exporter, tmp_path,
-                                           registry):
+def test_unlinked_surface_exports_black(fresh_scene, exporter, tmp_path,
+                                        registry):
     b_mat = bpy.data.materials.new('Unlinked')
     b_mat.use_nodes = True
     tree = b_mat.node_tree
@@ -116,8 +116,23 @@ def test_unlinked_surface_exports_fallback(fresh_scene, exporter, tmp_path,
 
     converter = exporter(tmp_path)
     entry = converter.export_ctx.data_get('mat-Unlinked')
-    assert entry == registry.ERROR_BSDF
-    assert entry is not registry.ERROR_BSDF
+    assert entry == registry.BLACK_BSDF
+    assert entry is not registry.BLACK_BSDF
+
+
+def test_material_without_output_node_exports_black(fresh_scene, exporter,
+                                                    tmp_path, registry):
+    b_mat = bpy.data.materials.new('NoOutput')
+    b_mat.use_nodes = True
+    tree = b_mat.node_tree
+    for node in list(tree.nodes):
+        if node.type == 'OUTPUT_MATERIAL':
+            tree.nodes.remove(node)
+    assign_material(b_mat)
+
+    converter = exporter(tmp_path)
+    entry = converter.export_ctx.data_get('mat-NoOutput')
+    assert entry == registry.BLACK_BSDF
 
 
 def test_converter_error_boundary(fresh_scene, exporter, tmp_path, registry):

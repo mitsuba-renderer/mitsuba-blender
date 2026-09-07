@@ -48,6 +48,13 @@ FALLBACK_BSDF = {
         'reflectance': {'type': 'rgb', 'value': FALLBACK_COLOR},
     },
 }
+BLACK_BSDF = {
+    'type': 'twosided',
+    'bsdf': {
+        'type': 'diffuse',
+        'reflectance': {'type': 'rgb', 'value': [0.0, 0.0, 0.0]},
+    },
+}
 
 def convert_shader_node(export_ctx, ref):
     '''Convert one shader node into a {'bsdf', 'emitter'} pair.'''
@@ -77,7 +84,7 @@ def surface_ref(b_mat):
 def convert_material(export_ctx, b_mat):
     '''Convert a Blender material into {'bsdf': dict,
     'emitter': dict|None}. Never raises: failures produce a warning and a
-    gray diffuse fallback.'''
+    gray diffuse fallback, an unlinked Surface a black BSDF.'''
     import os
     try:
         if not uses_nodes(b_mat):
@@ -87,8 +94,10 @@ def convert_material(export_ctx, b_mat):
             }, 'emitter': None}
         ref = surface_ref(b_mat)
         if ref is None:
-            raise ConversionError('no output node with a linked Surface '
-                                  'input')
+            export_ctx.log(f'Material "{b_mat.name}" has no output node with '
+                           'a linked Surface input. Exporting a black BSDF, '
+                           'which is what Cycles renders.', 'WARN')
+            return {'bsdf': copy.deepcopy(BLACK_BSDF), 'emitter': None}
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
         if export_ctx.strict:
