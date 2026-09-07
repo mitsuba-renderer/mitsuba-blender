@@ -191,6 +191,43 @@ def _convert_area(export_ctx, b_light, matrix_world):
     }
 
 
+def is_portal(b_light):
+    '''Whether a Blender light is a Cycles light portal: an area light that
+    emits nothing and only guides the sampling of the world background.'''
+    cycles = getattr(b_light.data, 'cycles', None)
+    return b_light.data.type == 'AREA' and \
+        bool(getattr(cycles, 'is_portal', False))
+
+
+def _convert_portal(export_ctx, b_light, matrix_world):
+    data = b_light.data
+    size_x = data.size
+    if data.shape in ('SQUARE', 'DISK'):
+        size_y = data.size
+    elif data.shape in ('RECTANGLE', 'ELLIPSE'):
+        size_y = data.size_y
+    else:
+        raise ConversionError(f'area light shape {data.shape} is not '
+                              'supported')
+    if data.shape in ('DISK', 'ELLIPSE'):
+        # Mitsuba portals are rectangular. The enclosing rectangle covers
+        # the same opening, since portals only guide the sampling.
+        export_ctx.log(f'Portal "{b_light.name_full}" is elliptic. '
+                       'Exporting its bounding rectangle.', 'INFO')
+    obj_scale = matrix_world.to_scale()
+    if size_x * obj_scale.x * size_y * obj_scale.y == 0.0:
+        raise ConversionError('the portal is degenerate')
+
+    # Mitsuba portals are emitters spanning [-1, 1] locally and facing +Z,
+    # Blender area lights face -Z
+    local = Matrix.Diagonal((size_x / 2.0, size_y / 2.0, 1.0)).to_4x4()
+    flip = Matrix.Rotation(math.pi, 4, 'X')
+    return {
+        'type': 'portal',
+        'to_world': export_ctx.transform_matrix(matrix_world @ flip @ local),
+    }
+
+
 _converters = {
     'POINT': _convert_point,
     'SPOT': _convert_spot,
@@ -208,12 +245,14 @@ def convert_light(export_ctx, b_light, matrix_world=None):
     '''Convert a Blender light object into a Mitsuba plugin dict. Returns
     None for a light that contributes nothing to the render. Raises
     ConversionError for unsupported lights.'''
+    if matrix_world is None:
+        matrix_world = b_light.matrix_world
+    if is_portal(b_light):
+        return _convert_portal(export_ctx, b_light, matrix_world)
     converter = _converters.get(b_light.data.type)
     if converter is None:
         raise ConversionError(f'light type {b_light.data.type} is not '
                               'supported')
-    if matrix_world is None:
-        matrix_world = b_light.matrix_world
     visibility = ray_visibility(b_light, True)
     if visibility is None:
         export_ctx.log(f'Light "{b_light.name_full}" is hidden from every '
@@ -247,6 +286,7 @@ def export_light(export_ctx, light_instance):
     if params is None:
         return
     if export_ctx.export_ids:
-        export_ctx.data_add(params, name=f'emit-{b_light.name_full}')
+        prefix = 'portal' if params['type'] == 'portal' else 'emit'
+        export_ctx.data_add(params, name=f'{prefix}-{b_light.name_full}')
     else:
         export_ctx.data_add(params)

@@ -233,3 +233,57 @@ def test_power_conversions_inverse(lights):
         pytest.approx(42.0)
     assert lights.radiance_to_power(
         lights.power_to_radiance(42.0, 3.5), 3.5) == pytest.approx(42.0)
+
+
+def make_portal(**kwargs):
+    obj = make_light('AREA', **kwargs)
+    obj.data.cycles.is_portal = True
+    return obj
+
+
+@pytest.mark.parametrize('scale', [(2, 1, 1), (-2, -1, -1)])
+def test_portal_light(fresh_scene, export_ctx, lights, scale):
+    # A negative object scale mirrors the light; the portal normal must
+    # still follow the emission direction of the Blender light
+    obj = make_portal(location=(1, 2, 3), rotation=(0.4, 0.2, 1.1),
+                      scale=scale, shape='RECTANGLE', size=3.0, size_y=2.0,
+                      energy=10.0)
+    # Portals neither emit nor occlude, so the visibility flags do not apply
+    obj.visible_camera = False
+    params = lights.convert_light(export_ctx, obj)
+    assert set(params) == {'type', 'to_world'}
+    assert params['type'] == 'portal'
+    # Mitsuba portals face the room along +Z, Blender area lights along -Z
+    np.testing.assert_allclose(to_world_z_axis(params),
+                               emitted_direction(export_ctx, obj),
+                               atol=1e-6)
+    matrix = np.array(params['to_world'].matrix)
+    assert np.linalg.norm(matrix[:3, 0]) == pytest.approx(3.0, rel=1e-5)
+    assert np.linalg.norm(matrix[:3, 1]) == pytest.approx(1.0, rel=1e-5)
+    # Mitsuba rejects a sheared portal, so a mirrored frame must stay
+    # rectangular
+    assert abs(np.dot(matrix[:3, 0], matrix[:3, 1])) < 1e-5
+    expected_pos = export_ctx.axis_mat @ Vector((1, 2, 3))
+    assert matrix[:3, 3] == pytest.approx(list(expected_pos), abs=1e-6)
+
+    import mitsuba as mi
+    scene = mi.load_dict({'type': 'scene', 'portal': params})
+    assert len(scene.portals()) == 1
+    assert len(scene.shapes()) == 0
+
+
+def test_elliptic_portal_exports_bounding_rectangle(fresh_scene, export_ctx,
+                                                    lights, log_capture):
+    obj = make_portal(shape='ELLIPSE', size=2.0, size_y=1.0)
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'portal'
+    matrix = np.array(params['to_world'].matrix)
+    assert np.linalg.norm(matrix[:3, 0]) == pytest.approx(1.0, rel=1e-5)
+    assert np.linalg.norm(matrix[:3, 1]) == pytest.approx(0.5, rel=1e-5)
+    assert any('bounding rectangle' in msg for _, msg in log_capture)
+
+
+def test_degenerate_portal_raises(fresh_scene, export_ctx, lights):
+    obj = make_portal(shape='SQUARE', size=1.0, scale=(1, 0, 1))
+    with pytest.raises(lights.ConversionError):
+        lights.convert_light(export_ctx, obj)
