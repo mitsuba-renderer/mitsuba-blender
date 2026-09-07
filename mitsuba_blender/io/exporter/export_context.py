@@ -23,7 +23,8 @@ class ExportContext:
         # using them need two references
         self.exported_mats = {}
         self.export_ids = False # Export Object IDs in the XML file
-        # Let Blender split the polygons of a mesh instead of Mitsuba
+        # Let Blender split the polygons of a mesh instead of Mitsuba,
+        # whose fan triangulation is much faster but fills concave polygons
         self.blender_triangulation = False
         # Shared .packed container of the exported meshes and its entry count
         self.packed_file = None

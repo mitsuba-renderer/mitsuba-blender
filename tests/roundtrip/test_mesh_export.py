@@ -402,3 +402,36 @@ def test_out_of_range_material_index_not_dropped(fresh_scene, exporter,
     converter = exporter(tmp_path, render=True)
     scene = converter.dict_to_scene()
     assert sum(m.face_count() for m in scene_meshes(scene)) == 12
+
+
+def test_concave_polygon_is_triangulated_in_blender(fresh_scene, exporter,
+                                                    tmp_path):
+    """A wall with an opening is a concave polygon: Blender's triangulation
+    keeps the opening, Mitsuba's fan fills it."""
+    import bmesh
+    import mitsuba as mi
+
+    bpy.data.objects.remove(bpy.data.objects['Cube'])
+    mesh = bpy.data.meshes.new('Wall')
+    bm = bmesh.new()
+    # U-shaped octagon: a 4 x 4 square with a 2 x 3 notch cut from the top
+    pts = [(-2, -2), (2, -2), (2, 2), (1, 2), (1, -1), (-1, -1), (-1, 2), (-2, 2)]
+    bm.faces.new([bm.verts.new((x, y, 0.0)) for x, y in pts])
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new('Wall', mesh)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.update()
+
+    through_notch = mi.Ray3f(mi.Point3f(0.0, 0.5, 1.0), mi.Vector3f(0.0, 0.0, -1.0))
+    through_wall = mi.Ray3f(mi.Point3f(0.0, -1.5, 1.0), mi.Vector3f(0.0, 0.0, -1.0))
+
+    scene = exporter(tmp_path, render=False,
+                     blender_triangulation=True).dict_to_scene()
+    assert not scene.ray_test(through_notch)
+    assert scene.ray_test(through_wall)
+
+    # Mitsuba's fan triangulation fills the notch
+    scene = exporter(tmp_path / 'fan', render=False,
+                     blender_triangulation=False).dict_to_scene()
+    assert scene.ray_test(through_notch)

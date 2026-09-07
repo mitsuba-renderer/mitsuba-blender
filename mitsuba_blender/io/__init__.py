@@ -125,8 +125,9 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
 
     blender_triangulation: BoolProperty(
             name = "Triangulate non-triangular faces in Blender",
-            description = "Mitsuba's triangulation algorithm is much faster "
-                          "but does not handle all corner cases.",
+            description = "Mitsuba's triangulation is much faster but fans "
+                          "polygons, which fills concave ones such as walls "
+                          "with openings; Blender triangulates them correctly.",
             default = False
     )
 
