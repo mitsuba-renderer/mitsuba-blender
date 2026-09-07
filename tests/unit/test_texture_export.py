@@ -234,6 +234,22 @@ def test_image_export_dedup_and_name_clash(fresh_scene, export_ctx,
         ['Shared-1.png', 'Shared.png']
 
 
+def test_reexport_over_read_only_source(fresh_scene, export_ctx, textures,
+                                        tmp_path):
+    src_dir = tmp_path / 'src'
+    src_dir.mkdir()
+    image = save_image(make_image('ReadOnly'), src_dir / 'ReadOnly.png')
+    os.chmod(src_dir / 'ReadOnly.png', 0o444)
+    first, _ = textures.export_image(export_ctx, image)
+    target = tmp_path / first
+    assert os.access(target, os.W_OK)
+    # A second export into the same directory must overwrite the copy
+    del export_ctx.exported_images
+    second, _ = textures.export_image(export_ctx, image)
+    assert second == first
+    assert filecmp.cmp(src_dir / 'ReadOnly.png', target, shallow=False)
+
+
 @pytest.mark.parametrize('missing', ['file', 'image'])
 def test_unloadable_image_falls_back_to_cycles_constant(fresh_scene,
                                                         export_ctx, registry,

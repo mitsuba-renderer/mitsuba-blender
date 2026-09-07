@@ -113,7 +113,11 @@ def export_image(export_ctx, image):
         name = _unique_name(cache, os.path.basename(source))
         target = os.path.join(folder, name)
         if os.path.abspath(source) != os.path.abspath(target):
-            shutil.copy2(source, target)
+            # An earlier export may have left a read-only copy behind, and
+            # copying the mode of a read-only source would create one
+            if os.path.exists(target):
+                os.chmod(target, 0o644)
+            shutil.copyfile(source, target)
     else:
 
         if not image.has_data:
