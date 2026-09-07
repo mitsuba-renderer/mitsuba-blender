@@ -448,8 +448,13 @@ def _get_object_info(ref, out_socket):
     # TODO: every output here depends on which object (and which instance
     # of it) is being shaded. A Mitsuba texture is evaluated from a
     # SurfaceInteraction, which carries no per-instance identity, so none
-    # of these can be reproduced yet. Returning zero until instance data
-    # is available: https://github.com/mitsuba-renderer/mitsuba3/pull/1885
+    # of these can be reproduced yet. Until instance data is available
+    # (https://github.com/mitsuba-renderer/mitsuba3/pull/1885), Random
+    # takes its expected value: Cycles draws it uniformly from [0, 1), and
+    # materials use it to pick a colour or roughness from a ramp, where
+    # the end of the ramp is a worse stand-in than its middle.
+    if out_socket.name == 'Random':
+        return 0.5
     if out_socket.type == 'VALUE':
         return 0.0
     return (0.0, 0.0, 0.0)
