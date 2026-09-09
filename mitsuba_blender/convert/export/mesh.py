@@ -264,7 +264,7 @@ class GeometryExporter:
         # The visibility class ends up on the shapes of the group, so
         # objects with different flags cannot share one
         visibility = (ray_visibility(b_object, False),
-                      ray_visibility(b_object, True))
+                      ray_visibility(b_object, True), b_object.visible_shadow)
         return (b_object.data.session_uid, materials, visibility)
 
     @staticmethod
@@ -432,6 +432,16 @@ class GeometryExporter:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
                 part_visibility = visibility[emitter is not None]
+                if not b_object.visible_shadow:
+                    # Glass that shadow rays ignore has no counterpart among
+                    # Mitsuba's ray classes: it becomes a camera-only shape,
+                    # so that light passes and bounce rays skip it
+                    from .materials.primary import (primary_material,
+                                                    refractive)
+                    if refractive(export_ctx, bsdf_id):
+                        bsdf_id = primary_material(export_ctx, bsdf_id)
+                        part_visibility = \
+                            'primary' if b_object.visible_camera else None
                 if part_visibility is None:
                     continue
 

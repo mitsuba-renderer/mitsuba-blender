@@ -66,7 +66,10 @@ types and world backgrounds (constant and environment maps) convert in both
 directions with matching radiometric units. Cycles ray visibility flags map to
 Mitsuba's `visibility` property: objects and lights hidden from the camera
 become `secondary`, objects that only the camera sees become `primary`, and
-objects or lights that no ray type can reach are left out.
+objects or lights that no ray type can reach are left out. Refracting objects
+that cast no shadow, typically window panes, become `primary` shapes with a
+camera-only material variant, so that light passes through them while the
+camera still sees the refraction.
 
 ### Material export
 

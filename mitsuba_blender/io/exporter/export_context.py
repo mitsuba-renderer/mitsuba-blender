@@ -22,6 +22,8 @@ class ExportContext:
         # {mat_id: {'bsdf': bsdf_id, 'emitter': emitter_dict}}; shapes
         # using them need two references
         self.exported_mats = {}
+        # Material id -> id of its variant for shapes that only camera rays see
+        self.primary_materials = {}
         self.export_ids = False # Export Object IDs in the XML file
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
