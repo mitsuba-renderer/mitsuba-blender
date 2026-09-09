@@ -63,7 +63,11 @@ to Blender primitives. Repeated meshes, collection instances and particle
 instances export as Mitsuba `shapegroup`/`instance` pairs. Cameras
 (perspective, orthographic, depth of field, lens shift), all Blender light
 types and world backgrounds (constant and environment maps) convert in both
-directions with matching radiometric units. Cycles ray visibility flags map to
+directions with matching radiometric units. Point and spot lights with a
+radius are merged into the addon's `cycles_lights` shape, which samples and
+intersects each light as Cycles does (a disk facing the receiver, with the
+"Soft Falloff" semantics and Cycles' spot falloff), never occludes anything,
+and lets paths continue through the light. Cycles ray visibility flags map to
 Mitsuba's `visibility` property: objects and lights hidden from the camera
 become `secondary`, objects that only the camera sees become `primary`, and
 objects or lights that no ray type can reach are left out. Refracting objects

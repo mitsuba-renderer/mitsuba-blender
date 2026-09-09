@@ -1,6 +1,7 @@
 """Unit tests for the Blender light to Mitsuba emitter converters."""
 
 import importlib
+import sys
 import math
 import types
 
@@ -77,24 +78,48 @@ def test_point_light(fresh_scene, export_ctx, lights):
     assert mi.load_dict(params) is not None
 
 
-def test_point_light_with_radius(fresh_scene, export_ctx, lights):
+def test_point_light_with_radius(fresh_scene, export_ctx, lights, mi_addon):
     obj = make_light('POINT', location=(0, 0, 1), energy=100.0,
                      color=(1.0, 1.0, 1.0), shadow_soft_size=0.5)
+    obj.data.use_soft_falloff = True
     params = lights.convert_light(export_ctx, obj)
-    assert params['type'] == 'sphere'
-    assert params['radius'] == pytest.approx(0.5)
-    assert params['bsdf'] == {
-        'type': 'diffuse',
-        'reflectance': {'type' : 'rgb', 'value' : 0.0}
-    }
-    # The sphere must emit the same total power: L = P / (4 pi^2 r^2)
-    radiance = 100.0 / (4.0 * math.pi ** 2 * 0.5 ** 2)
-    assert params['emitter']['type'] == 'area'
-    assert params['emitter']['radiance']['value'] == \
-        pytest.approx([radiance] * 3)
+    # Lights with a radius become one light of the addon's cycles_lights
+    # shape, which takes Blender's power directly
+    assert params['type'] == 'cycles_lights'
+    assert params['r'] == pytest.approx(0.5)
+    assert params['power']['value'] == pytest.approx([100.0] * 3)
+    assert 'dir' not in params
+    expected_pos = export_ctx.axis_mat @ Vector((0, 0, 1))
+    assert list(params['p']) == pytest.approx(list(expected_pos), abs=1e-6)
+
+    # The export context numbers the lights of one shape
+    export_ctx.add_cycles_light(params)
+    export_ctx.add_cycles_light(params)
+    export_ctx.finalize_lights()
+    shapes = [v for v in export_ctx.scene_data.values()
+              if isinstance(v, dict) and v.get('type') == 'cycles_lights']
+    assert len(shapes) == 1
+    assert shapes[0]['r1'] == pytest.approx(0.5)
+    assert 'p2' not in shapes[0]
 
     import mitsuba as mi
-    assert mi.load_dict(params) is not None
+    sys.modules[mi_addon].plugins.register_plugins()
+    assert mi.load_dict(shapes[0]).primitive_count() == 2
+
+
+def test_spot_light_with_radius(fresh_scene, export_ctx, lights):
+    obj = make_light('SPOT', location=(0, 0, 5),
+                     rotation=(math.radians(45), 0, 0), energy=50.0,
+                     spot_size=math.radians(60), spot_blend=0.5,
+                     shadow_soft_size=0.2)
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'cycles_lights'
+    assert params['r'] == pytest.approx(0.2)
+    assert params['power']['value'] == pytest.approx([50.0] * 3)
+    assert params['angle'] == pytest.approx(60.0)
+    assert params['blend'] == pytest.approx(0.5)
+    np.testing.assert_allclose(params['dir'], emitted_direction(export_ctx, obj),
+                               atol=1e-6)
 
 
 def test_spot_light(fresh_scene, export_ctx, lights):

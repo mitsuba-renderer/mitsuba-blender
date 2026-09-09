@@ -89,10 +89,27 @@ def make_light(light_type, name='TestLight', location=(0, 0, 0),
 
 
 def roundtrip_emitter(export_lights, import_lights, export_ctx,
-                      make_mi_context, obj):
+                      make_mi_context, obj, mi_addon=None):
     """Export a Blender light and feed it back through the importer."""
     from mitsuba import ObjectType
     params = export_lights.convert_light(export_ctx, obj)
+    if params['type'] == 'cycles_lights':
+        # Lights with a radius are merged into one shape of the addon's own
+        # plugin, which must be registered to parse it
+        import sys
+        sys.modules[mi_addon].plugins.register_plugins()
+        export_ctx.add_cycles_light(params)
+        export_ctx.finalize_lights()
+        params = next(v for v in export_ctx.scene_data.values()
+                      if isinstance(v, dict) and v.get('type') == 'cycles_lights')
+        state = parse_scene_dict({'type': 'scene', 'light': params})
+        mi_context = make_mi_context(state)
+        shapes = collect_props(state, ObjectType.Shape)
+        assert len(shapes) == 1
+        result = import_lights.mi_cycles_lights_to_bl_lights(mi_context,
+                                                             shapes[0])
+        assert len(result) == 1
+        return result[0]
     state = parse_scene_dict({'type': 'scene', 'light': params})
     mi_context = make_mi_context(state)
     emitters = collect_props(state, ObjectType.Emitter)
@@ -142,16 +159,37 @@ def test_dim_point_light_keeps_radiometry(fresh_scene, export_ctx,
 
 
 def test_point_radius_roundtrip(fresh_scene, export_ctx, export_lights,
-                                import_lights, make_mi_context):
+                                import_lights, make_mi_context, mi_addon):
     obj = make_light('POINT', location=(0, 1, 2), energy=60.0,
                      shadow_soft_size=0.5)
     bl_light, matrix = roundtrip_emitter(export_lights, import_lights,
-                                         export_ctx, make_mi_context, obj)
+                                         export_ctx, make_mi_context, obj,
+                                         mi_addon)
     assert bl_light.type == 'POINT'
     assert bl_light.shadow_soft_size == pytest.approx(0.5, rel=1e-5)
     assert bl_light.energy == pytest.approx(60.0, rel=1e-4)
     assert list(matrix.to_translation()) == pytest.approx([0, 1, 2],
                                                           abs=1e-5)
+
+
+def test_spot_radius_roundtrip(fresh_scene, export_ctx, export_lights,
+                               import_lights, make_mi_context, mi_addon):
+    obj = make_light('SPOT', location=(2, -1, 4),
+                     rotation=(0.4, 0.2, 0.1), energy=80.0,
+                     spot_size=math.radians(50), spot_blend=0.3,
+                     shadow_soft_size=0.25)
+    bl_light, matrix = roundtrip_emitter(export_lights, import_lights,
+                                         export_ctx, make_mi_context, obj,
+                                         mi_addon)
+    assert bl_light.type == 'SPOT'
+    assert bl_light.shadow_soft_size == pytest.approx(0.25, rel=1e-5)
+    assert bl_light.energy == pytest.approx(80.0, rel=1e-4)
+    assert bl_light.spot_size == pytest.approx(math.radians(50), rel=1e-5)
+    assert bl_light.spot_blend == pytest.approx(0.3, rel=1e-5)
+    assert list(matrix.to_translation()) == pytest.approx([2, -1, 4],
+                                                          abs=1e-5)
+    np.testing.assert_allclose(minus_z(matrix), minus_z(obj.matrix_world),
+                               atol=1e-5)
 
 
 def test_spot_roundtrip(fresh_scene, export_ctx, export_lights,

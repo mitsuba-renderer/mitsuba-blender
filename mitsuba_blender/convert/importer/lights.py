@@ -113,6 +113,40 @@ _converters = {
 }
 
 
+def mi_cycles_lights_to_bl_lights(mi_context, mi_props):
+    '''The addon's cycles_lights shape: one Blender point or spot light
+    with a radius per numbered property set. Returns a list of
+    (bl_light, world_matrix).'''
+    result = []
+    i = 0
+    while f'p{i}' in mi_props:
+        spot = f'dir{i}' in mi_props
+        name = f'{_light_name(mi_props)}_{i}'
+        bl_light = bpy.data.lights.new(name=name, type='SPOT' if spot
+                                       else 'POINT')
+        color, power = mi_spectra_utils.convert_radiance_property(
+            mi_context, mi_props, f'power{i}', [1.0, 1.0, 1.0])
+        bl_light.color = color
+        bl_light.energy = power
+        bl_light.shadow_soft_size = float(mi_props[f'r{i}'])
+        if hasattr(bl_light, 'use_soft_falloff'):
+            bl_light.use_soft_falloff = True
+        position = mi_context.mi_space_to_bl_space(
+            Vector(list(mi_props[f'p{i}'])))
+        matrix = Matrix.Translation(position)
+        if spot:
+            bl_light.spot_size = math.radians(
+                float(mi_props.get(f'angle{i}', 45.0)))
+            bl_light.spot_blend = float(mi_props.get(f'blend{i}', 0.15))
+            axis = mi_context.mi_space_to_bl_space(
+                Vector(list(mi_props[f'dir{i}'])))
+            matrix = matrix @ _direction_matrix(axis, Vector((0.0, 1.0, 0.0))) \
+                @ _FLIP
+        result.append((bl_light, matrix))
+        i += 1
+    return result
+
+
 ######################
 ##  Area emitters   ##
 ######################

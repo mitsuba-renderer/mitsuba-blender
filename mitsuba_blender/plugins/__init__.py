@@ -8,6 +8,7 @@ def _register_all():
                             separate_xyz, combine_color, vect_math, common,
                             normal_map, blender_bumpmap, tex_noise,
                             separate_color)
+    from .shapes import cycles_lights
 
     color_ramp.register(mi, dr)
     hue_saturation.register(mi, dr)
@@ -24,6 +25,7 @@ def _register_all():
     normal_map.register(mi, dr)
     blender_bumpmap.register(mi, dr)
     tex_noise.register(mi, dr)
+    cycles_lights.register(mi, dr)
 
 
 def register_plugins():

@@ -31,6 +31,9 @@ class ExportContext:
         # Shared .packed container of the exported meshes and its entry count
         self.packed_file = None
         self.packed_count = 0
+        # Blender lights with a radius, keyed by visibility class; each
+        # class becomes one cycles_lights shape (see finalize_lights)
+        self.cycles_lights = OrderedDict()
         # All the args defined below are set in the Converter
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
@@ -61,6 +64,27 @@ class ExportContext:
     def packed_filename(self):
         '''Relative path that the shape entries reference.'''
         return self.PACKED_NAME
+
+    def add_cycles_light(self, params):
+        '''Queue one light of the cycles_lights shape (a dict with the
+        entries p, r, power and, for spots, dir, angle and blend).'''
+        visibility = params.get('visibility', 'all')
+        self.cycles_lights.setdefault(visibility, []).append(params)
+
+    def finalize_lights(self):
+        '''Add the queued lights to the scene dict as one cycles_lights
+        shape per visibility class, numbering their properties.'''
+        for visibility, lights in self.cycles_lights.items():
+            shape = {'type': 'cycles_lights'}
+            if visibility != 'all':
+                shape['visibility'] = visibility
+            for i, light in enumerate(lights):
+                for key in ('p', 'r', 'power', 'dir', 'angle', 'blend'):
+                    if key in light:
+                        shape[f'{key}{i}'] = light[key]
+            name = f'emit-cycles_lights-{visibility}' if self.export_ids else ''
+            self.data_add(shape, name=name)
+        self.cycles_lights.clear()
 
     def sanitize(self, name):
         '''

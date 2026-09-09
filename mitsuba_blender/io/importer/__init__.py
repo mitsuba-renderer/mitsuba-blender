@@ -133,6 +133,15 @@ def convert_mi_shape(mi_context, node_id):
 
     shape_name = mi_props.id() if mi_props.id() else f'Shape_{node_id}'
 
+    # The addon's merged Blender lights come back as individual lights
+    if mi_props.plugin_name() == 'cycles_lights':
+        for i, (bl_light, world_matrix) in enumerate(
+                lights.mi_cycles_lights_to_bl_lights(mi_context, mi_props)):
+            bl_obj = bpy.data.objects.new(f'{shape_name}_{i}', bl_light)
+            bl_obj.matrix_world = world_matrix
+            mi_context.bl_collection.objects.link(bl_obj)
+        return None
+
     mi_emitters = get_references_by_type(mi_context, mi_props, [ObjectType.Emitter])
     if len(mi_emitters) > 1:
         mi_context.log(f'Shape "{shape_name}" has multiple emitters. Mitsuba '

@@ -251,6 +251,17 @@ def test_area_light_visibility(fresh_scene, export_ctx, lights, flags,
     assert len(scene.emitters()) == 1
 
 
+def test_point_light_with_radius_carries_visibility(fresh_scene,
+                                                     export_ctx, lights):
+    # The Cycles-style lights are a shape, whose visibility hides them from
+    # the camera like in Cycles
+    obj = make_light('POINT', energy=10.0, shadow_soft_size=0.5)
+    set_flags(obj, camera=False)
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'cycles_lights'
+    assert params['visibility'] == 'secondary'
+
+
 @pytest.mark.parametrize('light_type', ['POINT', 'SPOT', 'SUN'])
 def test_delta_light_carries_no_visibility(fresh_scene, export_ctx, lights,
                                            light_type):

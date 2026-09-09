@@ -116,6 +116,7 @@ class SceneConverter:
         # The shapes reference entries of the shared container, which is
         # only readable once its dictionary is in place
         self.export_ctx.finalize_packed()
+        self.export_ctx.finalize_lights()
         config = mi.parser.ParserConfig(mi.variant())
         state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
         # Reorder the plugins so they are written in a legible order
@@ -127,6 +128,7 @@ class SceneConverter:
     def dict_to_scene(self):
         import mitsuba as mi
         self.export_ctx.finalize_packed()
+        self.export_ctx.finalize_lights()
         # A resources entry resolves the relative file references against
         # the export directory; it must precede the entries that use them
         data = {'type': 'scene',

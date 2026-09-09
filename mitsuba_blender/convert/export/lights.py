@@ -8,7 +8,7 @@ convert.importer.lights applies their inverses.
 
 import math
 
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 from . import ray_visibility
 from .. import ConversionError
@@ -67,38 +67,32 @@ def _colored(scalar, color):
     return [scalar * c for c in color[:3]]
 
 
+def _cycles_light(export_ctx, b_light, matrix_world):
+    '''One light of the addon's cycles_lights shape, which the export
+    context merges into a single shape per visibility class (see
+    ExportContext.add_cycles_light). Cycles samples a light with a radius
+    as a disk facing the shaded point and radiates P / (4 pi^2 r^2).'''
+    data = b_light.data
+    if not getattr(data, 'use_soft_falloff', True):
+        export_ctx.log(f'Light "{b_light.name_full}" has "Soft Falloff" '
+                       'disabled. It is exported as if it were enabled.',
+                       'WARN')
+    return {
+        'type': 'cycles_lights',
+        'p': list(export_ctx.transform_matrix(matrix_world).translation()),
+        'r': data.shadow_soft_size,
+        'power': export_ctx.spectrum(_colored(data.energy, data.color)),
+    }
+
+
 def _convert_point(export_ctx, b_light, matrix_world):
     data = b_light.data
-    position = list(export_ctx.transform_matrix(matrix_world).translation())
-    radius = data.shadow_soft_size
-    if radius > 0.0:
-        # Cycles gives the light the radiance below, but samples it as a
-        # disk of radius `radius` that always faces the shaded point, so it
-        # illuminates as P / (4 pi (d^2 + radius^2)). A sphere emitter has
-        # the same radiance and the same far-field power, but illuminates
-        # as P / (4 pi d^2) whatever its radius, so it stays brighter than
-        # Cycles by 1 + (radius / d)^2. No Mitsuba emitter reproduces the
-        # disk falloff; the sphere at least gets the soft shadows right.
-        radiance = _colored(power_to_radiance(data.energy,
-                                              sphere_area(radius)),
-                            data.color)
-        return {
-            'type': 'sphere',
-            'center': position,
-            'radius': radius,
-            'emitter': {
-                'type': 'area',
-                'radiance': export_ctx.spectrum(radiance),
-                'twosided' : True,
-            },
-            'bsdf': {
-                'type': 'diffuse',
-                'reflectance': export_ctx.spectrum(0.0),
-            },
-        }
+    if data.shadow_soft_size > 0.0:
+        return _cycles_light(export_ctx, b_light, matrix_world)
     return {
         'type': 'point',
-        'position': position,
+        'position': list(
+            export_ctx.transform_matrix(matrix_world).translation()),
         'intensity': export_ctx.spectrum(
             _colored(power_to_intensity(data.energy), data.color)),
     }
@@ -106,13 +100,15 @@ def _convert_point(export_ctx, b_light, matrix_world):
 
 def _convert_spot(export_ctx, b_light, matrix_world):
     data = b_light.data
-    if data.shadow_soft_size:
-        # Mitsuba spot emitters are delta lights, so unlike point lights the
-        # radius cannot be modelled at all: the shadows come out hard and the
-        # light stays brighter than Cycles by 1 + (radius / d)^2.
-        export_ctx.log(f'Light "{b_light.name_full}" has a non-zero radius. '
-                       'It will be ignored: expect hard shadows and a '
-                       'slightly brighter light than Cycles.', 'WARN')
+    if data.shadow_soft_size > 0.0:
+        light = _cycles_light(export_ctx, b_light, matrix_world)
+        # Blender spot lights emit along their local -Z axis
+        axis = (export_ctx.axis_mat @ matrix_world).to_3x3() \
+            @ Vector((0.0, 0.0, -1.0))
+        light['dir'] = list(axis.normalized())
+        light['angle'] = math.degrees(data.spot_size)
+        light['blend'] = data.spot_blend
+        return light
     # Blender spot lights point along -Z, Mitsuba's along +Z
     flip = Matrix.Rotation(math.pi, 4, 'X')
     return {
@@ -287,6 +283,9 @@ def export_light(export_ctx, light_instance):
                        'Skipping it.', 'WARN')
         return
     if params is None:
+        return
+    if params['type'] == 'cycles_lights':
+        export_ctx.add_cycles_light(params)
         return
     if export_ctx.export_ids:
         prefix = 'portal' if params['type'] == 'portal' else 'emit'
