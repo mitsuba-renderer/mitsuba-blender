@@ -200,6 +200,14 @@ def test_degenerate_area_light_raises(fresh_scene, export_ctx, lights):
         lights.convert_light(export_ctx, obj)
 
 
+def test_zero_power_light_is_skipped(fresh_scene, export_ctx, lights,
+                                     log_capture):
+    # A light without power neither illuminates nor occludes in Cycles
+    obj = make_light('AREA', energy=0.0)
+    assert lights.convert_light(export_ctx, obj) is None
+    assert any('zero power' in msg for _, msg in log_capture)
+
+
 def test_export_light_never_raises(export_ctx, lights, log_capture):
     fake_data = types.SimpleNamespace(type='LASER')
     fake_obj = types.SimpleNamespace(data=fake_data, name_full='Fake',

@@ -253,6 +253,10 @@ def convert_light(export_ctx, b_light, matrix_world=None):
     if converter is None:
         raise ConversionError(f'light type {b_light.data.type} is not '
                               'supported')
+    if b_light.data.energy == 0.0:
+        export_ctx.log(f'Light "{b_light.name_full}" has zero power. '
+                       'Skipping it.', 'INFO')
+        return None
     visibility = ray_visibility(b_light, True)
     if visibility is None:
         export_ctx.log(f'Light "{b_light.name_full}" is hidden from every '
