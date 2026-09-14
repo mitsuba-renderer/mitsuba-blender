@@ -12,6 +12,7 @@ from mathutils import Matrix, Vector
 
 from . import ray_visibility
 from .. import ConversionError
+from ...compat import uses_nodes
 
 
 ###################
@@ -59,6 +60,122 @@ def spot_blend(spot_size, beam_width):
     return min(max(blend, 0.0), 1.0)
 
 
+###########################
+##   Light node trees    ##
+###########################
+
+# Value of an IES texture whose profile Cycles cannot load
+# (cycles/src/kernel/util/ies.h)
+IES_FALLBACK = 100.0
+
+
+def _gray(rgb):
+    '''Cycles converts colors to floats by their luminance.'''
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
+
+
+def _rgb(value):
+    if isinstance(value, (int, float)):
+        return (float(value),) * 3
+    return tuple(float(v) for v in value[:3])
+
+
+def _falloff_distance(export_ctx, b_light, matrix_world):
+    '''Distance from the light to the first surface along its -Z axis that
+    lies beyond its radius, or None if there is none.'''
+    depsgraph = export_ctx.deg
+    if depsgraph is None:
+        return None
+    origin = matrix_world.translation.copy()
+    direction = (matrix_world.to_3x3() @ Vector((0.0, 0.0, -1.0))).normalized()
+    radius = getattr(b_light.data, 'shadow_soft_size', 0.0)
+    distance = 0.0
+    for _ in range(32):
+        hit, location, *_ = depsgraph.scene.ray_cast(
+            depsgraph, origin + direction * (distance + 1e-4), direction)
+        if not hit:
+            return None
+        distance = (location - origin).length
+        if distance > radius:
+            return distance
+    return None
+
+
+def _socket_value(export_ctx, b_light, matrix_world, socket):
+    '''Value of an input socket of a light node tree as an (r, g, b) tuple.'''
+    default = _rgb(getattr(socket, 'default_value', 1.0))
+    if not socket.is_linked:
+        return default
+    link = socket.links[0]
+    node, output = link.from_node, link.from_socket
+
+    def value(name):
+        return _socket_value(export_ctx, b_light, matrix_world, node.inputs[name])
+
+    kind = node.bl_idname
+    if link.is_muted or node.mute:
+        pass
+    elif kind == 'NodeReroute':
+        return _socket_value(export_ctx, b_light, matrix_world, node.inputs[0])
+    elif kind in ('ShaderNodeValue', 'ShaderNodeRGB'):
+        return _rgb(output.default_value)
+    elif kind == 'ShaderNodeTexIES':
+        # Mitsuba has no IES emitters. Scenes whose profiles are not shipped
+        # rely on the constant that Cycles substitutes for them.
+        export_ctx.log(f'Light "{b_light.name_full}": IES profiles are not '
+                       f'supported. Using the constant {IES_FALLBACK:g} that '
+                       'Cycles substitutes for a missing profile.', 'WARN')
+        return _rgb(_gray(value('Strength')) * IES_FALLBACK)
+    elif kind == 'ShaderNodeLightFalloff':
+        strength, smooth = _gray(value('Strength')), _gray(value('Smooth'))
+        # Cycles ignores the node for distant lights
+        if b_light.data.type == 'SUN':
+            return _rgb(strength)
+        distance = _falloff_distance(export_ctx, b_light, matrix_world)
+        if distance is None:
+            export_ctx.log(f'Light "{b_light.name_full}": no surface found '
+                           'along the light axis to evaluate its Light Falloff '
+                           'node. Ignoring the falloff.', 'WARN')
+            return _rgb(strength)
+        # Mitsuba's emitters cannot vary with the distance to the shaded
+        # point, so the node is evaluated at the distance to the lit surface
+        export_ctx.log(f'Light "{b_light.name_full}": evaluating its Light '
+                       f'Falloff node at a distance of {distance:.3g}.', 'INFO')
+        exponent = {'Quadratic': 0, 'Linear': 1, 'Constant': 2}[output.identifier]
+        strength *= distance ** exponent
+        if smooth > 0.0:
+            strength *= distance * distance / (smooth + distance * distance)
+        return _rgb(strength)
+    elif kind == 'ShaderNodeValToRGB':
+        fac = min(max(_gray(value('Fac')), 0.0), 1.0)
+        color = node.color_ramp.evaluate(fac)
+        return _rgb(color[3]) if output.identifier == 'Alpha' else _rgb(color)
+    export_ctx.log(f'Light "{b_light.name_full}": node "{node.name}" in its node '
+                   'tree is not supported. Using the default value of the '
+                   f'socket "{socket.name}" it feeds.', 'WARN')
+    return default
+
+
+def light_node_factor(export_ctx, b_light, matrix_world):
+    '''Color factor that the Cycles node tree of a light applies to its power,
+    i.e. the color times the strength of its Emission shader.'''
+    data = b_light.data
+    tree = data.node_tree if uses_nodes(data) else None
+    output = tree.get_output_node('CYCLES') if tree else None
+    if output is None or not output.inputs['Surface'].is_linked:
+        return (1.0, 1.0, 1.0)
+    shader = output.inputs['Surface'].links[0].from_node
+    if shader.bl_idname != 'ShaderNodeEmission':
+        export_ctx.log(f'Light "{b_light.name_full}": only an Emission shader '
+                       'is supported in light node trees. Ignoring the node '
+                       'tree.', 'WARN')
+        return (1.0, 1.0, 1.0)
+    color = _socket_value(export_ctx, b_light, matrix_world, shader.inputs['Color'])
+    strength = _gray(_socket_value(export_ctx, b_light, matrix_world,
+                                   shader.inputs['Strength']))
+    return tuple(c * strength for c in color)
+
+
 ####################
 ##   Converters   ##
 ####################
@@ -67,7 +184,7 @@ def _colored(scalar, color):
     return [scalar * c for c in color[:3]]
 
 
-def _cycles_light(export_ctx, b_light, matrix_world):
+def _cycles_light(export_ctx, b_light, matrix_world, color):
     '''One light of the addon's cycles_lights shape, which the export
     context merges into a single shape per visibility class (see
     ExportContext.add_cycles_light). Cycles samples a light with a radius
@@ -81,27 +198,27 @@ def _cycles_light(export_ctx, b_light, matrix_world):
         'type': 'cycles_lights',
         'p': list(export_ctx.transform_matrix(matrix_world).translation()),
         'r': data.shadow_soft_size,
-        'power': export_ctx.spectrum(_colored(data.energy, data.color)),
+        'power': export_ctx.spectrum(_colored(data.energy, color)),
     }
 
 
-def _convert_point(export_ctx, b_light, matrix_world):
+def _convert_point(export_ctx, b_light, matrix_world, color):
     data = b_light.data
     if data.shadow_soft_size > 0.0:
-        return _cycles_light(export_ctx, b_light, matrix_world)
+        return _cycles_light(export_ctx, b_light, matrix_world, color)
     return {
         'type': 'point',
         'position': list(
             export_ctx.transform_matrix(matrix_world).translation()),
         'intensity': export_ctx.spectrum(
-            _colored(power_to_intensity(data.energy), data.color)),
+            _colored(power_to_intensity(data.energy), color)),
     }
 
 
-def _convert_spot(export_ctx, b_light, matrix_world):
+def _convert_spot(export_ctx, b_light, matrix_world, color):
     data = b_light.data
     if data.shadow_soft_size > 0.0:
-        light = _cycles_light(export_ctx, b_light, matrix_world)
+        light = _cycles_light(export_ctx, b_light, matrix_world, color)
         # Blender spot lights emit along their local -Z axis
         axis = (export_ctx.axis_mat @ matrix_world).to_3x3() \
             @ Vector((0.0, 0.0, -1.0))
@@ -114,7 +231,7 @@ def _convert_spot(export_ctx, b_light, matrix_world):
     return {
         'type': 'spot',
         'intensity': export_ctx.spectrum(
-            _colored(power_to_intensity(data.energy), data.color)),
+            _colored(power_to_intensity(data.energy), color)),
         'cutoff_angle': math.degrees(data.spot_size / 2.0),
         'beam_width': math.degrees(
             spot_beam_width(data.spot_size, data.spot_blend)),
@@ -122,7 +239,7 @@ def _convert_spot(export_ctx, b_light, matrix_world):
     }
 
 
-def _convert_sun(export_ctx, b_light, matrix_world):
+def _convert_sun(export_ctx, b_light, matrix_world, color):
     data = b_light.data
     if data.angle > 0.0:
         export_ctx.log(f'Light "{b_light.name_full}": Mitsuba directional '
@@ -137,12 +254,12 @@ def _convert_sun(export_ctx, b_light, matrix_world):
     return {
         'type': 'directional',
         # The energy of a Blender sun light is its irradiance in W/m^2
-        'irradiance': export_ctx.spectrum(_colored(data.energy, data.color)),
+        'irradiance': export_ctx.spectrum(_colored(data.energy, color)),
         'to_world': export_ctx.transform_matrix(orientation),
     }
 
 
-def _convert_area(export_ctx, b_light, matrix_world):
+def _convert_area(export_ctx, b_light, matrix_world, color):
     data = b_light.data
     obj_scale = matrix_world.to_scale()
     sx, sy = abs(obj_scale.x), abs(obj_scale.y)
@@ -169,7 +286,7 @@ def _convert_area(export_ctx, b_light, matrix_world):
 
     # Mitsuba rectangles and disks span [-1, 1] locally
     local = Matrix.Diagonal((size_x / 2.0, size_y / 2.0, 1.0)).to_4x4()
-    radiance = _colored(power_to_radiance(data.energy, area), data.color)
+    radiance = _colored(power_to_radiance(data.energy, area), color)
     # Cycles area lights emit from their front side only and never occlude:
     # shadow rays ignore them, and other rays collect their emission and
     # continue. A one-sided emitter on a null BSDF behaves the same way.
@@ -257,7 +374,13 @@ def convert_light(export_ctx, b_light, matrix_world=None):
         export_ctx.log(f'Light "{b_light.name_full}" is hidden from every '
                        'ray type. Skipping it.', 'INFO')
         return None
-    emitter = converter(export_ctx, b_light, matrix_world)
+    factor = light_node_factor(export_ctx, b_light, matrix_world)
+    color = [c * f for c, f in zip(b_light.data.color, factor)]
+    if max(color) <= 0.0:
+        export_ctx.log(f'Light "{b_light.name_full}" emits nothing through its '
+                       'node tree. Skipping it.', 'INFO')
+        return None
+    emitter = converter(export_ctx, b_light, matrix_world, color)
 
     if emitter['type'] in _delta_emitters:
         if visibility == 'primary':

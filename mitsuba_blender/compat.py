@@ -7,7 +7,7 @@ here, with a fallback for the oldest supported release (4.2 LTS).
 
 
 def uses_nodes(data):
-    '''Whether a material or world shades with its node tree. use_nodes is
+    '''Whether a material, world or light shades with its node tree. use_nodes is
     deprecated in Blender 5.0 (reads are always True, writes do nothing)
     and slated for removal in 6.0, where node trees are always present.'''
     return getattr(data, 'use_nodes', True) and data.node_tree is not None

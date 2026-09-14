@@ -218,6 +218,68 @@ def test_area_light_spread_warns(fresh_scene, export_ctx, lights,
                for level, msg in log_capture)
 
 
+def light_nodes(obj):
+    obj.data.use_nodes = True
+    tree = obj.data.node_tree
+    emission = next(n for n in tree.nodes if n.bl_idname == 'ShaderNodeEmission')
+    return tree, emission
+
+
+def test_emission_node_scales_power(fresh_scene, export_ctx, lights):
+    obj = make_light('AREA', shape='SQUARE', size=1.0, energy=10.0)
+    _, emission = light_nodes(obj)
+    emission.inputs['Strength'].default_value = 1.7
+    emission.inputs['Color'].default_value = (1.0, 0.5, 0.25, 1.0)
+    params = lights.convert_light(export_ctx, obj)
+    radiance = 10.0 / math.pi * 1.7
+    assert params['emitter']['radiance']['value'] == \
+        pytest.approx([radiance, 0.5 * radiance, 0.25 * radiance], rel=1e-5)
+
+
+@pytest.mark.parametrize('target', ['Strength', 'Color'])
+def test_ies_texture_uses_cycles_fallback(fresh_scene, export_ctx, lights,
+                                          target):
+    # Cycles returns 100 times the IES node strength for a missing profile
+    obj = make_light('SPOT', energy=4.0 * math.pi, spot_size=math.radians(60))
+    tree, emission = light_nodes(obj)
+    ies = tree.nodes.new('ShaderNodeTexIES')
+    ies.mode = 'EXTERNAL'
+    ies.filepath = '//does_not_exist.ies'
+    ies.inputs['Strength'].default_value = 0.5
+    tree.links.new(ies.outputs['Fac'], emission.inputs[target])
+    params = lights.convert_light(export_ctx, obj)
+    assert params['intensity']['value'] == pytest.approx([50.0] * 3, rel=1e-5)
+
+
+def test_light_falloff_uses_distance_to_lit_surface(fresh_scene, export_ctx,
+                                                     lights):
+    # A floor 2 units below a downward spot, away from the default scene
+    mesh = bpy.data.meshes.new('Floor')
+    mesh.from_pydata([(-5, -5, 0), (5, -5, 0), (5, 5, 0), (-5, 5, 0)], [],
+                     [(0, 1, 2, 3)])
+    floor = bpy.data.objects.new('Floor', mesh)
+    floor.location = (50, 0, 0)
+    bpy.context.collection.objects.link(floor)
+    obj = make_light('SPOT', location=(50, 0, 2), energy=4.0 * math.pi,
+                     spot_size=math.radians(60), shadow_soft_size=0.1)
+
+    # Linear falloff of strength 0.1 through a white-to-black ramp: 1 - 0.1 d
+    tree, emission = light_nodes(obj)
+    falloff = tree.nodes.new('ShaderNodeLightFalloff')
+    falloff.inputs['Strength'].default_value = 0.1
+    ramp = tree.nodes.new('ShaderNodeValToRGB')
+    ramp.color_ramp.elements[0].color = (1.0, 1.0, 1.0, 1.0)
+    ramp.color_ramp.elements[1].color = (0.0, 0.0, 0.0, 1.0)
+    tree.links.new(falloff.outputs['Linear'], ramp.inputs['Fac'])
+    tree.links.new(ramp.outputs['Color'], emission.inputs['Strength'])
+
+    export_ctx.deg = bpy.context.evaluated_depsgraph_get()
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'cycles_lights'
+    assert params['power']['value'] == pytest.approx([0.8 * 4.0 * math.pi] * 3,
+                                                     rel=1e-4)
+
+
 def test_degenerate_area_light_raises(fresh_scene, export_ctx, lights):
     obj = make_light('AREA', shape='SQUARE', size=0.0, energy=10.0)
     with pytest.raises(lights.ConversionError):
