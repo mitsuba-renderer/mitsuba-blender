@@ -174,6 +174,9 @@ def _convert_area(export_ctx, b_light, matrix_world):
     # Mitsuba rectangles and disks span [-1, 1] locally
     local = Matrix.Diagonal((size_x / 2.0, size_y / 2.0, 1.0)).to_4x4()
     radiance = _colored(power_to_radiance(data.energy, area), data.color)
+    # Cycles area lights emit from their front side only and never occlude:
+    # shadow rays ignore them, and other rays collect their emission and
+    # continue. A one-sided emitter on a null BSDF behaves the same way.
     return {
         'type': shape,
         # Blender area lights emit along -Z, Mitsuba shapes along +Z
@@ -182,12 +185,8 @@ def _convert_area(export_ctx, b_light, matrix_world):
         'emitter': {
             'type': 'area',
             'radiance': export_ctx.spectrum(radiance),
-            'twosided' : True,
         },
-        'bsdf': {
-            'type': 'diffuse',
-            'reflectance' : export_ctx.spectrum(0.0)
-        },
+        'bsdf': {'type': 'null'},
     }
 
 

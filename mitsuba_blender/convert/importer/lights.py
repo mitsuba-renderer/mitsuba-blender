@@ -129,8 +129,8 @@ def can_convert_area_emitter(mi_shape_props):
 def is_placeholder_bsdf(mi_bsdf_props):
     '''Whether a BSDF only exists to satisfy Mitsuba, which would otherwise
     default a shape to a mid-gray diffuse. The exporter gives emitter-only
-    materials and Blender lights a black diffuse BSDF; such a shape is a
-    light source, not an emissive surface.'''
+    materials a black diffuse BSDF and Blender lights a null BSDF; such a
+    shape is a light source, not an emissive surface.'''
     from mitsuba import Properties
     plugin_name = mi_bsdf_props.plugin_name()
     if plugin_name == 'null':

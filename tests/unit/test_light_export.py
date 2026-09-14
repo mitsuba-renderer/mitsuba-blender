@@ -160,14 +160,8 @@ def test_area_light(fresh_scene, export_ctx, lights, shape, size, size_y,
     params = lights.convert_light(export_ctx, obj)
     assert params['type'] == expected_type
     assert params['flip_normals'] is True
-    assert params['bsdf'] == {
-        'type' : 'diffuse',
-        'reflectance' : {
-            'type' : 'rgb',
-            'value' : 0.0
-        }
-    }
-
+    assert params['bsdf'] == {'type': 'null'}
+    assert 'twosided' not in params['emitter']
 
     radiance = 90.0 / (math.pi * expected_area)
     assert params['emitter']['radiance']['value'] == \
@@ -180,8 +174,13 @@ def test_area_light(fresh_scene, export_ctx, lights, shape, size, size_y,
     assert np.linalg.norm(matrix[:3, 1]) == \
         pytest.approx(size_y / 2.0 * scale[1], rel=1e-5)
 
+    # The one-sided emitter radiates along the shape normal, which must
+    # match the emission direction of the Blender light
     import mitsuba as mi
-    assert mi.load_dict(params) is not None
+    shape = mi.load_dict(params)
+    ps = shape.sample_position(0.0, mi.Point2f(0.5, 0.5))
+    np.testing.assert_allclose(np.array(ps.n), emitted_direction(export_ctx, obj),
+                               atol=1e-6)
 
 
 def test_area_light_spread_warns(fresh_scene, export_ctx, lights,
