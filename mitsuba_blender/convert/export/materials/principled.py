@@ -102,6 +102,10 @@ def convert_principled(export_ctx, ref):
                                    node.inputs['Specular IOR Level'], stack)
         f0 = min(((ior - 1.0) / (ior + 1.0)) ** 2 * 2.0 * level, 0.99)
         params['specular'] = max(f0 / 0.08, 1e-3)
+        if params['metallic'] == 1.0 and params['roughness'] == 0.0:
+            # Simplify to a perfect conductor
+            params = {'type': 'conductor', 'material': 'none',
+                      'specular_reflectance': params['base_color']}
         bsdf = {'type': 'twosided', 'bsdf': params}
 
     bsdf = convert_normal_input(export_ctx, node.inputs['Normal'], bsdf, stack)

@@ -101,6 +101,28 @@ def test_export_default_material(fresh_scene, exporter, tmp_path):
     assert mi.load_dict(entry) is not None
 
 
+def test_export_perfect_mirror_is_a_conductor(fresh_scene, exporter,
+                                               tmp_path):
+    node = principled_node()
+    node.inputs['Metallic'].default_value = 1.0
+    node.inputs['Roughness'].default_value = 0.0
+    node.inputs['Base Color'].default_value = (0.9, 0.8, 0.7, 1.0)
+    converter, entry = exported_entry(exporter, tmp_path)
+    assert entry['type'] == 'twosided'
+    params = entry['bsdf']
+    assert params['type'] == 'conductor'
+    assert params['material'] == 'none'
+    assert params['specular_reflectance']['value'] == \
+        pytest.approx([0.9, 0.8, 0.7])
+    import mitsuba as mi
+    assert mi.load_dict(entry) is not None
+
+    # A slightly rough or slightly non-metallic surface keeps the lobe
+    node.inputs['Roughness'].default_value = 0.02
+    converter, entry = exported_entry(exporter, tmp_path)
+    assert entry['bsdf']['type'] == 'principled'
+
+
 def test_export_reflective_values(fresh_scene, exporter, tmp_path):
     node = principled_node()
     node.inputs['Base Color'].default_value = (0.2, 0.4, 0.6, 1.0)
