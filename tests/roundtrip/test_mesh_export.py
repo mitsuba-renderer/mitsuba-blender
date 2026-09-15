@@ -213,17 +213,17 @@ def test_corner_data_matches_blender(fresh_scene, exporter, tmp_path, case,
 def test_render_mode_writes_meshes(fresh_scene, exporter, tmp_path):
     converter = exporter(tmp_path, render=True)
     scene = converter.dict_to_scene()
-    assert os.path.isdir(os.path.join(str(tmp_path), 'meshes'))
+    assert os.path.isfile(os.path.join(str(tmp_path), 'meshes.packed'))
     assert len(scene.shapes()) > 0
 
 
-def test_file_export_writes_serialized(fresh_scene, exporter, tmp_path):
+def test_file_export_writes_packed(fresh_scene, exporter, tmp_path):
     bpy.data.objects['Cube'].location = (2.0, 0.0, 0.0)
     converter = exporter(tmp_path, render=False)
     converter.dict_to_xml(str(tmp_path / 'scene.xml'))
 
-    # Every mesh lives in one shared file, referenced by sub-mesh index
-    assert os.listdir(tmp_path / 'meshes') == ['meshes.serialized']
+    # Every mesh lives in one shared container, referenced by entry index
+    assert (tmp_path / 'meshes.packed').is_file()
 
     import mitsuba as mi
     scene = mi.load_file(str(tmp_path / 'scene.xml'))
@@ -290,10 +290,10 @@ def test_multi_material_split(fresh_scene, exporter, tmp_path):
 
     converter = exporter(tmp_path, render=False)
     parts = [v for v in converter.export_ctx.scene_data.values()
-            if isinstance(v, dict) and v.get('type') == 'serialized']
+            if isinstance(v, dict) and v.get('type') == 'packed']
     assert len(parts) == 2
     assert parts[0]['bsdf']['id'] != parts[1]['bsdf']['id']
-    assert {p['shape_index'] for p in parts} == {0, 1}
+    assert {p['index'] for p in parts} == {0, 1}
 
     scene = converter.dict_to_scene()
     face_counts = sorted(m.face_count() for m in scene_meshes(scene))
@@ -329,8 +329,8 @@ def test_vertex_colors_roundtrip(fresh_scene, exporter, tmp_path):
 
     import mitsuba as mi
     mesh = mi.load_dict({
-        'type': 'serialized',
-        'filename': str(tmp_path / 'meshes' / 'meshes.serialized'),
+        'type': 'packed',
+        'filename': str(tmp_path / 'meshes.packed'),
     })
     params = mi.traverse(mesh)
     values = np.array(params['vertex_Col']).reshape(-1, 3)
@@ -362,7 +362,7 @@ def test_empty_material_slot_uses_default_bsdf(fresh_scene, exporter,
 
     converter = exporter(tmp_path, render=False)
     parts = [v for v in converter.export_ctx.scene_data.values()
-            if isinstance(v, dict) and v.get('type') == 'serialized']
+            if isinstance(v, dict) and v.get('type') == 'packed']
     assert len(parts) == 2
     assert {p['bsdf']['id'] for p in parts} == {'default-bsdf', 'mat-Second'}
 
@@ -381,7 +381,7 @@ def test_material_name_with_path_separator(fresh_scene, exporter, tmp_path):
 
     converter = exporter(tmp_path, render=False)
     converter.dict_to_xml(str(tmp_path / 'scene.xml'))
-    assert os.listdir(tmp_path / 'meshes') == ['meshes.serialized']
+    assert (tmp_path / 'meshes.packed').is_file()
 
     import mitsuba as mi
     scene = mi.load_file(str(tmp_path / 'scene.xml'))

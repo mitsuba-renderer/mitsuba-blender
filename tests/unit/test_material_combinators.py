@@ -112,10 +112,9 @@ def test_emission_export(fresh_scene, exporter, tmp_path):
                     'twosided': True},
     }
 
-    # The render-mode scene dict must load, emitter and shape included
-    import mitsuba as mi
+    # The render-mode scene must load, emitter and shape included
     converter = exporter(tmp_path, render=True)
-    assert mi.load_dict(converter.export_ctx.scene_data) is not None
+    assert converter.dict_to_scene() is not None
 
 
 def test_emission_zero_strength_exports_black_diffuse(fresh_scene, exporter,

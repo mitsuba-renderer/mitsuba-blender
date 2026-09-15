@@ -113,20 +113,20 @@ class SceneConverter:
         if os.environ.get("MITSUBA_BLENDER_DEBUG"):
             self._check_dict(self.export_ctx.scene_data)
         import mitsuba as mi
-        # The shapes reference sub-meshes of the shared file, which is only
-        # readable once its end-of-file dictionary is in place
-        self.export_ctx.finalize_serialized()
+        # The shapes reference entries of the shared container, which is
+        # only readable once its dictionary is in place
+        self.export_ctx.finalize_packed()
         config = mi.parser.ParserConfig(mi.variant())
         state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
         # Reorder the plugins so they are written in a legible order
         mi.parser.transform_reorder(config, state)
-        # The exporter already placed meshes and textures in subfolders of the
-        # output directory, matching the relative references in the dict.
+        # The exporter already placed the mesh container and the textures
+        # in the output directory, matching the relative references in the dict.
         mi.parser.write_file(state, filename, True)
 
     def dict_to_scene(self):
         import mitsuba as mi
-        self.export_ctx.finalize_serialized()
+        self.export_ctx.finalize_packed()
         # A resources entry resolves the relative file references against
         # the export directory; it must precede the entries that use them
         data = {'type': 'scene',

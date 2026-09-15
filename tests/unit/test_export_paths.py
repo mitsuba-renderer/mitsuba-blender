@@ -33,8 +33,7 @@ def test_export_writes_into_target_dir(mi_addon, fresh_scene, tmp_path):
     assert result == {'FINISHED'}
 
     assert xml_file.is_file()
-    mesh_files = list((target / 'meshes').glob('*.serialized'))
-    assert len(mesh_files) == 1
+    assert (target / 'meshes.packed').is_file()
     # Nothing may leak into the current working directory
     assert list(cwd.iterdir()) == []
 

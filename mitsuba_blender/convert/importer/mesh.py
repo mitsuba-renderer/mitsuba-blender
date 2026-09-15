@@ -1,6 +1,6 @@
 '''Convert Mitsuba shapes into Blender meshes.
 
-Mesh-backed shape plugins (ply, obj, serialized, ...) are instantiated by
+Mesh-backed shape plugins (ply, obj, packed, ...) are instantiated by
 Mitsuba itself and their vertex buffers are copied into a Blender mesh.
 Analytic shapes that are not meshes in Mitsuba (sphere, rectangle, cube,
 disk) map to native Blender primitives instead.

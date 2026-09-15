@@ -57,7 +57,7 @@ Blender.
 ## Feature coverage
 
 Geometry is converted through `mitsuba.Mesh` in both directions: any
-mesh-backed Mitsuba shape (`obj`, `ply`, `serialized`, ...) imports as a
+mesh-backed Mitsuba shape (`obj`, `ply`, `packed`, ...) imports as a
 Blender mesh, and analytic `sphere`, `rectangle`, `cube` and `disk` shapes map
 to Blender primitives. Repeated meshes, collection instances and particle
 instances export as Mitsuba `shapegroup`/`instance` pairs. Cameras

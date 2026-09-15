@@ -4,7 +4,7 @@ The conversion reads the geometry into numpy arrays and builds `mitsuba.Mesh`
 objects directly. When rendering inside Blender, the meshes are kept in memory
 and inserted into the scene dict as instantiated objects, with the object
 transform baked in. When exporting to a file, they are appended to one shared
-`.serialized` file next to the XML, and each shape references its sub-mesh by
+`.packed` container next to the XML, and each shape references its entry by
 index and carries its own `to_world`.
 '''
 import bpy
@@ -446,12 +446,12 @@ class GeometryExporter:
     def make_entry(self, bsdf_id, emitter, mi_mesh, to_world=None):
         '''Return the scene dict entry of a converted mesh part.'''
         export_ctx = self.export_ctx
-        # Every mesh goes into one shared .serialized file, addressed by the
-        # index it was appended at
+        # Every mesh goes into one shared .packed container, addressed by
+        # the index it was appended at
         entry = {
-            'type': 'serialized',
-            'filename': export_ctx.serialized_filename(),
-            'shape_index': export_ctx.add_serialized_mesh(mi_mesh),
+            'type': 'packed',
+            'filename': export_ctx.packed_filename(),
+            'index': export_ctx.add_packed_mesh(mi_mesh),
             'bsdf': export_ctx.create_ref(bsdf_id)
         }
         if to_world is not None:
