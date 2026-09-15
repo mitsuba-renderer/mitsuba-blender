@@ -313,7 +313,7 @@ def _math(expr, *inputs):
                     f'in[{i}]', f'rgb({v[0]}, {v[1]}, {v[2]})')
             else:
                 final_expr = final_expr.replace(f'in[{i}]', f'in[{tex_index}]')
-                params[f'input_{tex_index}'] = value
+                params[f'in{tex_index}'] = value
                 tex_index += 1
         else:
             final_expr = final_expr.replace(f'in[{i}]', f'({float(value)})')
@@ -493,7 +493,7 @@ def convert_math(export_ctx, ref, out_socket):
             if tex_index != i:
                 params['expr'] = params['expr'].replace(
                     f'in[{i}]', f'in[{tex_index}]')
-            params[f'input_{tex_index}'] = result.params
+            params[f'in{tex_index}'] = result.params
             tex_index += 1
 
     if node.use_clamp:
