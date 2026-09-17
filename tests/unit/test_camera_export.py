@@ -6,16 +6,19 @@ rather than just the dict layout.
 """
 
 import math
+import tempfile
 
 import bpy
 import pytest
 from mathutils import Vector
 
 
-def _export_scene_dict():
+def _export_scene_dict(engine='MITSUBA'):
     from bl_ext.user_default.mitsuba_blender.io.exporter import SceneConverter
-    bpy.context.scene.render.engine = 'MITSUBA'
+    bpy.context.scene.render.engine = engine
     converter = SceneConverter(render=True)
+    # The scene's meshes are written to a .packed container in this directory
+    converter.export_ctx.directory = tempfile.mkdtemp()
     depsgraph = bpy.context.evaluated_depsgraph_get()
     converter.scene_to_dict(depsgraph)
     return converter.export_ctx.scene_data
@@ -222,3 +225,20 @@ def test_panoramic_falls_back_to_perspective(mi_addon, fresh_scene):
     camera.data.type = 'PANO'
     sensor = _sensor_dict(_export_scene_dict())
     assert sensor['type'] == 'perspective'
+
+
+@pytest.mark.parametrize('filter_type, width, expected', [
+    ('BOX', 1.0, {'type': 'box'}),
+    ('GAUSSIAN', 1.5, {'type': 'gaussian', 'stddev': 0.375}),
+    ('BLACKMAN_HARRIS', 1.0, {'type': 'gaussian', 'stddev': 0.277}),
+    ('BLACKMAN_HARRIS', 1.5, {'type': 'gaussian', 'stddev': 0.4155}),
+])
+def test_cycles_pixel_filter(mi_addon, fresh_scene, filter_type, width, expected):
+    cycles = bpy.context.scene.cycles
+    cycles.pixel_filter_type = filter_type
+    cycles.filter_width = width
+    rfilter = _sensor_dict(_export_scene_dict(engine='CYCLES'))['film']['rfilter']
+
+    assert rfilter['type'] == expected['type']
+    if 'stddev' in expected:
+        assert rfilter['stddev'] == pytest.approx(expected['stddev'], rel=1e-3)

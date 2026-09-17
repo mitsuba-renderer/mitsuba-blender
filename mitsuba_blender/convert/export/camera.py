@@ -179,14 +179,26 @@ def _convert_film(b_camera, b_scene):
     if b_scene.render.engine == 'MITSUBA':
         film['rfilter'] = b_camera.data.mitsuba.rfilter_to_dict()
     elif b_scene.render.engine == 'CYCLES':
-        if b_scene.cycles.pixel_filter_type == 'GAUSSIAN':
-            film['rfilter'] = {
-                'type': 'gaussian',
-                'stddev': b_scene.cycles.filter_width,
-            }
-        elif b_scene.cycles.pixel_filter_type == 'BOX':
-            film['rfilter'] = {'type': 'box'}
+        film['rfilter'] = _convert_pixel_filter(b_scene.cycles)
     return film
+
+
+def _convert_pixel_filter(cycles):
+    '''Mitsuba reconstruction filter matching Cycles' pixel filter.
+
+    Cycles' Gaussian of width w is exp(-8 v^2 / w^2), a normal distribution
+    with standard deviation w / 4. Its Blackman-Harris window spans [-w, w]
+    and has a standard deviation of 0.277 w; Mitsuba has no such filter, so
+    a Gaussian of the same standard deviation stands in for it. Both are
+    much narrower than Mitsuba's default Gaussian (stddev 0.5), which would
+    otherwise blur bump maps and other pixel-scale detail.
+    '''
+    width = cycles.filter_width
+    if cycles.pixel_filter_type == 'BOX':
+        return {'type': 'box'}
+    if cycles.pixel_filter_type == 'GAUSSIAN':
+        return {'type': 'gaussian', 'stddev': width / 4}
+    return {'type': 'gaussian', 'stddev': 0.277 * width}
 
 
 def export_camera(export_ctx, camera_instance, b_scene):
