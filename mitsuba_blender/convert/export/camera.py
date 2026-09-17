@@ -92,22 +92,17 @@ def _fov_params(b_camera_data, res_x, res_y):
 def _convert_perspective(export_ctx, b_camera, matrix_world, res_x, res_y):
     data = b_camera.data
     params = _fov_params(data, res_x, res_y)
-    offset_x, offset_y = shift_to_principal_point(
-        data.shift_x, data.shift_y, data.sensor_fit, res_x, res_y)
+    params['principal_point_offset_x'], params['principal_point_offset_y'] = \
+        shift_to_principal_point(data.shift_x, data.shift_y, data.sensor_fit,
+                                 res_x, res_y)
 
     if data.dof.use_dof:
         params['type'] = 'thinlens'
         params['aperture_radius'] = fstop_to_aperture_radius(
             data.dof.aperture_fstop, data.lens)
         params['focus_distance'] = focus_distance(data, matrix_world)
-        if offset_x != 0.0 or offset_y != 0.0:
-            export_ctx.log(f'Camera "{b_camera.name_full}": Mitsuba does not '
-                           'support lens shift together with depth of field. '
-                           'Ignoring the shift.', 'WARN')
     else:
         params['type'] = 'perspective'
-        params['principal_point_offset_x'] = offset_x
-        params['principal_point_offset_y'] = offset_y
 
     init_rot = Matrix.Rotation(math.pi, 4, 'Y')
     params['to_world'] = export_ctx.transform_matrix(matrix_world @ init_rot)

@@ -132,8 +132,10 @@ def test_film_resolution_and_percentage(mi_addon, fresh_scene):
     assert sensor['film']['height'] == 180
 
 
+@pytest.mark.parametrize('use_dof', [False, True])
 @pytest.mark.parametrize('sensor_fit', ['AUTO', 'VERTICAL'])
-def test_shift_matches_blender_view_frame(mi_addon, fresh_scene, sensor_fit):
+def test_shift_matches_blender_view_frame(mi_addon, fresh_scene, sensor_fit,
+                                          use_dof):
     scene = bpy.context.scene
     scene.render.resolution_x = 640
     scene.render.resolution_y = 480
@@ -141,9 +143,12 @@ def test_shift_matches_blender_view_frame(mi_addon, fresh_scene, sensor_fit):
     camera.data.sensor_fit = sensor_fit
     camera.data.shift_x = 0.2
     camera.data.shift_y = 0.1
+    camera.data.dof.use_dof = use_dof
+    camera.data.dof.focus_distance = 3.5
     bpy.context.view_layer.update()
 
     sensor = _sensor_dict(_export_scene_dict())
+    assert sensor['type'] == ('thinlens' if use_dof else 'perspective')
     _, direction = _center_ray(sensor)
 
     center = _view_frame_center_world(camera)
@@ -163,7 +168,6 @@ def test_dof_exports_thinlens(mi_addon, fresh_scene):
     # Cycles thin lens: radius = focal_length / (2 fstop), in meters
     assert sensor['aperture_radius'] == pytest.approx(0.08 / (2.0 * 2.0))
     assert sensor['focus_distance'] == pytest.approx(3.5)
-    assert 'principal_point_offset_x' not in sensor
     assert _load_sensor(sensor) is not None
 
 

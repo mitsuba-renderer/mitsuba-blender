@@ -73,6 +73,8 @@ def test_dof_roundtrip(mi_addon, fresh_scene, tmp_path):
     camera.data.dof.use_dof = True
     camera.data.dof.aperture_fstop = 2.8
     camera.data.dof.focus_distance = 4.2
+    camera.data.shift_x = 0.15
+    camera.data.shift_y = -0.05
     original_angle = camera.data.angle_x
 
     imported = _roundtrip(tmp_path)
@@ -81,6 +83,8 @@ def test_dof_roundtrip(mi_addon, fresh_scene, tmp_path):
     assert imported.data.angle_x == pytest.approx(original_angle, rel=1e-5)
     assert imported.data.dof.aperture_fstop == pytest.approx(2.8, rel=1e-5)
     assert imported.data.dof.focus_distance == pytest.approx(4.2, rel=1e-5)
+    assert imported.data.shift_x == pytest.approx(0.15, rel=1e-5)
+    assert imported.data.shift_y == pytest.approx(-0.05, rel=1e-5)
 
 
 def test_orthographic_roundtrip(mi_addon, fresh_scene, tmp_path):
