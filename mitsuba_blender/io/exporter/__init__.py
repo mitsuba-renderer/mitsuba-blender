@@ -1,4 +1,4 @@
-from . import export_context
+from . import export_context, plugin_bundle
 from ...convert.export import camera, lights, mesh, world
 
 class SceneConverter:
@@ -126,6 +126,8 @@ class SceneConverter:
         self.export_ctx.finalize_lights()
         config = mi.parser.ParserConfig(mi.variant())
         state = mi.parser.parse_dict(config, self.export_ctx.scene_data)
+        # The scene ships the Python plugins it uses and imports them
+        plugin_bundle.bundle_plugins(state, self.export_ctx.directory or os.path.dirname(filename))
         # Reorder the plugins so they are written in a legible order
         mi.parser.transform_reorder(config, state)
         # The exporter already placed the mesh container and the textures
