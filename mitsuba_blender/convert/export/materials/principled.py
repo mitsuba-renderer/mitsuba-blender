@@ -90,6 +90,8 @@ def convert_principled(export_ctx, ref):
         # materials must stay one-sided.
         ior = scalar_from_socket(export_ctx, node.inputs['IOR'], stack)
         params['eta'] = max(ior, 1.0 + 1e-3)
+        # Cycles does not scale transmitted radiance by 1 / eta^2
+        params['eta_scale'] = False
         bsdf = params
     else:
         # Cycles derives the reflectance at normal incidence from the IOR

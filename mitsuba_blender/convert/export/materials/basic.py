@@ -91,7 +91,7 @@ def convert_glossy(export_ctx, ref):
                                 {'type': 'twosided', 'bsdf': params}, stack=ref.stack)
 
 
-def _convert_dielectric(export_ctx, ref):
+def _convert_dielectric(export_ctx, ref, transmission_only=False):
     node = ref.node
     ior = scalar_from_socket(export_ctx, node.inputs['IOR'], stack=ref.stack)
     alpha = _eval_roughness(export_ctx, node.inputs['Roughness'], stack=ref.stack)
@@ -111,6 +111,14 @@ def _convert_dielectric(export_ctx, ref):
     params['int_ior'] = ior
     params['specular_transmittance'] = eval_color(export_ctx,
                                                   node.inputs['Color'], stack=ref.stack)
+    if params['type'] != 'thindielectric':
+        # Cycles does not scale transmitted radiance by 1 / eta^2, which
+        # matters for single-sided panes that are crossed only once
+        params['eta_scale'] = False
+    if transmission_only:
+        # Blender's Refraction BSDF has no reflection lobe and no Fresnel
+        # weight; the transmission keeps its (1 - F) factor here
+        params['specular_reflectance'] = 0.0
     return convert_normal_input(export_ctx, node.inputs['Normal'], params, stack=ref.stack)
 
 
@@ -121,10 +129,10 @@ def convert_glass(export_ctx, ref):
 
 @node_converter('BSDF_REFRACTION')
 def convert_refraction(export_ctx, ref):
-    export_ctx.log(f'Mitsuba has no transmission-only BSDF; exporting '
-                   f'Refraction node "{ref.node.name}" as a dielectric that '
-                   'also reflects.', 'WARN')
-    return _convert_dielectric(export_ctx, ref)
+    export_ctx.log(f'Refraction node "{ref.node.name}": Mitsuba has no '
+                   'Fresnel-free refraction; the transmission keeps its '
+                   '(1 - F) factor.', 'WARN')
+    return _convert_dielectric(export_ctx, ref, transmission_only=True)
 
 
 @node_converter('BSDF_TRANSPARENT')

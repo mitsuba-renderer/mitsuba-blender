@@ -152,6 +152,7 @@ def test_export_glass_smooth(fresh_scene, exporter, tmp_path):
         'type': 'dielectric',
         'int_ior': pytest.approx(1.45),
         'specular_transmittance': rgb([0.7, 0.8, 0.9]),
+        'eta_scale': False,
     }
 
 
@@ -175,6 +176,7 @@ def test_export_glass_rough(fresh_scene, exporter, tmp_path):
     assert entry['distribution'] == 'ggx'
     assert entry['alpha'] == pytest.approx(0.16)
     assert entry['int_ior'] == pytest.approx(1.45)
+    assert entry['eta_scale'] is False
 
 
 def test_export_glass__textured_ior_is_averaged(fresh_scene, exporter, tmp_path):
@@ -187,7 +189,7 @@ def test_export_glass__textured_ior_is_averaged(fresh_scene, exporter, tmp_path)
 
     # The unsupported IOR input falls back to the socket default
     entry = export_entry(exporter, tmp_path)
-    assert entry['type'] == 'dielectric'
+    assert entry['type'] in ('dielectric', 'thindielectric')
     assert 0.0 <= entry['int_ior'] <= 1.0
 
 
@@ -203,6 +205,8 @@ def test_export_refraction(fresh_scene, exporter, tmp_path):
     assert entry['distribution'] == 'beckmann'
     assert entry['alpha'] == pytest.approx(0.09)
     assert entry['int_ior'] == pytest.approx(1.33)
+    assert entry['eta_scale'] is False
+    assert entry['specular_reflectance'] == 0.0
 
 
 def test_export_refraction_smooth(fresh_scene, exporter, tmp_path):
@@ -212,6 +216,43 @@ def test_export_refraction_smooth(fresh_scene, exporter, tmp_path):
 
     entry = export_entry(exporter, tmp_path)
     assert entry['type'] == 'dielectric'
+    assert entry['eta_scale'] is False
+    assert entry['specular_reflectance'] == 0.0
+
+
+def test_eta_scale_single_pane(mi_addon):
+    """A single-sided pane in front of a constant environment: the
+    dielectric without eta_scale has no 1 / eta^2 on entry, and the Refraction
+    node's export keeps only the (1 - F) transmission."""
+    import mitsuba as mi
+    import drjit as dr
+    mi.set_variant('scalar_rgb')
+
+    def render(bsdf):
+        scene = mi.load_dict({
+            'type': 'scene',
+            'integrator': {'type': 'path', 'max_depth': 4},
+            'sensor': {
+                'type': 'perspective', 'fov': 10,
+                'to_world': mi.ScalarTransform4f().look_at(
+                    origin=[0, 0, 5], target=[0, 0, 0], up=[0, 1, 0]),
+                'film': {'type': 'hdrfilm', 'width': 4, 'height': 4},
+                'sampler': {'type': 'independent', 'sample_count': 4},
+            },
+            'pane': {'type': 'rectangle', 'bsdf': bsdf,
+                     'to_world': mi.ScalarTransform4f().rotate([1, 0, 0], 30)},
+            'env': {'type': 'constant'},
+        })
+        import numpy as np
+        return float(np.mean(np.array(mi.render(scene))))
+
+    base = {'type': 'dielectric', 'int_ior': 1.6}
+    # (1 - F) / eta^2 transmitted plus F reflected
+    assert render(base) == pytest.approx(0.43, abs=0.02)
+    assert render({**base, 'eta_scale': False}) == pytest.approx(1.0, abs=1e-3)
+    # (1 - F) at 30 degrees, without the reflection lobe
+    assert render({**base, 'eta_scale': False, 'specular_reflectance': 0.0}) \
+        == pytest.approx(0.945, abs=0.01)
 
 
 ##################################
