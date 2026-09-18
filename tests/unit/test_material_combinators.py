@@ -370,6 +370,95 @@ def test_holdout_exports_null(fresh_scene, exporter, tmp_path):
 
 
 ####################
+##   Backfacing   ##
+####################
+
+def eval_sides(entry):
+    """Reflectance of a loaded BSDF seen from the front and from the back
+    (diffuse albedo times pi for a normal-incidence view and light)"""
+    import mitsuba as mi
+    bsdf = mi.load_dict(entry)
+    values = []
+    for z in (1.0, -1.0):
+        si = mi.SurfaceInteraction3f()
+        si.n = mi.Normal3f(0, 0, 1)
+        si.sh_frame = mi.Frame3f(si.n)
+        si.wi = mi.Vector3f(0, 0, z)
+        value = bsdf.eval(mi.BSDFContext(), si, mi.Vector3f(0, 0, z))
+        values.append([float(c) * 3.141592653589793 for c in value])
+    return values
+
+
+def test_backfacing_mix_shader(fresh_scene, exporter, tmp_path):
+    """A Mix Shader driven by Backfacing becomes a twosided BSDF with one
+    nested BSDF per side"""
+    b_mat = make_material('Sides')
+    tree = b_mat.node_tree
+    mix = tree.nodes.new('ShaderNodeMixShader')
+    geometry = tree.nodes.new('ShaderNodeNewGeometry')
+    tree.links.new(geometry.outputs['Backfacing'], mix.inputs['Fac'])
+    tree.links.new(add_diffuse(b_mat, (0.8, 0.1, 0.1, 1.0)).outputs['BSDF'],
+                   mix.inputs[1])
+    tree.links.new(add_diffuse(b_mat, (0.1, 0.1, 0.8, 1.0)).outputs['BSDF'],
+                   mix.inputs[2])
+    link_surface(b_mat, mix.outputs['Shader'])
+    assign_material(b_mat)
+
+    ctx = exporter(tmp_path).export_ctx
+    entry = ctx.data_get('mat-Sides')
+    assert entry['type'] == 'twosided'
+    assert list(entry) == ['type', 'front', 'back']
+    front, back = eval_sides(entry)
+    assert front == pytest.approx([0.8, 0.1, 0.1], abs=1e-5)
+    assert back == pytest.approx([0.1, 0.1, 0.8], abs=1e-5)
+    assert not [w for w in ctx.warnings if 'Backfacing' in w]
+
+
+def test_backfacing_base_color(fresh_scene, exporter, tmp_path):
+    """A Principled base colour chosen by Backfacing gives a principled BSDF
+    per side"""
+    b_mat = bpy.data.materials.new('Paper')
+    b_mat.use_nodes = True
+    tree = b_mat.node_tree
+    principled = tree.nodes['Principled BSDF']
+    principled.inputs['Roughness'].default_value = 1.0
+    principled.inputs['Specular IOR Level'].default_value = 0.0
+    geometry = tree.nodes.new('ShaderNodeNewGeometry')
+    mix = tree.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    tree.links.new(geometry.outputs['Backfacing'], mix.inputs['Factor'])
+    mix.inputs['A'].default_value = (0.7, 0.7, 0.7, 1.0)
+    mix.inputs['B'].default_value = (0.0, 0.07, 0.4, 1.0)
+    tree.links.new(mix.outputs['Result'], principled.inputs['Base Color'])
+    assign_material(b_mat)
+
+    entry = exporter(tmp_path).export_ctx.data_get('mat-Paper')
+    assert entry['type'] == 'twosided'
+    assert entry['front']['type'] == 'principled'
+    assert entry['back']['type'] == 'principled'
+    front, back = eval_sides(entry)
+    assert front == pytest.approx([front[0]] * 3) and front[0] > 0.5
+    assert back[2] > 2.0 * back[0]
+
+
+def test_backfacing_unused_output(fresh_scene, exporter, tmp_path):
+    """A material that reads Backfacing but ends up equal on both sides
+    keeps the usual single nested BSDF"""
+    b_mat = make_material('Same')
+    tree = b_mat.node_tree
+    mix = tree.nodes.new('ShaderNodeMixShader')
+    geometry = tree.nodes.new('ShaderNodeNewGeometry')
+    tree.links.new(geometry.outputs['Backfacing'], mix.inputs['Fac'])
+    tree.links.new(add_diffuse(b_mat).outputs['BSDF'], mix.inputs[1])
+    tree.links.new(add_diffuse(b_mat).outputs['BSDF'], mix.inputs[2])
+    link_surface(b_mat, mix.outputs['Shader'])
+    assign_material(b_mat)
+
+    entry = exporter(tmp_path).export_ctx.data_get('mat-Same')
+    assert entry == diffuse_dict([0.2, 0.4, 0.6])
+
+
+####################
 ##   Light Path   ##
 ####################
 

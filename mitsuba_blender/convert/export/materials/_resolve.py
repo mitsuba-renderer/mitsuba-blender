@@ -305,6 +305,11 @@ def resolve(export_ctx, socket, stack=()):
         except ConversionError as e:
             return Unsupported(str(e))
 
+    backfacing = getattr(export_ctx, 'backfacing', None)
+    if node.bl_idname == 'ShaderNodeNewGeometry' and \
+            source.name == 'Backfacing' and backfacing is not None:
+        return Constant(_convert(backfacing, socket.type))
+
     if ref.node.type in _GETTERS:
         getter = _GETTERS[ref.node.type]
     else:

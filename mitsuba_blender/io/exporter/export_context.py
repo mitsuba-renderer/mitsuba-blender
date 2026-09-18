@@ -29,6 +29,9 @@ class ExportContext:
         # (owner name, output name) of the Light Path outputs reported as
         # replaced by a constant
         self.light_path_warnings = set()
+        # Value of the Geometry node's Backfacing output while a material
+        # is converted once per side; None outside of that
+        self.backfacing = None
         self.export_ids = False # Export Object IDs in the XML file
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons

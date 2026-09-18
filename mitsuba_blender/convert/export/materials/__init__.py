@@ -81,6 +81,90 @@ def surface_ref(b_mat):
 
 
 
+def _uses_backfacing(tree, seen=None):
+    '''Whether a node tree, or a group used in it, reads the Backfacing
+    output of a Geometry node'''
+    seen = set() if seen is None else seen
+    seen.add(tree.as_pointer())
+    for node in tree.nodes:
+        if node.bl_idname == 'ShaderNodeNewGeometry' and \
+                node.outputs['Backfacing'].is_linked:
+            return True
+        group = getattr(node, 'node_tree', None) if node.type == 'GROUP' else None
+        if group is not None and group.as_pointer() not in seen and \
+                _uses_backfacing(group, seen):
+            return True
+    return False
+
+
+def _one_sided(bsdf):
+    '''The BSDF with its twosided wrappers removed, or None when that is
+    not possible'''
+    if not isinstance(bsdf, dict):
+        return None
+    kind = bsdf.get('type')
+    if kind == 'twosided' and set(bsdf) == {'type', 'bsdf'}:
+        return bsdf['bsdf']
+    if kind in ('normalmap', 'bumpmap'):
+        inner = _one_sided(bsdf['bsdf'])
+        return None if inner is None else {**bsdf, 'bsdf': inner}
+    if kind == 'blendbsdf':
+        weight = bsdf['weight']
+        if weight in (0.0, 1.0):
+            return _one_sided(bsdf['bsdf1' if weight == 0.0 else 'bsdf2'])
+        bsdf1, bsdf2 = _one_sided(bsdf['bsdf1']), _one_sided(bsdf['bsdf2'])
+        if bsdf1 is None or bsdf2 is None:
+            return None
+        return {**bsdf, 'bsdf1': bsdf1, 'bsdf2': bsdf2}
+    return None
+
+
+def _front_back(front, back):
+    '''Combine the BSDFs converted for the front and the back side into a
+    twosided BSDF with one nested BSDF per side, or None when Mitsuba
+    cannot express the combination'''
+    if front == back:
+        return front
+    if front.get('type') == 'mask' and back.get('type') == 'mask' and \
+            front['opacity'] == back['opacity']:
+        inner = _front_back(front['bsdf'], back['bsdf'])
+        return None if inner is None else {**front, 'bsdf': inner}
+    front_1, back_1 = _one_sided(front), _one_sided(back)
+    if front_1 is None or back_1 is None:
+        return None
+    if front_1 == back_1:
+        return {'type': 'twosided', 'bsdf': front_1}
+    # twosided takes its nested BSDFs in order: front, then back
+    return {'type': 'twosided', 'front': front_1, 'back': back_1}
+
+
+def _convert_sides(export_ctx, b_mat, ref):
+    '''Convert a material whose nodes read the Backfacing output once per
+    side and combine the results'''
+    try:
+        export_ctx.backfacing = 0.0
+        front = convert_shader_node(export_ctx, ref)
+        export_ctx.backfacing = 1.0
+        back = convert_shader_node(export_ctx, ref)
+    finally:
+        export_ctx.backfacing = None
+    if front['emitter'] != back['emitter']:
+        export_ctx.log(f'Material "{b_mat.name}": the emission differs '
+                       'between the front and the back side; exporting '
+                       'that of the front side.', 'WARN')
+    if front['bsdf'] is None or back['bsdf'] is None:
+        bsdf = front['bsdf']
+    else:
+        bsdf = _front_back(front['bsdf'], back['bsdf'])
+    if bsdf is None:
+        export_ctx.log(f'Material "{b_mat.name}" differs between the front '
+                       'and the back side, which can only be exported for '
+                       'opaque reflective BSDFs; exporting the front side.',
+                       'WARN')
+        bsdf = front['bsdf']
+    return {'bsdf': bsdf, 'emitter': front['emitter']}
+
+
 def convert_material(export_ctx, b_mat):
     '''Convert a Blender material into {'bsdf': dict,
     'emitter': dict|None}. Never raises: failures produce a warning and a
@@ -98,6 +182,8 @@ def convert_material(export_ctx, b_mat):
                            'a linked Surface input. Exporting a black BSDF, '
                            'which is what Cycles renders.', 'WARN')
             return {'bsdf': copy.deepcopy(BLACK_BSDF), 'emitter': None}
+        if _uses_backfacing(b_mat.node_tree):
+            return _convert_sides(export_ctx, b_mat, ref)
         return convert_shader_node(export_ctx, ref)
     except Exception as e:
         if export_ctx.strict:
