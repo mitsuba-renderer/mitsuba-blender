@@ -255,6 +255,19 @@ def test_eta_scale_single_pane(mi_addon):
         == pytest.approx(0.945, abs=0.01)
 
 
+def test_export_refraction_color_above_one(fresh_scene, exporter, tmp_path):
+    node = make_material('ShaderNodeBsdfRefraction')
+    node.inputs['Color'].default_value = (0.3, 1.5, 2.0, 1.0)
+    node.inputs['Roughness'].default_value = 0.0
+
+    entry = export_entry(exporter, tmp_path)
+    assert entry['specular_transmittance'] == {
+        'type': 'srgb',
+        'color': [pytest.approx(0.3), pytest.approx(1.5), pytest.approx(2.0)],
+        'unbounded': True,
+    }
+
+
 ##################################
 ##  Transparent & Translucent   ##
 ##################################

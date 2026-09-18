@@ -346,7 +346,12 @@ def eval_color(export_ctx, socket, default=None, stack=()):
     socket default if none is given).'''
     result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
-        return export_ctx.spectrum(list(_to_color(result.value)))
+        rgb = list(_to_color(result.value))[:3]
+        if any(c < 0.0 or c > 1.0 for c in rgb):
+            # Mitsuba's 'rgb' rejects reflectances outside [0, 1]; Cycles
+            # accepts them (e.g. BSDF colors scaled up inside a Mix Shader)
+            return {'type': 'srgb', 'color': rgb, 'unbounded': True}
+        return export_ctx.spectrum(rgb)
     if isinstance(result, Texture):
         return result.params
 
