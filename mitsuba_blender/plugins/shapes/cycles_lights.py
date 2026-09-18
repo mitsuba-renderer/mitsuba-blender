@@ -36,6 +36,31 @@ first missing position:
   angle<i> (float): full cone angle of a spot light in degrees. Default 45
   blend<i> (float): Blender's spot blend, the softness of the cone edge.
     Default 0.15
+  profile<i> (integer): index of the IES profile that shapes the emission
+    of the light, see below. No profile if absent
+  frame<i> (transform): the light's local frame in world space (Blender's
+    object matrix, whose translation is ignored). Needed with a profile
+
+IES profiles are numbered from zero as well and evaluated like the IES
+texture node of Cycles: the emission direction ``w`` is expressed in the
+light's local frame, ``v = acos(-w.z)`` (zero along the light axis -Z, where
+a spot points) and ``h = atan2(w.x, w.y) + pi`` select a value in the table,
+and the light's radiance is multiplied by it. The spot cone applies on top
+of the profile. The table is regular in both angles, and lookups
+interpolate it bilinearly:
+
+  ies<k> (string): whitespace-separated values, one row per polar angle
+    from 0 to 180 degrees in equal steps, each row holding one value per
+    azimuth from 0 to 360 degrees in equal steps
+  ies_columns<k> (integer): values per row. Default 1, a profile without
+    azimuthal variation
+  ies_range<k> (string): "v_low v_high h_low h_high", the angles in
+    degrees that the profile covers. The factor is zero outside, like in
+    Cycles, whose range is that of the file. Default "0 180 0 360"
+
+The light selection for emitter sampling (below) ignores the profiles and
+weighs a light by its power alone, which keeps sampling unbiased but
+spends samples on directions that a profile darkens.
 
 The ``visibility`` property of the shape applies to all of its lights. The
 emitter's sampling weight defaults to the number of lights, so that the
@@ -80,8 +105,15 @@ import math
 import numpy as np
 
 # Per light: center (3), radius, radiance (3), spot flag, spot axis (3),
-# cos(half angle), spot smoothness, cluster node, weight numerator, unused
+# cos(half angle), spot smoothness, cluster node, weight numerator,
+# profile index plus one (zero without a profile)
 STRIDE = 16
+# Per light with a profile: the local X, Y and Z axes in world space (9)
+# and padding, read only when the light's emission is evaluated
+FSTRIDE = 12
+# Per profile: table offset, rows, columns, v_low, v_high, h_low, h_high
+# (radians), unused
+PSTRIDE = 8
 # Per node: bounding sphere center (3) and radius, summed weight numerator,
 # cone axis (3), cone angle theta_o, emission angle theta_e, right child
 # (zero for a leaf; the left child follows the node), unused, first light,
@@ -226,18 +258,61 @@ def register(mi, dr):
         # The importance of a light is its weight numerator over the
         # squared distance: (sum of the radiance) * r^2 = P / (4 pi^2)
         numerator = sum(radiance) * radius ** 2
+        profile = int(props.get(f'profile{i}', -1))
         return center + [radius] + radiance + [1.0 if spot else 0.0] \
-            + axis + [cos_half, smooth, 0.0, numerator, 0.0]
+            + axis + [cos_half, smooth, 0.0, numerator, profile + 1.0]
+
+    def read_frame(props, i):
+        '''Local axes of light i in world space, as the columns of its
+        frame transform'''
+        if f'frame{i}' not in props:
+            if f'profile{i}' in props:
+                raise RuntimeError(f'cycles_lights: light {i} has a profile '
+                                   'but no frame')
+            return [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0] + [0.0] * 3
+        matrix = np.array(props[f'frame{i}'].matrix, dtype=np.float64)
+        return list(matrix[:3, :3].T.ravel()) + [0.0] * 3
+
+    def read_profiles(props):
+        '''The IES tables of the shape as a flat value array and one
+        metadata record per profile'''
+        tables, meta = [], []
+        k, offset = 0, 0
+        while f'ies{k}' in props:
+            values = np.array(str(props[f'ies{k}']).split(), dtype=np.float32)
+            columns = int(props.get(f'ies_columns{k}', 1))
+            if columns < 1 or len(values) % columns != 0:
+                raise RuntimeError(f'cycles_lights: profile {k} has '
+                                   f'{len(values)} values, not a multiple of '
+                                   f'its {columns} columns')
+            rows = len(values) // columns
+            if rows < 2:
+                raise RuntimeError(f'cycles_lights: profile {k} needs at '
+                                   'least two rows')
+            bounds = str(props.get(f'ies_range{k}', '0 180 0 360')).split()
+            if len(bounds) != 4:
+                raise RuntimeError(f'cycles_lights: ies_range{k} needs four '
+                                   'angles')
+            bounds = [math.radians(float(b)) for b in bounds]
+            tables.append(values)
+            meta.append([offset, rows, columns] + bounds + [0.0])
+            offset += len(values)
+            k += 1
+        if k == 0:
+            return np.zeros(1, dtype=np.float32), \
+                np.zeros((0, PSTRIDE), dtype=np.float32)
+        return np.concatenate(tables), np.array(meta, dtype=np.float32)
 
     class CyclesLights(mi.Shape):
         def __init__(self, props):
             if mi.is_spectral:
                 raise RuntimeError('cycles_lights: only RGB variants are '
                                    'supported')
-            records = []
+            records, frames = [], []
             i = 0
             while f'p{i}' in props:
                 records.append(read_light(props, i))
+                frames.append(read_frame(props, i))
                 i += 1
             if i == 0:
                 raise RuntimeError('cycles_lights: no light given (the '
@@ -262,8 +337,14 @@ def register(mi, dr):
 
             data = np.array(records, dtype=np.float64)
             self.n = len(records)
+            tables, profiles = read_profiles(props)
+            self.use_profiles = bool((data[:, 15] > 0).any())
+            if data[:, 15].max() > len(profiles):
+                raise RuntimeError('cycles_lights: a light refers to a '
+                                   'profile that is not given')
             order, nodes = build_tree(data, leaf_size)
             data = data[order]
+            frames = np.array(frames, dtype=np.float32)[order]
             clusters = int(props.get('cluster_count', 0))
             if clusters > 0:
                 depth = round(math.log2(clusters))
@@ -279,13 +360,21 @@ def register(mi, dr):
 
             self.count = dr.opaque(mi.UInt32, self.n)
             self.cluster_count = dr.opaque(mi.UInt32, len(clusters))
+            self.n_profiles = len(profiles)
+            if self.n_profiles == 0:
+                profiles = np.zeros((1, PSTRIDE), dtype=np.float32)
             if scalar:
                 self.records, self.nodes = data.ravel(), nodes.ravel()
                 self.clusters = clusters.astype(np.uint32)
+                self.frames, self.profiles = frames.ravel(), profiles.ravel()
+                self.tables = tables
             else:
                 self.records = mi.Float(data.ravel())
                 self.nodes = mi.Float(nodes.ravel())
                 self.clusters = mi.UInt32(clusters.astype(np.uint32))
+                self.frames = mi.Float(frames.ravel())
+                self.profiles = mi.Float(profiles.ravel())
+                self.tables = mi.Float(tables)
             self.n_nodes = len(nodes)
             self.n_leaves = int((nodes[:, 10] == 0).sum())
             self.n_clusters = len(clusters)
@@ -321,6 +410,63 @@ def register(mi, dr):
                 node = dr.gather(mi.UInt32, self.clusters, i, active)
             return self._load_node(node, active)
 
+        def _load_frame(self, i, active=True):
+            if scalar:
+                base = FSTRIDE * min(int(i), self.n - 1)
+                return mi.ArrayXf(self.frames[base:base + FSTRIDE])
+            return dr.gather(mi.ArrayXf, self.frames, i, active,
+                             shape=(FSTRIDE, self.n))
+
+        def _load_profile(self, k, active=True):
+            if scalar:
+                base = PSTRIDE * min(int(k), max(self.n_profiles - 1, 0))
+                return mi.ArrayXf(self.profiles[base:base + PSTRIDE])
+            return dr.gather(mi.ArrayXf, self.profiles, k, active,
+                             shape=(PSTRIDE, max(self.n_profiles, 1)))
+
+        def _table(self, index, active=True):
+            if scalar:
+                return float(self.tables[int(index)]) if active else 0.0
+            return dr.gather(mi.Float, self.tables, index, active)
+
+        def _ies_factor(self, index, rec, w, active=True):
+            '''Value of the IES profile of light ``index`` towards ``w``
+            (from the light to the receiver), one without a profile'''
+            fr = self._load_frame(index, active)
+            rec_profile = rec[15]
+            has = active & (rec_profile > 0.5)
+            k = mi.UInt32(dr.maximum(rec_profile, 1.0)) - 1
+            # Cycles transforms the direction to the light's object space
+            # as a normal, that is, with the transposed object matrix
+            local = mi.Vector3f(
+                dr.dot(w, mi.Vector3f(fr[0], fr[1], fr[2])),
+                dr.dot(w, mi.Vector3f(fr[3], fr[4], fr[5])),
+                dr.dot(w, mi.Vector3f(fr[6], fr[7], fr[8])))
+            local = dr.normalize(local)
+            v_angle = dr.safe_acos(-local.z)
+            h_angle = dr.atan2(local.x, local.y) + math.pi
+
+            pr = self._load_profile(k, has)
+            inside = has & (v_angle >= pr[3]) & (v_angle < pr[4]) \
+                & (h_angle >= pr[5]) & (h_angle < pr[6])
+            rows, columns = mi.UInt32(pr[1]), mi.UInt32(pr[2])
+            rows = dr.maximum(rows, 2)
+            vf = v_angle * ((mi.Float(rows) - 1.0) / math.pi)
+            hf = h_angle * ((mi.Float(columns) - 1.0) / (2.0 * math.pi))
+            v0 = dr.minimum(mi.UInt32(dr.maximum(vf, 0.0)), rows - 2)
+            h0 = dr.minimum(mi.UInt32(dr.maximum(hf, 0.0)),
+                            dr.maximum(columns, 2) - 2)
+            h1 = dr.minimum(h0 + 1, columns - 1)
+            tv = dr.clip(vf - mi.Float(v0), 0.0, 1.0)
+            th = dr.clip(hf - mi.Float(h0), 0.0, 1.0)
+            base = mi.UInt32(pr[0]) + v0 * columns
+            v00 = self._table(base + h0, inside)
+            v01 = self._table(base + h1, inside)
+            v10 = self._table(base + columns + h0, inside)
+            v11 = self._table(base + columns + h1, inside)
+            value = dr.lerp(dr.lerp(v00, v01, th), dr.lerp(v10, v11, th), tv)
+            return dr.select(has, dr.select(inside, value, 0.0), 1.0)
+
         @staticmethod
         def _center(rec):
             return mi.Point3f(rec[0], rec[1], rec[2])
@@ -336,7 +482,10 @@ def register(mi, dr):
             '''Radiance of light ``index`` towards the direction ``w``
             (from the light to the receiver)'''
             rec = self._load(index, active)
-            return mi.Color3f(rec[4], rec[5], rec[6]) * self._falloff(rec, w)
+            value = mi.Color3f(rec[4], rec[5], rec[6]) * self._falloff(rec, w)
+            if self.use_profiles:
+                value *= self._ies_factor(index, rec, w, active)
+            return value
 
         # Light selection
 

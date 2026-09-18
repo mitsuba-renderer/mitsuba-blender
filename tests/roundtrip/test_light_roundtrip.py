@@ -356,3 +356,45 @@ def test_area_light_scene_roundtrip(mi_addon, fresh_scene, tmp_path):
     assert data.size_y * scale.y == pytest.approx(3.0, rel=1e-4)
     assert list(imported.matrix_world.to_translation()) == \
         pytest.approx([1.0, 2.0, 3.0], abs=1e-5)
+
+
+def test_ies_profile_roundtrip(fresh_scene, export_ctx, export_lights,
+                               import_lights, make_mi_context, mi_addon):
+    """A light with an IES node comes back with an IES node reading an
+    internal text block that holds the exported table, and with the
+    orientation of the original light."""
+    import importlib
+    from pathlib import Path
+    ies = importlib.import_module(f'{mi_addon}.convert.export.ies')
+    path = Path(__file__).resolve().parent.parent / 'res' / 'ies' / 'quadrants.ies'
+    obj = make_light('SPOT', location=(1, 2, 3), rotation=(0.4, 0.2, 0.7),
+                     energy=100.0, spot_size=math.radians(50),
+                     shadow_soft_size=0.2)
+    obj.data.use_nodes = True
+    tree = obj.data.node_tree
+    emission = next(n for n in tree.nodes
+                    if n.bl_idname == 'ShaderNodeEmission')
+    node = tree.nodes.new('ShaderNodeTexIES')
+    node.mode = 'EXTERNAL'
+    node.filepath = str(path)
+    node.inputs['Strength'].default_value = 2.0
+    tree.links.new(node.outputs['Fac'], emission.inputs['Strength'])
+
+    bl_light, matrix = roundtrip_emitter(export_lights, import_lights,
+                                         export_ctx, make_mi_context, obj,
+                                         mi_addon)
+    assert bl_light.type == 'SPOT'
+    assert bl_light.energy == pytest.approx(200.0)
+    np.testing.assert_allclose(np.array(matrix.to_3x3()),
+                               np.array(obj.matrix_world.to_3x3()), atol=1e-5)
+    np.testing.assert_allclose(np.array(matrix.translation), [1, 2, 3],
+                               atol=1e-5)
+    ies_nodes = [n for n in bl_light.node_tree.nodes
+                 if n.bl_idname == 'ShaderNodeTexIES']
+    assert len(ies_nodes) == 1
+    assert ies_nodes[0].mode == 'INTERNAL'
+    assert ies_nodes[0].outputs['Fac'].links[0].to_socket.name == 'Strength'
+    original = ies.parse_ies(path.read_text())
+    imported = ies.parse_ies(ies_nodes[0].ies.as_string())
+    table, _ = original.resample()
+    assert np.allclose(imported.intensity.T, table, rtol=1e-4, atol=1e-6)

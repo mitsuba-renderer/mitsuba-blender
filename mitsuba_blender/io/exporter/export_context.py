@@ -34,6 +34,9 @@ class ExportContext:
         # Blender lights with a radius, keyed by visibility class; each
         # class becomes one cycles_lights shape (see finalize_lights)
         self.cycles_lights = OrderedDict()
+        # Parsed IES profiles by source file or text block, None for
+        # profiles that failed to load (see convert.export.lights)
+        self.ies_profiles = {}
         # All the args defined below are set in the Converter
         self.directory = ''
         self.axis_mat = Matrix() # Coordinate shift
@@ -67,21 +70,35 @@ class ExportContext:
 
     def add_cycles_light(self, params):
         '''Queue one light of the cycles_lights shape (a dict with the
-        entries p, r, power and, for spots, dir, angle and blend).'''
+        entries p, r, power, for spots dir, angle and blend, and for lights
+        with an IES profile frame and ies, the latter a dict with the
+        entries table, columns and range).'''
         visibility = params.get('visibility', 'all')
         self.cycles_lights.setdefault(visibility, []).append(params)
 
     def finalize_lights(self):
         '''Add the queued lights to the scene dict as one cycles_lights
-        shape per visibility class, numbering their properties.'''
+        shape per visibility class, numbering their properties. Lights of
+        a shape that use the same IES table share one profile entry.'''
         for visibility, lights in self.cycles_lights.items():
             shape = {'type': 'cycles_lights'}
             if visibility != 'all':
                 shape['visibility'] = visibility
+            profiles = OrderedDict()
             for i, light in enumerate(lights):
-                for key in ('p', 'r', 'power', 'dir', 'angle', 'blend'):
+                for key in ('p', 'r', 'power', 'dir', 'angle', 'blend',
+                            'frame'):
                     if key in light:
                         shape[f'{key}{i}'] = light[key]
+                if 'ies' in light:
+                    ies = light['ies']
+                    key = (ies['table'], ies['columns'], ies['range'])
+                    shape[f'profile{i}'] = profiles.setdefault(key,
+                                                               len(profiles))
+            for k, (table, columns, bounds) in enumerate(profiles):
+                shape[f'ies{k}'] = table
+                shape[f'ies_columns{k}'] = columns
+                shape[f'ies_range{k}'] = bounds
             name = f'emit-cycles_lights-{visibility}' if self.export_ids else ''
             self.data_add(shape, name=name)
         self.cycles_lights.clear()

@@ -1,0 +1,13 @@
+IESNA:LM-63-2002
+[TEST] synthetic profile with a different intensity per quadrant
+[MANUFAC] mitsuba-blender tests
+TILT=NONE
+1 1000 1 5 5 1 2 0 0 0
+1 1 100
+0 30 60 90 120
+0 90 180 270 360
+100 80 40 10 0
+50 40 20 5 0
+100 80 40 10 0
+200 160 80 20 0
+100 80 40 10 0

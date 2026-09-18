@@ -392,3 +392,78 @@ def test_kernels_do_not_depend_on_the_light_count(plugins):
     small = {hashes(20) for _ in range(3)}
     large = {hashes(200) for _ in range(3)}
     assert small & large
+
+
+def quadrant_profile(mi_addon):
+    """A profile with a different value per quadrant (the file of the IES
+    parser tests), tabulated with 5 degree columns: 100 W-like units
+    along the axis, 80 at 30 degrees towards local +Y, 160 towards +X,
+    40 towards -X, zero beyond 120 degrees."""
+    from pathlib import Path
+    from importlib import import_module
+    ies = import_module(f'{mi_addon}.convert.export.ies')
+    path = Path(__file__).resolve().parent.parent / 'res' / 'ies' / 'quadrants.ies'
+    profile = ies.parse_ies(path.read_text())
+    table, bounds = profile.resample()
+    return profile, ies, {
+        'ies0': ies.format_table(table), 'ies_columns0': table.shape[1],
+        'ies_range0': ' '.join(f'{math.degrees(a):g}' for a in bounds),
+    }
+
+
+@pytest.mark.parametrize('variant', ['scalar_rgb', 'wavefront'])
+def test_ies_profile(plugins, mi_addon, variant):
+    """The emitter evaluates an IES profile in the light's local frame
+    like the Cycles node, for hits and for light samples alike."""
+    import mitsuba as mi
+    import drjit as dr
+    if variant == 'scalar_rgb':
+        mi.set_variant('scalar_rgb')
+        plugins.register_plugins()
+    else:
+        set_wavefront_variant(plugins)
+    profile, ies, props = quadrant_profile(mi_addon)
+
+    radius = 0.1
+    frame = mi.ScalarTransform4f().rotate([0, 0, 1], 40).rotate([1, 0, 0], 30)
+    scene = mi.load_dict({'type': 'scene', 'lights': {
+        'type': 'cycles_lights',
+        'p0': [0, 0, 0], 'r0': radius,
+        'power0': 4 * math.pi ** 2 * radius ** 2,  # unit radiance
+        'profile0': 0, 'frame0': frame,
+        'p1': [3, 0, 0], 'r1': radius, 'power1': 4 * math.pi ** 2 * radius ** 2,
+        **props,
+    }})
+    matrix = np.array(frame.matrix)[:3, :3]
+    rng = np.random.default_rng(1)
+    dirs = rng.normal(size=(64, 3))
+    dirs /= np.linalg.norm(dirs, axis=1)[:, None]
+    for d in dirs:
+        # A ray towards the light center from 2 units away
+        ray = mi.Ray3f(mi.Point3f(*(2 * d).tolist()), mi.Vector3f(*(-d).tolist()))
+        si = scene.ray_intersect(ray)
+        assert dr.all(si.is_valid())
+        expected = ies.light_direction_factor(profile, matrix.T @ d)
+        got = si.emitter(scene).eval(si)[0]
+        assert float(got[0] if variant != 'scalar_rgb' else got) == \
+            pytest.approx(expected, rel=2e-3, abs=1e-3)
+
+    # The second light has no profile
+    ray = mi.Ray3f(mi.Point3f(3, 0, 2), mi.Vector3f(0, 0, -1))
+    si = scene.ray_intersect(ray)
+    got = si.emitter(scene).eval(si)[0]
+    assert float(got[0] if variant != 'scalar_rgb' else got) == pytest.approx(1.0)
+
+    # Light samples carry the same factor as hits
+    it = dr.zeros(mi.Interaction3f)
+    it.p = mi.Point3f(0.5, 0.3, -1.5)
+    sampler = mi.load_dict({'type': 'independent'})
+    for i in range(16):
+        ds, weight = scene.emitters()[0].sample_direction(it, sampler.next_2d())
+        if float(ds.uv.x if variant == 'scalar_rgb' else ds.uv.x[0]) != 0.0:
+            continue
+        w = -np.array(ds.d).reshape(3)
+        expected = ies.light_direction_factor(profile, matrix.T @ w)
+        pdf = float(ds.pdf if variant == 'scalar_rgb' else ds.pdf[0])
+        value = weight[0] if variant == 'scalar_rgb' else weight[0][0]
+        assert float(value) * pdf == pytest.approx(expected, rel=2e-3, abs=1e-3)

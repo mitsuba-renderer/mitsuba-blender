@@ -8,10 +8,13 @@ Blender/Mitsuba unit correspondence.
 import math
 
 import bpy
+import numpy as np
 from mathutils import Matrix, Vector
 
+from ..export.ies import ies_text
 from ..export.lights import (intensity_to_power, radiance_to_power,
                              sphere_area, spot_blend)
+from ...compat import ensure_node_tree
 from ...io.importer import mi_spectra_utils
 from ...io.importer.bl_transform_utils import mi_transform_to_bl_transform
 
@@ -113,11 +116,46 @@ _converters = {
 }
 
 
+def _ies_text_block(mi_props, k, texts):
+    '''Text datablock holding profile ``k`` of a cycles_lights shape as an
+    IES file, shared by the lights of the shape through ``texts``.'''
+    if k not in texts:
+        values = np.array(str(mi_props[f'ies{k}']).split(), dtype=np.float64)
+        columns = int(mi_props.get(f'ies_columns{k}', 1))
+        text = bpy.data.texts.new(f'{_light_name(mi_props)}_profile{k}.ies')
+        text.write(ies_text(values.reshape(-1, columns)))
+        texts[k] = text
+    return texts[k]
+
+
+def _attach_ies(bl_light, text):
+    '''Feed the Emission shader of a light through an IES node reading an
+    internal text block.'''
+    tree = ensure_node_tree(bl_light)
+    emission = next((n for n in tree.nodes
+                     if n.bl_idname == 'ShaderNodeEmission'), None)
+    if emission is None:
+        emission = tree.nodes.new('ShaderNodeEmission')
+        output = next((n for n in tree.nodes
+                       if n.bl_idname == 'ShaderNodeOutputLight'), None)
+        if output is None:
+            output = tree.nodes.new('ShaderNodeOutputLight')
+        tree.links.new(emission.outputs['Emission'], output.inputs['Surface'])
+    ies = tree.nodes.new('ShaderNodeTexIES')
+    ies.mode = 'INTERNAL'
+    ies.ies = text
+    ies.location = (emission.location.x - 250.0, emission.location.y)
+    tree.links.new(ies.outputs['Fac'], emission.inputs['Strength'])
+
+
 def mi_cycles_lights_to_bl_lights(mi_context, mi_props):
     '''The addon's cycles_lights shape: one Blender point or spot light
-    with a radius per numbered property set. Returns a list of
+    with a radius per numbered property set. A light with an IES profile
+    gets the shape's table back as an IES node reading an internal text
+    block, and its orientation from its frame. Returns a list of
     (bl_light, world_matrix).'''
     result = []
+    texts = {}
     i = 0
     while f'p{i}' in mi_props:
         spot = f'dir{i}' in mi_props
@@ -138,6 +176,13 @@ def mi_cycles_lights_to_bl_lights(mi_context, mi_props):
             bl_light.spot_size = math.radians(
                 float(mi_props.get(f'angle{i}', 45.0)))
             bl_light.spot_blend = float(mi_props.get(f'blend{i}', 0.15))
+        if f'profile{i}' in mi_props:
+            frame = mi_transform_to_bl_transform(mi_props[f'frame{i}'])
+            frame.translation = Vector((0.0, 0.0, 0.0))
+            matrix = matrix @ mi_context.mi_space_to_bl_space(frame)
+            _attach_ies(bl_light, _ies_text_block(
+                mi_props, int(mi_props[f'profile{i}']), texts))
+        elif spot:
             axis = mi_context.mi_space_to_bl_space(
                 Vector(list(mi_props[f'dir{i}'])))
             matrix = matrix @ _direction_matrix(axis, Vector((0.0, 1.0, 0.0))) \

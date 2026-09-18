@@ -7,10 +7,13 @@ convert.importer.lights applies their inverses.
 '''
 
 import math
+import os
 
+import bpy
 from mathutils import Matrix, Vector
 
 from . import ray_visibility
+from .ies import parse_ies, format_table, light_direction_factor
 from .. import ConversionError
 from ...compat import uses_nodes
 
@@ -68,6 +71,63 @@ def spot_blend(spot_size, beam_width):
 # (cycles/src/kernel/util/ies.h)
 IES_FALLBACK = 100.0
 
+# Radius given to a point or spot light without one so that it can carry
+# an IES profile, which only the cycles_lights shape evaluates
+IES_POINT_RADIUS = 1e-3
+
+
+def _ies_profile(export_ctx, b_light, node):
+    '''The parsed profile of an IES texture node, or None when Cycles would
+    substitute its constant. Profiles are cached on the export context.'''
+    cache = export_ctx.ies_profiles
+    internal = node.mode == 'INTERNAL'
+    if internal:
+        if node.ies is None:
+            export_ctx.log(f'Light "{b_light.name_full}": its IES node has no '
+                           'text block. Using the constant that Cycles '
+                           'substitutes for a missing profile.', 'WARN')
+            return None
+        key = ('text', node.ies.name_full)
+    else:
+        path = bpy.path.abspath(node.filepath, library=b_light.data.library)
+        key = ('file', os.path.normpath(path))
+    if key in cache:
+        return cache[key]
+    try:
+        if internal:
+            source = node.ies.as_string()
+        else:
+            with open(path, 'rb') as f:
+                source = f.read()
+        profile = parse_ies(source)
+    except OSError as e:
+        export_ctx.log(f'Light "{b_light.name_full}": cannot read its IES '
+                       f'profile "{node.filepath}" ({e.strerror}). Using the '
+                       'constant that Cycles substitutes for a missing '
+                       'profile.', 'WARN')
+        profile = None
+    except ValueError as e:
+        export_ctx.log(f'Light "{b_light.name_full}": cannot parse its IES '
+                       f'profile ({e}). Using the constant that Cycles '
+                       'substitutes for a missing profile.', 'WARN')
+        profile = None
+    cache[key] = profile
+    return profile
+
+
+def ies_light_properties(profile):
+    '''The IES entries of a cycles_lights light for a parsed profile: the
+    resampled table, its column count and its angular range. Lights that
+    share a profile share the result.'''
+    if not hasattr(profile, 'light_properties'):
+        table, bounds = profile.resample()
+        profile.light_properties = {
+            'table': format_table(table),
+            'columns': int(table.shape[1]),
+            'range': ' '.join(f'{math.degrees(a):g}' for a in bounds),
+        }
+    return profile.light_properties
+
 
 def _gray(rgb):
     '''Cycles converts colors to floats by their luminance.'''
@@ -101,8 +161,13 @@ def _falloff_distance(export_ctx, b_light, matrix_world):
     return None
 
 
-def _socket_value(export_ctx, b_light, matrix_world, socket):
-    '''Value of an input socket of a light node tree as an (r, g, b) tuple.'''
+def _socket_value(export_ctx, b_light, matrix_world, socket, ies=None):
+    '''Value of an input socket of a light node tree as an (r, g, b) tuple.
+    ``ies`` is a list that receives the profile of an IES texture node
+    when the light can evaluate one per direction, in which case the node
+    only contributes its strength here. Without the list, or for further
+    IES nodes, the node contributes the profile's value along the light
+    axis.'''
     default = _rgb(getattr(socket, 'default_value', 1.0))
     if not socket.is_linked:
         return default
@@ -110,22 +175,32 @@ def _socket_value(export_ctx, b_light, matrix_world, socket):
     node, output = link.from_node, link.from_socket
 
     def value(name):
-        return _socket_value(export_ctx, b_light, matrix_world, node.inputs[name])
+        return _socket_value(export_ctx, b_light, matrix_world,
+                             node.inputs[name], ies)
 
     kind = node.bl_idname
     if link.is_muted or node.mute:
         pass
     elif kind == 'NodeReroute':
-        return _socket_value(export_ctx, b_light, matrix_world, node.inputs[0])
+        return _socket_value(export_ctx, b_light, matrix_world,
+                             node.inputs[0], ies)
     elif kind in ('ShaderNodeValue', 'ShaderNodeRGB'):
         return _rgb(output.default_value)
     elif kind == 'ShaderNodeTexIES':
-        # Mitsuba has no IES emitters. Scenes whose profiles are not shipped
-        # rely on the constant that Cycles substitutes for them.
-        export_ctx.log(f'Light "{b_light.name_full}": IES profiles are not '
-                       f'supported. Using the constant {IES_FALLBACK:g} that '
-                       'Cycles substitutes for a missing profile.', 'WARN')
-        return _rgb(_gray(value('Strength')) * IES_FALLBACK)
+        strength = _gray(value('Strength'))
+        profile = _ies_profile(export_ctx, b_light, node)
+        if profile is None:
+            return _rgb(strength * IES_FALLBACK)
+        if ies is not None and not ies:
+            ies.append(profile)
+            return _rgb(strength)
+        if ies:
+            reason = 'only one IES profile per light is supported'
+        else:
+            reason = 'only point and spot lights can carry an IES profile'
+        export_ctx.log(f'Light "{b_light.name_full}": {reason}. Using the '
+                       'value of the profile along the light axis.', 'WARN')
+        return _rgb(strength * light_direction_factor(profile, (0, 0, -1)))
     elif kind == 'ShaderNodeLightFalloff':
         strength, smooth = _gray(value('Strength')), _gray(value('Smooth'))
         # Cycles ignores the node for distant lights
@@ -156,9 +231,11 @@ def _socket_value(export_ctx, b_light, matrix_world, socket):
     return default
 
 
-def light_node_factor(export_ctx, b_light, matrix_world):
+def light_node_factor(export_ctx, b_light, matrix_world, ies=None):
     '''Color factor that the Cycles node tree of a light applies to its power,
-    i.e. the color times the strength of its Emission shader.'''
+    i.e. the color times the strength of its Emission shader. ``ies`` is
+    a list that receives the profile of an IES texture node in the tree,
+    see _socket_value.'''
     data = b_light.data
     tree = data.node_tree if uses_nodes(data) else None
     output = tree.get_output_node('CYCLES') if tree else None
@@ -170,9 +247,10 @@ def light_node_factor(export_ctx, b_light, matrix_world):
                        'is supported in light node trees. Ignoring the node '
                        'tree.', 'WARN')
         return (1.0, 1.0, 1.0)
-    color = _socket_value(export_ctx, b_light, matrix_world, shader.inputs['Color'])
+    color = _socket_value(export_ctx, b_light, matrix_world,
+                          shader.inputs['Color'], ies)
     strength = _gray(_socket_value(export_ctx, b_light, matrix_world,
-                                   shader.inputs['Strength']))
+                                   shader.inputs['Strength'], ies))
     return tuple(c * strength for c in color)
 
 
@@ -184,28 +262,42 @@ def _colored(scalar, color):
     return [scalar * c for c in color[:3]]
 
 
-def _cycles_light(export_ctx, b_light, matrix_world, color):
+def _cycles_light(export_ctx, b_light, matrix_world, color, profile):
     '''One light of the addon's cycles_lights shape, which the export
     context merges into a single shape per visibility class (see
     ExportContext.add_cycles_light). Cycles samples a light with a radius
-    as a disk facing the shaded point and radiates P / (4 pi^2 r^2).'''
+    as a disk facing the shaded point and radiates P / (4 pi^2 r^2). A
+    light with an IES profile carries the resampled table and its local
+    frame, in which the shape evaluates the profile.'''
     data = b_light.data
     if not getattr(data, 'use_soft_falloff', True):
         export_ctx.log(f'Light "{b_light.name_full}" has "Soft Falloff" '
                        'disabled. It is exported as if it were enabled.',
                        'WARN')
-    return {
+    radius = data.shadow_soft_size
+    if radius <= 0.0:
+        export_ctx.log(f'Light "{b_light.name_full}": only lights with a '
+                       'radius can carry an IES profile. Exporting it with '
+                       f'a radius of {IES_POINT_RADIUS:g}.', 'INFO')
+        radius = IES_POINT_RADIUS
+    light = {
         'type': 'cycles_lights',
         'p': list(export_ctx.transform_matrix(matrix_world).translation()),
-        'r': data.shadow_soft_size,
+        'r': radius,
         'power': export_ctx.spectrum(_colored(data.energy, color)),
     }
+    if profile is not None:
+        light['ies'] = ies_light_properties(profile)
+        light['frame'] = export_ctx.transform_matrix(
+            matrix_world.to_3x3().to_4x4())
+    return light
 
 
-def _convert_point(export_ctx, b_light, matrix_world, color):
+def _convert_point(export_ctx, b_light, matrix_world, color, profile=None):
     data = b_light.data
-    if data.shadow_soft_size > 0.0:
-        return _cycles_light(export_ctx, b_light, matrix_world, color)
+    if data.shadow_soft_size > 0.0 or profile is not None:
+        return _cycles_light(export_ctx, b_light, matrix_world, color,
+                             profile)
     return {
         'type': 'point',
         'position': list(
@@ -215,10 +307,11 @@ def _convert_point(export_ctx, b_light, matrix_world, color):
     }
 
 
-def _convert_spot(export_ctx, b_light, matrix_world, color):
+def _convert_spot(export_ctx, b_light, matrix_world, color, profile=None):
     data = b_light.data
-    if data.shadow_soft_size > 0.0:
-        light = _cycles_light(export_ctx, b_light, matrix_world, color)
+    if data.shadow_soft_size > 0.0 or profile is not None:
+        light = _cycles_light(export_ctx, b_light, matrix_world, color,
+                              profile)
         # Blender spot lights emit along their local -Z axis
         axis = (export_ctx.axis_mat @ matrix_world).to_3x3() \
             @ Vector((0.0, 0.0, -1.0))
@@ -374,13 +467,18 @@ def convert_light(export_ctx, b_light, matrix_world=None):
         export_ctx.log(f'Light "{b_light.name_full}" is hidden from every '
                        'ray type. Skipping it.', 'INFO')
         return None
-    factor = light_node_factor(export_ctx, b_light, matrix_world)
+    # Only the cycles_lights shape evaluates IES profiles per direction
+    ies = [] if b_light.data.type in ('POINT', 'SPOT') else None
+    factor = light_node_factor(export_ctx, b_light, matrix_world, ies)
     color = [c * f for c, f in zip(b_light.data.color, factor)]
     if max(color) <= 0.0:
         export_ctx.log(f'Light "{b_light.name_full}" emits nothing through its '
                        'node tree. Skipping it.', 'INFO')
         return None
-    emitter = converter(export_ctx, b_light, matrix_world, color)
+    if ies:
+        emitter = converter(export_ctx, b_light, matrix_world, color, ies[0])
+    else:
+        emitter = converter(export_ctx, b_light, matrix_world, color)
 
     if emitter['type'] in _delta_emitters:
         if visibility == 'primary':

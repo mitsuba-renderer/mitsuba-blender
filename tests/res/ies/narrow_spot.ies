@@ -1,0 +1,9 @@
+IESNA:LM-63-2002
+[TEST] synthetic symmetric downlight, one horizontal plane
+[MANUFAC] mitsuba-blender tests
+TILT=NONE
+1 2500 1.5 10 1 1 2 -0.1 0 0
+1 1 50
+0 5 10 15 20 25 30 40 60 90
+0
+1000 950 800 500 200 80 30 10 2 0

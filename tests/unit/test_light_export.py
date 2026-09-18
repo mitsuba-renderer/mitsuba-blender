@@ -4,6 +4,7 @@ import importlib
 import sys
 import math
 import types
+from pathlib import Path
 
 import bpy
 import numpy as np
@@ -381,3 +382,91 @@ def test_degenerate_portal_raises(fresh_scene, export_ctx, lights):
     obj = make_portal(shape='SQUARE', size=1.0, scale=(1, 0, 1))
     with pytest.raises(lights.ConversionError):
         lights.convert_light(export_ctx, obj)
+
+
+IES_RES = Path(__file__).resolve().parent.parent / 'res' / 'ies'
+
+
+def add_ies_node(tree, emission, strength=1.0, path=None, text=None):
+    ies = tree.nodes.new('ShaderNodeTexIES')
+    if text is not None:
+        ies.mode = 'INTERNAL'
+        ies.ies = text
+    else:
+        ies.mode = 'EXTERNAL'
+        ies.filepath = path
+    ies.inputs['Strength'].default_value = strength
+    tree.links.new(ies.outputs['Fac'], emission.inputs['Strength'])
+    return ies
+
+
+def test_ies_profile_export(fresh_scene, export_ctx, lights, mi_addon,
+                            log_capture):
+    """A spot light with an IES node carries the resampled profile and its
+    local frame; the node strength stays in the power."""
+    obj = make_light('SPOT', location=(0, 0, 3), rotation=(0.3, 0.2, 0.1),
+                     energy=10.0, spot_size=math.radians(120),
+                     shadow_soft_size=0.1)
+    tree, emission = light_nodes(obj)
+    add_ies_node(tree, emission, strength=0.5,
+                 path=str(IES_RES / 'quadrants.ies'))
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'cycles_lights'
+    assert params['power']['value'] == pytest.approx([5.0] * 3)
+    assert params['ies']['columns'] == 73
+    assert params['ies']['range'] == '0 120 0 360'
+    table = np.array(params['ies']['table'].split(), dtype=np.float64)
+    assert table.shape == (181 * 73,)
+    assert table[0] == pytest.approx(100 * 0.0706650768394, rel=1e-4)
+    # The frame is the light's rotation in Mitsuba coordinates
+    frame = np.array(params['frame'].matrix)
+    expected = np.array(export_ctx.axis_mat @ obj.matrix_world.to_3x3().to_4x4())
+    np.testing.assert_allclose(frame[:3, :3], expected[:3, :3], atol=1e-6)
+    np.testing.assert_allclose(frame[:3, 3], 0.0, atol=1e-6)
+    assert not [m for level, m in log_capture if level == 'WARN']
+
+    # Lights sharing a profile share one table in the merged shape
+    export_ctx.add_cycles_light(params)
+    export_ctx.add_cycles_light(params)
+    export_ctx.finalize_lights()
+    shape = next(v for v in export_ctx.scene_data.values()
+                 if isinstance(v, dict) and v.get('type') == 'cycles_lights')
+    assert shape['profile0'] == 0 and shape['profile1'] == 0
+    assert 'ies0' in shape and 'ies1' not in shape
+    assert shape['ies_columns0'] == 73
+    assert 'frame1' in shape
+
+    import mitsuba as mi
+    sys.modules[mi_addon].plugins.register_plugins()
+    assert mi.load_dict(shape).primitive_count() == 2
+
+
+def test_ies_internal_text_and_point_light(fresh_scene, export_ctx, lights,
+                                           log_capture):
+    """A point light without a radius gets a small one so that the
+    cycles_lights shape can evaluate its internal IES text block."""
+    obj = make_light('POINT', energy=10.0, shadow_soft_size=0.0)
+    tree, emission = light_nodes(obj)
+    text = bpy.data.texts.new('spot.ies')
+    text.write((IES_RES / 'narrow_spot.ies').read_text())
+    add_ies_node(tree, emission, text=text)
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'cycles_lights'
+    assert params['r'] == pytest.approx(lights.IES_POINT_RADIUS)
+    assert 'dir' not in params
+    assert params['ies']['columns'] == 1
+    assert params['ies']['range'] == '0 90 0 360'
+    assert not [m for level, m in log_capture if level == 'WARN']
+
+
+def test_ies_profile_on_area_light_uses_axis_value(fresh_scene, export_ctx,
+                                                    lights, log_capture):
+    obj = make_light('AREA', shape='SQUARE', size=1.0, energy=10.0)
+    tree, emission = light_nodes(obj)
+    add_ies_node(tree, emission, path=str(IES_RES / 'quadrants.ies'))
+    params = lights.convert_light(export_ctx, obj)
+    radiance = lights.power_to_radiance(10.0 * 100 * 0.0706650768394, 1.0)
+    assert params['emitter']['radiance']['value'] == \
+        pytest.approx([radiance] * 3, rel=1e-4)
+    assert any('along the light axis' in m for level, m in log_capture
+               if level == 'WARN')
