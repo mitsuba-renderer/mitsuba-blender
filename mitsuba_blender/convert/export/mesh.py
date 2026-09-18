@@ -433,9 +433,10 @@ class GeometryExporter:
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
                 part_visibility = visibility[emitter is not None]
                 if not b_object.visible_shadow:
-                    # Glass that shadow rays ignore has no counterpart among
-                    # Mitsuba's ray classes: it becomes a camera-only shape,
-                    # so that light passes and bounce rays skip it
+                    # Glass that shadow rays ignore becomes a camera-only
+                    # shape, so that light passes and bounce rays skip it.
+                    # This rule comes before the shadowless wrapper below,
+                    # which would make bounce rays refract at the pane
                     from .materials.primary import (primary_material,
                                                     refractive)
                     if refractive(export_ctx, bsdf_id):
@@ -447,6 +448,17 @@ class GeometryExporter:
 
                 parts.append((name, bsdf_id, emitter, part_visibility,
                               prim_mask))
+
+        if not b_object.visible_shadow:
+            # Shadow rays pass through the remaining parts while camera and
+            # bounce rays hit them (see materials.shadowless). Camera-only
+            # parts are already out of reach of shadow rays
+            from .materials.shadowless import shadowless_material
+            parts = [(name, bsdf_id if part_visibility == 'primary'
+                      else shadowless_material(export_ctx, bsdf_id),
+                      emitter, part_visibility, prim_mask)
+                     for name, bsdf_id, emitter, part_visibility, prim_mask
+                     in parts]
 
         # The material suffix only serves to tell several parts apart. An
         # object that stays in one piece keeps its own name, and the bsdf

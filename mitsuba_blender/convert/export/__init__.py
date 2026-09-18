@@ -31,11 +31,13 @@ def ray_visibility(b_object, emissive):
     cover Cycles' diffuse, glossy, transmission and shadow rays at once. An
     object is secondary when any of those ray types sees it, except that
     shadow rays alone do not make an emissive object secondary, since they
-    never reach a light source. The shadow flag is not expressible on its
-    own: an object that bounce rays see but shadow rays ignore keeps its
-    bounce visibility, unless its material refracts, in which case the mesh
-    exporter makes it camera-only (see ``materials.primary``). ``emissive``
-    should be False for Blender lights only when they emit nothing.
+    never reach a light source. The shadow flag has no class of its own:
+    an object that bounce rays see but shadow rays ignore keeps its bounce
+    visibility and the mesh exporter wraps its material so that shadow
+    rays pass through it (see ``materials.shadowless``), unless its
+    material refracts, in which case the object becomes camera-only (see
+    ``materials.primary``). ``emissive`` should be False for Blender
+    lights only when they emit nothing.
 
     When refractive caustics are off, Cycles drops transmission closures
     after a diffuse bounce, and transmission rays only reach an emissive

@@ -139,9 +139,9 @@ def test_shared_material_keeps_both_variants(fresh_scene, exporter, tmp_path):
 
 @pytest.mark.parametrize('refracts', [True, False])
 def test_shadowless_object(fresh_scene, exporter, tmp_path, refracts):
-    """A pane that bounce rays see but shadow rays ignore has no Mitsuba
-    counterpart, so it is exported like camera-only glass. An opaque object
-    that casts no shadow keeps the visibility of its flags."""
+    """A pane that bounce rays see but shadow rays ignore is exported like
+    camera-only glass, which takes precedence over the shadowless wrapper
+    that an opaque object without a shadow gets (test_shadowless.py)."""
     cube = bpy.data.objects['Cube']
     if refracts:
         assign(make_glass_material('Pane', ior=1.5), cube)
@@ -152,6 +152,7 @@ def test_shadowless_object(fresh_scene, exporter, tmp_path, refracts):
     if refracts:
         assert shape['visibility'] == 'primary'
         assert shape['bsdf'] == ctx.create_ref('mat-Pane')
+        assert not any(k.endswith('-shadowless') for k in ctx.scene_data)
     else:
         assert 'visibility' not in shape
-        assert shape['bsdf'] == ctx.create_ref('mat-Material')
+        assert shape['bsdf'] == ctx.create_ref('mat-Material-shadowless')

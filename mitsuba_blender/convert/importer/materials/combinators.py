@@ -1,5 +1,5 @@
 '''Converters for Mitsuba's BSDF combinator plugins: twosided, blendbsdf,
-mask and null.'''
+mask and null, and the addon's shadowless wrapper.'''
 
 from ... import ConversionError
 from . import material_converter
@@ -95,3 +95,14 @@ def convert_mask(builder, mi_props):
 @material_converter('null')
 def convert_null(builder, mi_props):
     return builder.node('ShaderNodeBsdfTransparent').outputs['BSDF']
+
+
+@material_converter('shadowless')
+def convert_shadowless(builder, mi_props):
+    '''The wrapper only changes what shadow rays do, which is an object
+    setting in Blender, so the material is the nested one.'''
+    children = _child_bsdfs(builder, mi_props)
+    if len(children) != 1:
+        raise ConversionError(f'shadowless BSDF has {len(children)} nested '
+                              'BSDFs, expected 1')
+    return builder.convert_bsdf(children[0])

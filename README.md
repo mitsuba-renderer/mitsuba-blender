@@ -70,10 +70,13 @@ intersects each light as Cycles does (a disk facing the receiver, with the
 and lets paths continue through the light. Cycles ray visibility flags map to
 Mitsuba's `visibility` property: objects and lights hidden from the camera
 become `secondary`, objects that only the camera sees become `primary`, and
-objects or lights that no ray type can reach are left out. Refracting objects
-that cast no shadow, typically window panes, become `primary` shapes with a
-camera-only material variant, so that light passes through them while the
-camera still sees the refraction.
+objects or lights that no ray type can reach are left out. Objects that cast
+no shadow keep their class and get their material wrapped in the addon's
+`shadowless` BSDF, which shadow rays pass through while camera and bounce rays
+hit the object, as in Cycles. Refracting objects that cast no shadow, typically
+window panes, instead become `primary` shapes with a camera-only material
+variant, so that light passes through them while the camera still sees the
+refraction.
 
 ### Material export
 

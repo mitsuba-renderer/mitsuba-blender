@@ -184,8 +184,11 @@ def test_shape_visibility(fresh_scene, exporter, tmp_path, flags, emissive,
     assert shape.get('visibility', 'all') == expected
     if emissive:
         # Cycles hides the object from some ray types only, so the shape
-        # keeps the BSDF of its material and its emitter
-        assert shape['bsdf'] == converter.export_ctx.create_ref('mat-Glow')
+        # keeps the BSDF of its material (wrapped when shadow rays ignore
+        # it, see test_shadowless.py) and its emitter
+        bsdf_id = 'mat-Glow' if flags.get('shadow', True) \
+            else 'mat-Glow-shadowless'
+        assert shape['bsdf'] == converter.export_ctx.create_ref(bsdf_id)
         assert 'visible' not in shape['emitter']
 
 

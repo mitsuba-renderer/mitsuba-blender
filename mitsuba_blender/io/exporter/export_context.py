@@ -24,6 +24,8 @@ class ExportContext:
         self.exported_mats = {}
         # Material id -> id of its variant for shapes that only camera rays see
         self.primary_materials = {}
+        # BSDF id -> id of its wrapper for shapes that shadow rays ignore
+        self.shadowless_materials = {}
         self.export_ids = False # Export Object IDs in the XML file
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
