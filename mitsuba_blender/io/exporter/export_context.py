@@ -26,6 +26,9 @@ class ExportContext:
         self.primary_materials = {}
         # BSDF id -> id of its wrapper for shapes that shadow rays ignore
         self.shadowless_materials = {}
+        # (owner name, output name) of the Light Path outputs reported as
+        # replaced by a constant
+        self.light_path_warnings = set()
         self.export_ids = False # Export Object IDs in the XML file
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons

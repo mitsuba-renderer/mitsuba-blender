@@ -369,6 +369,47 @@ def test_holdout_exports_null(fresh_scene, exporter, tmp_path):
     assert ctx.data_get('mat-Hold') == {'type': 'null'}
 
 
+####################
+##   Light Path   ##
+####################
+
+def test_light_path_outputs_warn(fresh_scene, exporter, tmp_path):
+    """Alpha = Mix(Is Camera Ray, Transparent Depth) takes the camera-ray
+    values and reports each output once"""
+    b_mat = bpy.data.materials.new('RayTrick')
+    b_mat.use_nodes = True
+    tree = b_mat.node_tree
+    principled = tree.nodes['Principled BSDF']
+    light_path = tree.nodes.new('ShaderNodeLightPath')
+    mix = tree.nodes.new('ShaderNodeMix')
+    mix.data_type = 'RGBA'
+    mix.inputs['Factor'].default_value = 0.75
+    tree.links.new(light_path.outputs['Is Camera Ray'], mix.inputs['A'])
+    tree.links.new(light_path.outputs['Transparent Depth'], mix.inputs['B'])
+    tree.links.new(mix.outputs['Result'], principled.inputs['Alpha'])
+    assign_material(b_mat)
+
+    ctx = exporter(tmp_path).export_ctx
+    entry = ctx.data_get('mat-RayTrick')
+    assert entry['type'] == 'mask'
+    opacity = mi_texture_value(entry['opacity'])
+    assert opacity == pytest.approx(0.25)
+    warnings = [w for w in ctx.warnings if 'Light Path' in w]
+    assert len(warnings) == 2
+    assert all('"RayTrick"' in w for w in warnings)
+    assert any('"Is Camera Ray" is exported as 1' in w for w in warnings)
+    assert any('"Transparent Depth" is exported as 0' in w for w in warnings)
+
+
+def mi_texture_value(params):
+    import drjit as dr
+    import mitsuba as mi
+    if isinstance(params, (int, float)):
+        return params
+    texture = mi.load_dict(params)
+    return float(dr.slice(texture.eval_1(dr.zeros(mi.SurfaceInteraction3f))))
+
+
 #######################
 ##   Import  side    ##
 #######################

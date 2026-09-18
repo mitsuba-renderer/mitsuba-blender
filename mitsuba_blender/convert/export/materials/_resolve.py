@@ -317,6 +317,8 @@ def resolve(export_ctx, socket, stack=()):
         return Unsupported(f'node "{node.name}" of type {node.type} is not '
                        f'supported (feeding socket "{socket.name}" of node '
                        f'"{socket.node.name}")')
+    if node.type == 'LIGHT_PATH':
+        _warn_light_path(export_ctx, ref, source)
     try:
         return Constant(_convert(getter(ref, source), socket.type))
     except _Uncastable as e:
@@ -488,6 +490,34 @@ def _get_light_path(ref, out_socket):
     # appearance, which is roughly what EEVEE does for the outputs it
     # cannot support either.
     return _LIGHT_PATH_DEFAULTS.get(out_socket.name, 0.0)
+
+
+def _owner_name(ref):
+    '''Name of the material, light or world whose node tree holds the node
+    (for a node inside a group, the one holding the outermost group node)'''
+    import bpy
+    tree = ref.stack[0].id_data if ref.stack else ref.node.id_data
+    # The exporter may hand over evaluated copies of the owners
+    tree = tree.original
+    for collection in (bpy.data.materials, bpy.data.lights, bpy.data.worlds):
+        for owner in collection:
+            if getattr(owner, 'node_tree', None) == tree:
+                return owner.name
+    return tree.name
+
+
+def _warn_light_path(export_ctx, ref, out_socket):
+    '''Report a Light Path output that is replaced by a constant, once per
+    owner and output'''
+    owner = _owner_name(ref)
+    key = (owner, out_socket.name)
+    if key in export_ctx.light_path_warnings:
+        return
+    export_ctx.light_path_warnings.add(key)
+    value = _LIGHT_PATH_DEFAULTS.get(out_socket.name, 0.0)
+    export_ctx.log(f'"{owner}": Light Path output "{out_socket.name}" is '
+                   f'exported as {value:g}, its value for a camera ray at '
+                   'depth zero, for every ray.', 'WARN')
 
 _GETTERS = {
     'RGB': _get_rgb,
