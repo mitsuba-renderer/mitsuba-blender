@@ -96,8 +96,8 @@ def _convert_directional(mi_context, mi_props):
     bl_light.color = color
     # The energy of a Blender sun light is its irradiance in W/m^2
     bl_light.energy = strength
-    # Mitsuba directional emitters are delta lights
-    bl_light.angle = 0.0
+    # Mitsuba gives the angular diameter of the sun in degrees
+    bl_light.angle = math.radians(float(mi_props.get('angle', 0.0)))
 
     if 'to_world' in mi_props:
         matrix = mi_transform_to_bl_transform(mi_props.get('to_world'))

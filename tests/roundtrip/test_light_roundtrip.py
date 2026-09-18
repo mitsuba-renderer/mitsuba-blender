@@ -209,17 +209,20 @@ def test_spot_roundtrip(fresh_scene, export_ctx, export_lights,
                                                           abs=1e-5)
 
 
+@pytest.mark.parametrize('angle', [0.0, 0.05])
 def test_sun_roundtrip(fresh_scene, export_ctx, export_lights,
-                       import_lights, make_mi_context):
+                       import_lights, make_mi_context, mi_addon, angle):
     obj = make_light('SUN', rotation=(0.5, -0.3, 0.2), energy=3.0,
-                     color=(1.0, 0.9, 0.8), angle=0.05)
+                     color=(1.0, 0.9, 0.8), angle=angle)
     bl_light, matrix = roundtrip_emitter(export_lights, import_lights,
-                                         export_ctx, make_mi_context, obj)
+                                         export_ctx, make_mi_context, obj,
+                                         mi_addon)
     assert bl_light.type == 'SUN'
     # The energy of a sun light is its irradiance and survives unchanged
     assert bl_light.energy == pytest.approx(3.0, rel=1e-4)
     assert tuple(bl_light.color) == pytest.approx((1.0, 0.9, 0.8), rel=1e-4)
-    assert bl_light.angle == 0.0
+    # The angular diameter travels in degrees and comes back in radians
+    assert bl_light.angle == pytest.approx(angle)
     np.testing.assert_allclose(minus_z(matrix),
                                minus_z(obj.matrix_world), atol=1e-5)
 

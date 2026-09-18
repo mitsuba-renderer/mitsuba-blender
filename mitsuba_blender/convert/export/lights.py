@@ -334,22 +334,23 @@ def _convert_spot(export_ctx, b_light, matrix_world, color, profile=None):
 
 def _convert_sun(export_ctx, b_light, matrix_world, color):
     data = b_light.data
-    if data.angle > 0.0:
-        export_ctx.log(f'Light "{b_light.name_full}": Mitsuba directional '
-                       'emitters have no angular diameter. Ignoring the sun '
-                       'angle.', 'INFO')
     # Blender sun lights shine along -Z, Mitsuba's along +Z
     flip = Matrix.Rotation(math.pi, 4, 'X')
     # Mitsuba's directional emitter does not normalize the direction it
     # reads from `to_world`, so any object scale would scale the
     # irradiance. Cycles only uses the orientation of a sun light.
     orientation = (matrix_world @ flip).to_3x3().normalized().to_4x4()
-    return {
+    emitter = {
         'type': 'directional',
         # The energy of a Blender sun light is its irradiance in W/m^2
         'irradiance': export_ctx.spectrum(_colored(data.energy, color)),
         'to_world': export_ctx.transform_matrix(orientation),
     }
+    # Both renderers sample the sun disc of the given angular diameter,
+    # which softens the shadows. Mitsuba expects degrees.
+    if data.angle > 0.0:
+        emitter['angle'] = math.degrees(data.angle)
+    return emitter
 
 
 def _convert_area(export_ctx, b_light, matrix_world, color):

@@ -146,9 +146,10 @@ def test_spot_light(fresh_scene, export_ctx, lights):
 
 def test_sun_light(fresh_scene, export_ctx, lights):
     obj = make_light('SUN', rotation=(math.radians(30), math.radians(15), 0),
-                     energy=2.5, color=(1.0, 0.9, 0.8))
+                     energy=2.5, color=(1.0, 0.9, 0.8), angle=0.0)
     params = lights.convert_light(export_ctx, obj)
     assert params['type'] == 'directional'
+    assert 'angle' not in params
     assert params['irradiance']['value'] == \
         pytest.approx([2.5, 2.5 * 0.9, 2.5 * 0.8])
     np.testing.assert_allclose(to_world_z_axis(params),
@@ -159,11 +160,32 @@ def test_sun_light(fresh_scene, export_ctx, lights):
     assert mi.load_dict(params) is not None
 
 
+def test_sun_light_with_angle(fresh_scene, export_ctx, lights):
+    # A sun with an angular diameter becomes a directional emitter with
+    # an angle in degrees, which samples the sun disc like Cycles
+    obj = make_light('SUN', rotation=(math.radians(30), math.radians(15), 0),
+                     energy=2.5, color=(1.0, 0.9, 0.8),
+                     angle=math.radians(5.0))
+    params = lights.convert_light(export_ctx, obj)
+    assert params['type'] == 'directional'
+    assert params['angle'] == pytest.approx(5.0)
+    assert params['irradiance']['value'] == \
+        pytest.approx([2.5, 2.5 * 0.9, 2.5 * 0.8])
+    np.testing.assert_allclose(to_world_z_axis(params),
+                               emitted_direction(export_ctx, obj),
+                               atol=1e-6)
+
+    import mitsuba as mi
+    emitter = mi.load_dict(params)
+    assert emitter.flags() == int(mi.EmitterFlags.Infinite
+                                  | mi.EmitterFlags.DeltaDirection)
+
+
 def test_sun_light_ignores_object_scale(fresh_scene, export_ctx, lights):
     # Mitsuba's directional emitter does not normalize the direction it
     # reads from to_world, so a scaled to_world would scale the irradiance
     obj = make_light('SUN', rotation=(math.radians(30), 0, 0), energy=2.5,
-                     scale=(5.0, 2.0, 3.0))
+                     scale=(5.0, 2.0, 3.0), angle=0.0)
     params = lights.convert_light(export_ctx, obj)
     matrix = np.array(params['to_world'].matrix)
     assert np.linalg.norm(matrix[:3, 2]) == pytest.approx(1.0)
