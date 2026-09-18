@@ -193,6 +193,14 @@ def _warn_transparent_tint(export_ctx, ref):
                        f'"{node.name}" inside a Mix Shader.', 'WARN')
 
 
+def _is_shadow_ray(socket, stack):
+    '''Whether the socket is fed by the "Is Shadow Ray" output of a Light
+    Path node'''
+    node, source, _ = trace_source(socket, stack)
+    return node is not None and node.type == 'LIGHT_PATH' and \
+        source.name == 'Is Shadow Ray'
+
+
 def _mix_transparent(export_ctx, ref, a, b):
     '''A Mix Shader with a Transparent BSDF on one side maps to a Mitsuba
     mask, whose opacity gives the weight of the nested BSDF.'''
@@ -206,6 +214,11 @@ def _mix_transparent(export_ctx, ref, a, b):
     else:
         transparent, opaque, invert = b, a, True
     _warn_transparent_tint(export_ctx, transparent)
+    if invert and _is_shadow_ray(node.inputs['Fac'], ref.stack):
+        # Cycles glass is often made shadow-transparent this way. A Mitsuba
+        # BSDF cannot tell shadow rays apart, but the ``shadowless`` wrapper
+        # lets them pass while other rays see the nested BSDF
+        return {'type': 'shadowless', 'bsdf': _child_bsdf(export_ctx, opaque)}
     opacity = eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
     if invert:
         if isinstance(opacity, dict):

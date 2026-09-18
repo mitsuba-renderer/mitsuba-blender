@@ -20,3 +20,17 @@ def shadowless_material(export_ctx, bsdf_id):
                             variant_id)
         cache[bsdf_id] = variant_id
     return cache[bsdf_id]
+
+
+def is_shadowless(export_ctx, bsdf_id):
+    '''Whether the material ``bsdf_id`` is a ``shadowless`` BSDF, possibly
+    inside twosided or normal map wrappers.'''
+    params = export_ctx.data_get(bsdf_id)
+    while isinstance(params, dict):
+        kind = params.get('type')
+        if kind == 'shadowless':
+            return True
+        if kind not in ('twosided', 'normalmap'):
+            return False
+        params = params.get('bsdf')
+    return False

@@ -156,3 +156,43 @@ def test_shadowless_object(fresh_scene, exporter, tmp_path, refracts):
     else:
         assert 'visibility' not in shape
         assert shape['bsdf'] == ctx.create_ref('mat-Material-shadowless')
+
+
+def make_shadow_transparent(b_mat):
+    """Mix(material, Transparent, Is Shadow Ray): the Cycles idiom for glass
+    that casts no shadow"""
+    tree = b_mat.node_tree
+    out = tree.nodes['Material Output']
+    surface = out.inputs['Surface'].links[0].from_socket
+    mix = tree.nodes.new('ShaderNodeMixShader')
+    transparent = tree.nodes.new('ShaderNodeBsdfTransparent')
+    light_path = tree.nodes.new('ShaderNodeLightPath')
+    tree.links.new(light_path.outputs['Is Shadow Ray'], mix.inputs['Fac'])
+    tree.links.new(surface, mix.inputs[1])
+    tree.links.new(transparent.outputs['BSDF'], mix.inputs[2])
+    tree.links.new(mix.outputs['Shader'], out.inputs['Surface'])
+    return b_mat
+
+
+@pytest.mark.parametrize('refracts', [True, False])
+def test_shadow_ray_transparent_material(fresh_scene, exporter, tmp_path,
+                                         refracts):
+    """Glass that the material makes transparent to shadow rays is exported
+    like a pane without shadow visibility; other materials keep the
+    shadowless wrapper that the Mix Shader becomes."""
+    cube = bpy.data.objects['Cube']
+    b_mat = make_glass_material('Pane') if refracts else \
+        bpy.data.materials['Material']
+    assign(make_shadow_transparent(b_mat), cube)
+    converter = exporter(tmp_path)
+    ctx = converter.export_ctx
+    shape, = shapes_of(converter)
+    assert shape['bsdf'] == ctx.create_ref(f'mat-{b_mat.name}')
+    bsdf = ctx.data_get(f'mat-{b_mat.name}')
+    while bsdf['type'] != 'shadowless':
+        bsdf = bsdf['bsdf']
+    if refracts:
+        assert shape['visibility'] == 'primary'
+    else:
+        assert 'visibility' not in shape
+    assert converter.dict_to_scene() is not None

@@ -432,11 +432,14 @@ class GeometryExporter:
                     name += f'-{n_refs:03d}'
                 bsdf_id, emitter = material_refs(export_ctx, slot.material)
                 part_visibility = visibility[emitter is not None]
-                if not b_object.visible_shadow:
+                from .materials.shadowless import is_shadowless
+                if not b_object.visible_shadow or \
+                        is_shadowless(export_ctx, bsdf_id):
                     # Glass that shadow rays ignore becomes a camera-only
                     # shape, so that light passes and bounce rays skip it.
                     # This rule comes before the shadowless wrapper below,
-                    # which would make bounce rays refract at the pane
+                    # which would make bounce rays refract at the pane and
+                    # count the light behind it twice
                     from .materials.primary import (primary_material,
                                                     refractive)
                     if refractive(export_ctx, bsdf_id):
