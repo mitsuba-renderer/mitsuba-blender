@@ -307,9 +307,9 @@ class GeometryExporter:
         export_ctx = self.export_ctx
         to_world = export_ctx.transform_matrix(deg_instance.matrix_world)
         converted = self.convert_parts(deg_instance.object, name_clean)
-        for name, bsdf_id, emitter, visibility, mi_mesh in converted:
-            entry = self.make_entry(bsdf_id, emitter, visibility, mi_mesh,
-                                    to_world)
+        for name, bsdf_id, emitter, visibility, mi_mesh, disp in converted:
+            entry = self.make_entry(name, bsdf_id, emitter, visibility,
+                                    mi_mesh, disp, to_world)
             if export_ctx.export_ids:
                 export_ctx.data_add(entry, name=f'mesh-{name}')
             else:
@@ -340,9 +340,11 @@ class GeometryExporter:
             else:
                 converted = self.convert_parts(b_object, name_clean)
                 group = {'type': 'shapegroup'}
-                for name, bsdf_id, emitter, visibility, mi_mesh in converted:
+                for name, bsdf_id, emitter, visibility, mi_mesh, disp \
+                        in converted:
                     group[export_ctx.sanitize(name)] = \
-                        self.make_entry(bsdf_id, emitter, visibility, mi_mesh)
+                        self.make_entry(name, bsdf_id, emitter, visibility,
+                                        mi_mesh, disp)
                 if len(group) > 1:
                     object_id = f'mesh-{name_clean}'
                     export_ctx.data_add(group, name=object_id)
@@ -390,8 +392,11 @@ class GeometryExporter:
         }
 
         # One entry per material slot: (name, bsdf_id, emitter_dict,
-        # visibility, prim_mask)
+        # visibility, prim_mask), and the displacement of each part by name
+        from .materials.displacement import (check_displacements,
+                                             material_displacement)
         parts = []
+        displacements = {}
         slots = b_object.material_slots
         if len(slots) == 0:
             if visibility[False] is None:
@@ -451,6 +456,11 @@ class GeometryExporter:
 
                 parts.append((name, bsdf_id, emitter, part_visibility,
                               prim_mask))
+                # Each slot is displaced on its own, like the parts are
+                # exported; a seam between slots with different
+                # displacements may open up
+                displacements[name] = material_displacement(export_ctx,
+                                                            slot.material)
 
         if not b_object.visible_shadow:
             # Shadow rays pass through the remaining parts while camera and
@@ -467,10 +477,14 @@ class GeometryExporter:
         # object that stays in one piece keeps its own name, and the bsdf
         # reference of the shape already records the material.
         if len(parts) == 1:
+            displacements[name_clean] = displacements.get(parts[0][0])
             parts[0] = (name_clean, *parts[0][1:])
+        check_displacements(export_ctx, b_object, b_mesh, name_clean,
+                            mesh_data.uvs is not None, displacements)
 
         converted = [(name, bsdf_id, emitter, part_visibility,
-                      make_mesh(mesh_data, name, prim_mask, None))
+                      make_mesh(mesh_data, name, prim_mask, None),
+                      displacements.get(name))
                      for name, bsdf_id, emitter, part_visibility, prim_mask
                      in parts]
 
@@ -478,8 +492,8 @@ class GeometryExporter:
             b_object.to_mesh_clear()
         return converted
 
-    def make_entry(self, bsdf_id, emitter, visibility, mi_mesh,
-                   to_world=None):
+    def make_entry(self, name, bsdf_id, emitter, visibility, mi_mesh,
+                   displacement, to_world=None):
         '''Return the scene dict entry of a converted mesh part.'''
         export_ctx = self.export_ctx
         # Every mesh goes into one shared .packed container, addressed by
@@ -488,8 +502,12 @@ class GeometryExporter:
             'type': 'packed',
             'filename': export_ctx.packed_filename(),
             'index': export_ctx.add_packed_mesh(mi_mesh),
-            'bsdf': export_ctx.create_ref(bsdf_id)
         }
+        if displacement is not None:
+            from .materials.displacement import displaced_entry
+            entry = displaced_entry(export_ctx, entry, displacement, to_world,
+                                    name)
+        entry['bsdf'] = export_ctx.create_ref(bsdf_id)
         if to_world is not None:
             entry['to_world'] = to_world
         if emitter is not None:

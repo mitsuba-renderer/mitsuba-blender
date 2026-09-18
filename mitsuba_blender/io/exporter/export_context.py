@@ -32,6 +32,11 @@ class ExportContext:
         # Value of the Geometry node's Backfacing output while a material
         # is converted once per side; None outside of that
         self.backfacing = None
+        # Wrap meshes whose material displaces in the displace shape
+        # (see convert.export.materials.displacement)
+        self.export_displacement = True
+        # Material name -> its displacement dict, or None
+        self.displacements = {}
         self.export_ids = False # Export Object IDs in the XML file
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
