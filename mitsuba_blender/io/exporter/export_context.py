@@ -8,8 +8,9 @@ class ExportContext:
     Export Context
     '''
 
-    # Subfolder of the export directory receiving textures
+    # Subfolders of the export directory receiving textures and LUTs
     TEXTURES_FOLDER = 'textures'
+    LUTS_FOLDER = 'luts'
     # Every exported mesh is appended to this one ``.packed`` container next
     # to the scene file, and the shapes reference their entry by index
     PACKED_NAME = 'meshes.packed'

@@ -325,10 +325,13 @@ _MATH_EXPRESSIONS = {
 
 def _literal(value):
     '''A constant as an expression literal: a parenthesized float, or
-    ``rgb(..)`` for a 3-vector'''
+    ``rgb(..)`` for a 3-vector. A gray 3-vector becomes a float, since
+    ``rgb()`` would force trichromatic evaluation of the expression.'''
     if isinstance(value, (int, float)):
         return f'({float(value)!r})'
     r, g, b = (float(v) for v in tuple(value)[:3])
+    if r == g == b:
+        return f'({r!r})'
     return f'rgb({r!r}, {g!r}, {b!r})'
 
 
@@ -498,23 +501,72 @@ def convert_vertex_color(export_ctx, ref, out_socket):
     }
 
 
+# Cycles bakes color ramps and curves into tables of this many entries
+# (RAMP_TABLE_SIZE), sampled at i / (N - 1), and interpolates them linearly
+RAMP_TABLE_SIZE = 256
+
+
+def _lut(export_ctx, table, input, kind, **params):
+    '''A ``lut`` texture dict over ``table`` of shape (N,) or (N, 3). The
+    table is written into the luts subfolder of the export directory as a
+    float32 EXR named by its content, so that identical tables share a
+    file. An RGB table with identical channels is written as a scalar one,
+    which is cheaper to look up.'''
+    import hashlib
+    import mitsuba as mi
+    import numpy as np
+
+    table = np.ascontiguousarray(table, dtype=np.float32)
+    if table.ndim == 2 and np.allclose(table[:, :1], table, atol=1e-6):
+        table = np.ascontiguousarray(table[:, 0])
+
+    name = f'{kind}_{hashlib.sha1(table.tobytes()).hexdigest()[:12]}.exr'
+    folder = os.path.join(export_ctx.directory, export_ctx.LUTS_FOLDER)
+    path = os.path.join(folder, name)
+    if not os.path.isfile(path):
+        os.makedirs(folder, exist_ok=True)
+        mi.Bitmap(table[None]).write(path)
+
+    return {'type': 'lut', 'input': input,
+            'filename': export_ctx.LUTS_FOLDER + '/' + name, **params}
+
+
 @texture_converter('VALTORGB')
 def convert_color_ramp(export_ctx, ref: NodeRef, out_socket):
+    import numpy as np
     node = ref.node
     ramp = node.color_ramp
+    n = RAMP_TABLE_SIZE
+    alpha = out_socket.name == 'Alpha'
+    fac = eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
 
-    params = {
-        'type': 'color_ramp',
-        'mode': ramp.interpolation.lower(),
-        'num_bands': len(ramp.elements),
-        'input': eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
-    }
+    stops = sorted((e.position, tuple(e.color)) for e in ramp.elements)
+    colors = [c[3] if alpha else c[:3] for _, c in stops]
 
-    for i, element in enumerate(ramp.elements):
-        params[f'pos{i}'] = element.position
-        params[f'color{i}'] = list(element.color[:3])
+    # Ramps with one or two stops are cheap arithmetic, which is exact and
+    # avoids a table file
+    if len(stops) == 1:
+        value = colors[0]
+        if not alpha and any(c < 0.0 or c > 1.0 for c in value):
+            return {'type': 'srgb', 'color': list(value), 'unbounded': True}
+        return export_ctx.spectrum(value)
+    if len(stops) == 2 and stops[0][0] < stops[1][0] and \
+            (alpha or ramp.color_mode == 'RGB'):
+        p0, p1 = stops[0][0], stops[1][0]
+        if ramp.interpolation == 'LINEAR':
+            return _math(f'lerp(in[1], in[2], clip((in[0] - {p0!r}) * '
+                         f'{1.0 / (p1 - p0)!r}, 0, 1))', fac, *colors)
+        if ramp.interpolation == 'CONSTANT':
+            return _math(f'in[0] < {p1!r} ? in[1] : in[2]', fac, *colors)
 
-    return params
+    # ramp.evaluate() implements every interpolation and color mode
+    table = np.array([ramp.evaluate(i / (n - 1)) for i in range(n)],
+                     dtype=np.float32)
+    params = {}
+    if ramp.interpolation == 'CONSTANT':
+        params['filter_type'] = 'nearest'
+    return _lut(export_ctx, table[:, 3] if alpha else table[:, :3], fac,
+                'ramp', **params)
 
 @texture_converter('MATH')
 def convert_math(export_ctx, ref, out_socket):
@@ -572,56 +624,51 @@ def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_so
                  eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack))
 
 
-def _write_curve_table(export_ctx, arr):
-    '''Write a sampled curve table beside the scene and return its path.
-
-    The XML writer cannot serialise an in-memory bitmap, so file export
-    stores the tables as images like any other texture.
-    '''
-    import hashlib
-    import os
-    import mitsuba as mi
-    directory = os.path.join(export_ctx.directory, 'textures')
-    os.makedirs(directory, exist_ok=True)
-    digest = hashlib.sha1(arr.tobytes()).hexdigest()[:12]
-    filename = f'curve-{digest}.exr'
-    path = os.path.join(directory, filename)
-    if not os.path.exists(path):
-        mi.Bitmap(arr).write(path)
-    return f'textures/{filename}'
-
-
-
-
 @texture_converter('CURVE_RGB')
 def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
     import numpy as np
     node = ref.node
-
-    params = {
-        'type' : 'rgb_curve',
-        'fac' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack),
-        'color' : eval_color(export_ctx, node.inputs['Color'], stack=ref.stack)
-    }
-    N = 64
     mapping = node.mapping
     mapping.update()
+    curves = mapping.curves # R, G, B and the combined curve
+    n = RAMP_TABLE_SIZE
 
+    # Cycles tabulates the per-channel curves applied after the combined
+    # curve over the x range spanned by the control points of all four.
+    # Inputs beyond that range are clamped, whereas Blender's default
+    # extend mode continues the curves linearly.
+    xs = [point.location[0] for curve in curves for point in curve.points]
+    min_x, max_x = min(xs), max(xs)
+    xs = np.linspace(min_x, max_x, n)
+    table = np.empty((n, 3), dtype=np.float32)
+    for i, x in enumerate(xs):
+        t = mapping.evaluate(curves[3], float(x))
+        table[i] = [mapping.evaluate(curves[k], t) for k in range(3)]
 
-    for i, c in enumerate(['curve_r', 'curve_g', 'curve_b', 'curve_c']):
-        curve = mapping.curves[i]
-        row = np.array([mapping.evaluate(curve, j / (N - 1)) for j in range(N)], dtype=np.float32)
-        arr = np.stack([row, row]).reshape(2, N, 1) # bitmaps need at least 2 x 2
+    color = eval_color(export_ctx, node.inputs['Color'], stack=ref.stack)
+    if np.allclose(table, xs[:, None], atol=1e-6):
+        # Untouched curves only clamp the input to their range
+        lut = _math(f'clip(in[0], {min_x!r}, {max_x!r})', color)
+    else:
+        params = {'curve': True}
+        if min_x != 0.0:
+            params['input_min'] = min_x
+        if max_x != 1.0:
+            params['input_max'] = max_x
+        lut = _lut(export_ctx, table, color, 'curves', **params)
 
-        table = {
-            'type': 'bitmap',
-            'raw': True,
-            'wrap_mode': 'clamp',
-            'filename' : _write_curve_table(export_ctx, arr)
-        }
-        params[c] = table
+    fac = eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
+    if fac == 1.0:
+        return lut
 
+    params = {'type': 'math', 'in0': color, 'in1': lut}
+    if isinstance(fac, dict):
+        params['expr'] = 'lerp(in[0], in[1], in[2])'
+        params['in2'] = fac
+    else:
+        params['expr'] = f'lerp(in[0], in[1], {float(fac)})'
     return params
+
 
 def _socket(sockets, identifier):
     return next(s for s in sockets if s.identifier == identifier)

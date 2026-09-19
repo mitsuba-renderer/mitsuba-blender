@@ -643,3 +643,229 @@ def test_vertex_color_name_matches_mesh_attribute(fresh_scene, exporter,
     scene = converter.dict_to_scene()
     mesh = next(s for s in scene.shapes() if isinstance(s, mi.Mesh))
     assert params['name'] in mi.traverse(mesh).keys()
+
+
+#############################
+##  Color ramp and curves  ##
+#############################
+
+def resolve_color_input(export_ctx, registry, b_mat):
+    diffuse = next(n for n in b_mat.node_tree.nodes
+                   if n.type == 'BSDF_DIFFUSE')
+    result = registry.resolve(export_ctx, diffuse.inputs['Color'])
+    assert isinstance(result, registry.Texture)
+    return result.params
+
+
+def eval_texture(params, export_ctx):
+    from bl_ext.user_default.mitsuba_blender.convert.export.materials \
+        ._resolve import _absolutify_filenames
+    mi.set_variant('scalar_rgb')
+    si = mi.SurfaceInteraction3f()
+    tex = mi.load_dict(_absolutify_filenames(params, export_ctx.directory))
+    return np.array(tex.eval_3(si)), tex.eval_1(si)
+
+
+def lut_channels(params, export_ctx):
+    """Channel count of the table file that a lut dict references"""
+    assert params['type'] == 'lut'
+    path = os.path.join(export_ctx.directory, params['filename'])
+    return mi.Bitmap(path).channel_count()
+
+
+@pytest.mark.parametrize('interpolation',
+                         ['LINEAR', 'EASE', 'B_SPLINE', 'CONSTANT'])
+def test_color_ramp_matches_blender(fresh_scene, export_ctx, registry,
+                                    interpolation):
+    """Ramps with three stops are baked into a table file"""
+    b_mat, node = make_diffuse_with_texture('ShaderNodeValToRGB')
+    ramp = node.color_ramp
+    ramp.interpolation = interpolation
+    ramp.elements[0].position = 0.2
+    ramp.elements[0].color = (1.0, 0.0, 0.0, 1.0)
+    ramp.elements[1].position = 0.7
+    ramp.elements[1].color = (0.0, 0.0, 1.0, 1.0)
+    element = ramp.elements.new(0.45)
+    element.color = (0.0, 1.0, 0.0, 1.0)
+
+    # The 256-entry table resolves the ramp to 1/255 of the input range, so
+    # the stops of a constant ramp are avoided below
+    for fac in [0.0, 0.1, 0.3, 0.45, 0.6, 0.8, 1.0]:
+        node.inputs['Fac'].default_value = fac
+        params = resolve_color_input(export_ctx, registry, b_mat)
+        assert params['type'] == 'lut'
+        assert params['filename'].startswith('luts/ramp_')
+        assert lut_channels(params, export_ctx) == 3
+        assert 'curve' not in params
+        assert abs(params['input'] - fac) < 1e-6
+        expected_filter = 'nearest' if interpolation == 'CONSTANT' else None
+        assert params.get('filter_type') == expected_filter
+
+        rgb, _ = eval_texture(params, export_ctx)
+        np.testing.assert_allclose(rgb, ramp.evaluate(fac)[:3], atol=1e-2)
+
+    # Identical ramps share their table file
+    assert len(os.listdir(os.path.join(export_ctx.directory, 'luts'))) == 1
+
+
+@pytest.mark.parametrize('interpolation', ['LINEAR', 'CONSTANT'])
+def test_color_ramp_two_stops(fresh_scene, export_ctx, registry, interpolation):
+    """Ramps with two stops become arithmetic without a table"""
+    b_mat, node = make_diffuse_with_texture('ShaderNodeValToRGB')
+    ramp = node.color_ramp
+    ramp.interpolation = interpolation
+    ramp.elements[0].position = 0.2
+    ramp.elements[0].color = (1.0, 0.0, 0.0, 1.0)
+    ramp.elements[1].position = 0.7
+    ramp.elements[1].color = (0.0, 0.0, 1.0, 1.0)
+
+    for fac in [-1.0, 0.0, 0.1, 0.3, 0.45, 0.6, 0.8, 1.0, 5.0]:
+        node.inputs['Fac'].default_value = fac
+        params = resolve_color_input(export_ctx, registry, b_mat)
+        assert params['type'] == 'math'
+        assert 'in0' not in params
+        rgb, _ = eval_texture(params, export_ctx)
+        np.testing.assert_allclose(rgb, ramp.evaluate(fac)[:3], atol=1e-6)
+    assert not os.path.exists(os.path.join(export_ctx.directory, 'luts'))
+
+    # A textured factor is the sole input of the expression
+    value = b_mat.node_tree.nodes.new('ShaderNodeTexNoise')
+    b_mat.node_tree.links.new(value.outputs['Fac'], node.inputs['Fac'])
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'math' and params['in0']['type'] == 'tex_noise'
+    assert 'in[0]' in params['expr'] and 'in[1]' not in params['expr']
+
+    # Interpolation in HSV space is baked into a table
+    ramp.color_mode = 'HSV'
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'lut'
+
+
+def test_color_ramp_gray_and_constant(fresh_scene, export_ctx, registry):
+    """Gray ramps stay monochromatic, single stops become constants"""
+    b_mat, node = make_diffuse_with_texture('ShaderNodeValToRGB')
+    ramp = node.color_ramp
+    ramp.elements[0].color = (0.25, 0.25, 0.25, 1.0)
+    ramp.elements[1].color = (0.75, 0.75, 0.75, 1.0)
+    node.inputs['Fac'].default_value = 0.5
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'math' and 'rgb(' not in params['expr']
+    _, value = eval_texture(params, export_ctx)
+    assert abs(value - 0.5) < 1e-6
+
+    # Three gray stops give a single-channel table
+    ramp.elements.new(0.5).color = (1.0, 1.0, 1.0, 1.0)
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert lut_channels(params, export_ctx) == 1
+    rgb, _ = eval_texture(params, export_ctx)
+    np.testing.assert_allclose(rgb, [1.0, 1.0, 1.0], atol=5e-3)
+
+    ramp.elements.remove(ramp.elements[2])
+    ramp.elements.remove(ramp.elements[1])
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params == {'type': 'rgb', 'value': [0.25, 0.25, 0.25]}
+
+
+def test_color_ramp_alpha_output(fresh_scene, export_ctx, registry):
+    b_mat, node = make_diffuse_with_texture('ShaderNodeValToRGB')
+    ramp = node.color_ramp
+    ramp.elements[0].color = (1.0, 1.0, 1.0, 0.25)
+    ramp.elements[1].color = (0.0, 0.0, 0.0, 0.75)
+    node.inputs['Fac'].default_value = 0.5
+    diffuse = next(n for n in b_mat.node_tree.nodes
+                   if n.type == 'BSDF_DIFFUSE')
+    b_mat.node_tree.links.new(node.outputs['Alpha'],
+                              diffuse.inputs['Roughness'])
+
+    result = registry.resolve(export_ctx, diffuse.inputs['Roughness'])
+    params = result.params
+    assert params['type'] == 'math' and 'rgb(' not in params['expr']
+    _, alpha = eval_texture(params, export_ctx)
+    assert abs(alpha - 0.5) < 1e-6
+
+    # With a third stop, the alpha column is baked into a scalar table
+    ramp.elements.new(0.5).color = (0.5, 0.5, 0.5, 1.0)
+    params = registry.resolve(export_ctx, diffuse.inputs['Roughness']).params
+    assert lut_channels(params, export_ctx) == 1
+    _, alpha = eval_texture(params, export_ctx)
+    assert abs(alpha - 1.0) < 5e-3
+
+
+def blender_curve(mapping, color):
+    """Blender's RGB Curves result: the channel curves after the combined one"""
+    return [mapping.evaluate(mapping.curves[k],
+                             mapping.evaluate(mapping.curves[3], color[k]))
+            for k in range(3)]
+
+
+def test_rgb_curve_matches_blender(fresh_scene, export_ctx, registry):
+    b_mat, node = make_diffuse_with_texture('ShaderNodeRGBCurve')
+    mapping = node.mapping
+    # Combined curve bent downwards, red channel inverted
+    mapping.curves[3].points.new(0.5, 0.25)
+    mapping.curves[0].points[0].location = (0.0, 1.0)
+    mapping.curves[0].points[1].location = (1.0, 0.0)
+    mapping.update()
+    color = (0.2, 0.5, 0.8, 1.0)
+    node.inputs['Color'].default_value = color
+
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'lut'
+    assert params['curve'] is True
+    assert params['filename'].startswith('luts/curves_')
+    assert lut_channels(params, export_ctx) == 3
+    assert 'input_min' not in params and 'input_max' not in params
+
+    rgb, _ = eval_texture(params, export_ctx)
+    np.testing.assert_allclose(rgb, blender_curve(mapping, color), atol=5e-3)
+
+
+def test_rgb_curve_gray_and_identity(fresh_scene, export_ctx, registry):
+    """Only the combined curve modified gives a scalar table, untouched
+    curves a clamp"""
+    b_mat, node = make_diffuse_with_texture('ShaderNodeRGBCurve')
+    mapping = node.mapping
+    color = (0.2, 0.5, 1.5, 1.0)
+    node.inputs['Color'].default_value = color
+
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'math' and 'in0' not in params
+    rgb, _ = eval_texture(params, export_ctx)
+    np.testing.assert_allclose(rgb, [0.2, 0.5, 1.0], atol=1e-6)
+    assert not os.path.exists(os.path.join(export_ctx.directory, 'luts'))
+
+    # The table covers the curve range, so the input stays inside it here
+    color = (0.2, 0.5, 0.9, 1.0)
+    node.inputs['Color'].default_value = color
+    mapping.curves[3].points.new(0.5, 0.25)
+    mapping.update()
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['curve'] is True
+    assert lut_channels(params, export_ctx) == 1
+    rgb, _ = eval_texture(params, export_ctx)
+    np.testing.assert_allclose(rgb, blender_curve(mapping, color), atol=5e-3)
+
+
+def test_rgb_curve_range_and_fac(fresh_scene, export_ctx, registry):
+    b_mat, node = make_diffuse_with_texture('ShaderNodeRGBCurve')
+    mapping = node.mapping
+    mapping.extend = 'HORIZONTAL'
+    mapping.clip_min_x = -1.0
+    mapping.clip_max_x = 2.0
+    mapping.curves[3].points[0].location = (-1.0, 0.0)
+    mapping.curves[3].points[1].location = (2.0, 1.0)
+    mapping.update()
+    color = (0.25, 0.5, 1.5, 1.0)
+    node.inputs['Color'].default_value = color
+    node.inputs['Fac'].default_value = 0.25
+
+    params = resolve_color_input(export_ctx, registry, b_mat)
+    assert params['type'] == 'math'
+    assert params['expr'] == 'lerp(in[0], in[1], 0.25)'
+    lut = params['in1']
+    assert lut['type'] == 'lut'
+    assert lut['input_min'] == -1.0 and lut['input_max'] == 2.0
+
+    expected = 0.75 * np.array(color[:3]) + 0.25 * np.array(blender_curve(mapping, color))
+    rgb, _ = eval_texture(params, export_ctx)
+    np.testing.assert_allclose(rgb, expected, atol=5e-3)
