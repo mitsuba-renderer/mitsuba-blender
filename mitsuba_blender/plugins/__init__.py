@@ -3,27 +3,14 @@ def _register_all():
     import mitsuba as mi
     import drjit as dr
 
-    from .textures import (color_ramp, hue_saturation, rgb_curve, mix,
-                            brightness_contrast, map_range, combine_xyz,
-                            separate_xyz, combine_color, vect_math, common,
-                            normal_map, blender_bumpmap, tex_noise,
-                            separate_color)
+    from .textures import (color_ramp, rgb_curve, common, blender_bumpmap,
+                            tex_noise)
     from .shapes import cycles_lights
     from .bsdfs import shadowless
 
     color_ramp.register(mi, dr)
-    hue_saturation.register(mi, dr)
-    rgb_curve.register(mi, dr)
-    mix.register(mi, dr)
-    brightness_contrast.register(mi, dr)
-    map_range.register(mi, dr)
-    combine_xyz.register(mi, dr)
-    separate_xyz.register(mi, dr)
-    separate_color.register(mi, dr)
-    combine_color.register(mi, dr)
-    vect_math.register(mi, dr)
     common.register(mi, dr)
-    normal_map.register(mi, dr)
+    rgb_curve.register(mi, dr)
     blender_bumpmap.register(mi, dr)
     tex_noise.register(mi, dr)
     cycles_lights.register(mi, dr)

@@ -264,21 +264,18 @@ def test_export_normal_map_with_strength(fresh_scene, exporter, tmp_path,
     node.inputs['Alpha'].default_value = 0.5
     normal_map.inputs['Strength'].default_value = 5.0
 
-    expected_texture = {
-        'type' : 'normal_map',
-        'texture' : fake_image_texture,
-        'strength': 5.0
-    }
-
     _, entry = exported_entry(exporter, tmp_path)
     # The mask wraps the normalmap, which wraps the two-sided BSDF
     assert entry['type'] == 'mask'
     assert entry['bsdf']['type'] == 'normalmap'
-    assert entry['bsdf']['normalmap'] == expected_texture
     assert entry['bsdf']['bsdf']['type'] == 'twosided'
     assert entry['bsdf']['bsdf']['bsdf']['type'] == 'principled'
-    assert entry['bsdf']['normalmap']['strength'] == pytest.approx(5.0)
 
+    # The strength is applied by a math expression over the image
+    texture = entry['bsdf']['normalmap']
+    assert texture['type'] == 'math'
+    assert texture['in0'] == fake_image_texture
+    assert '(5.0)' in texture['expr']
 
     import mitsuba as mi
     assert mi.load_dict(entry) is not None

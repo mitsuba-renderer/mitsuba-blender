@@ -346,6 +346,86 @@ def test_separate_combine_xyz(export_ctx, ev, tree, probe):
     assert eval_float_texture(result) == 2.0
 
 
+def test_vector_to_float_takes_mean(export_ctx, ev, tree, probe):
+    # Blender converts a vector to a float by the mean of its components
+    comb = tree.nodes.new('ShaderNodeCombineXYZ')
+    comb.inputs['X'].default_value = 1.0
+    comb.inputs['Y'].default_value = 2.0
+    comb.inputs['Z'].default_value = 6.0
+    tree.links.new(comb.outputs['Vector'], probe.inputs['Strength'])
+    value = ev.eval_float(export_ctx, probe.inputs['Strength'])
+    tex = mi.load_dict(value)
+    assert tex.eval_1(SI) == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize('blend_type,expected', [
+    ('MIX', (0.35, 0.7, 0.65)),
+    ('ADD', (0.45, 0.9, 0.95)),
+    ('MULTIPLY', (0.15, 0.4, 0.51)),
+    ('SUBTRACT', (-0.05, -0.1, 0.25)),
+    ('SCREEN', (0.4, 0.7, 0.74)),
+    ('DIFFERENCE', (0.25, 0.5, 0.35)),
+    ('DARKEN', (0.2, 0.4, 0.6)),
+    ('LIGHTEN', (0.25, 0.5, 0.6)),
+    ('OVERLAY', (0.2, 0.6, 0.68)),
+])
+def test_mix_color(export_ctx, ev, tree, probe, blend_type, expected):
+    # Cycles' svm_mix.h with a = (0.2, 0.4, 0.6), b = (0.5, 1.0, 0.7), t = 0.5
+    node = tree.nodes.new('ShaderNodeMix')
+    node.data_type = 'RGBA'
+    node.blend_type = blend_type
+    by_id(node.inputs, 'Factor_Float').default_value = 0.5
+    by_id(node.inputs, 'A_Color').default_value = (0.2, 0.4, 0.6, 1.0)
+    by_id(node.inputs, 'B_Color').default_value = (0.5, 1.0, 0.7, 1.0)
+    result = fold_color(export_ctx, ev, tree, probe, by_id(node.outputs, 'Result_Color'))
+    tex = mi.load_dict(texture(result))
+    assert list(tex.eval_3(SI)) == pytest.approx(expected, abs=1e-6)
+
+
+def test_mix_float_clamped(export_ctx, ev, tree, probe):
+    node = tree.nodes.new('ShaderNodeMix')
+    node.data_type = 'FLOAT'
+    node.clamp_factor = True
+    by_id(node.inputs, 'Factor_Float').default_value = 2.0
+    by_id(node.inputs, 'A_Float').default_value = 1.0
+    by_id(node.inputs, 'B_Float').default_value = 3.0
+    result = fold_float(export_ctx, ev, tree, probe, by_id(node.outputs, 'Result_Float'))
+    assert eval_float_texture(result) == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize('operation,expected', [
+    ('CROSS_PRODUCT', (-3.0, 6.0, -3.0)),
+    ('DOT_PRODUCT', 32.0),
+    ('DISTANCE', math.sqrt(27.0)),
+    ('LENGTH', math.sqrt(14.0)),
+    ('NORMALIZE', (1 / math.sqrt(14.0), 2 / math.sqrt(14.0), 3 / math.sqrt(14.0))),
+    ('MODULO', (1.0, 2.0, 3.0)),
+])
+def test_vect_math(export_ctx, ev, tree, probe, operation, expected):
+    # a = (1, 2, 3), b = (4, 5, 6)
+    node = tree.nodes.new('ShaderNodeVectorMath')
+    node.operation = operation
+    node.inputs[0].default_value = (1.0, 2.0, 3.0)
+    node.inputs[1].default_value = (4.0, 5.0, 6.0)
+    if isinstance(expected, tuple):
+        result = fold_color(export_ctx, ev, tree, probe, node.outputs['Vector'])
+        tex = mi.load_dict(texture(result))
+        assert list(tex.eval_3(SI)) == pytest.approx(expected)
+    else:
+        result = fold_float(export_ctx, ev, tree, probe, node.outputs['Value'])
+        assert eval_float_texture(result) == pytest.approx(expected)
+
+
+def test_vect_math_scale(export_ctx, ev, tree, probe):
+    node = tree.nodes.new('ShaderNodeVectorMath')
+    node.operation = 'SCALE'
+    node.inputs[0].default_value = (1.0, 2.0, 3.0)
+    node.inputs['Scale'].default_value = 2.0
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Vector'])
+    tex = mi.load_dict(texture(result))
+    assert list(tex.eval_3(SI)) == pytest.approx((2.0, 4.0, 6.0))
+
+
 def test_separate_color_hsv(export_ctx, ev, tree, probe):
     node = tree.nodes.new('ShaderNodeSeparateColor')
     node.mode = 'HSV'
@@ -364,7 +444,19 @@ def test_combine_color_hsv(export_ctx, ev, tree, probe):
     node.inputs['Blue'].default_value = 1.0   # value
     result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
     tex = mi.load_dict(texture(result))
-    assert list(tex.eval_3(SI)) == pytest.approx((1.0, 0.0, 0.0))
+    assert list(tex.eval_3(SI)) == pytest.approx((1.0, 0.0, 0.0), abs=1e-6)
+
+
+def test_hue_saturation_value(export_ctx, ev, tree, probe):
+    node = tree.nodes.new('ShaderNodeHueSaturation')
+    node.inputs['Color'].default_value = (1.0, 0.0, 0.0, 1.0)
+    node.inputs['Hue'].default_value = 0.5 + 1.0 / 3.0  # red to green
+    node.inputs['Saturation'].default_value = 1.0
+    node.inputs['Value'].default_value = 0.5
+    node.inputs['Fac'].default_value = 0.5
+    result = fold_color(export_ctx, ev, tree, probe, node.outputs['Color'])
+    tex = mi.load_dict(texture(result))
+    assert list(tex.eval_3(SI)) == pytest.approx((0.5, 0.25, 0.0))
 
 
 def test_rgb_to_bw(export_ctx, ev, tree, probe):

@@ -270,10 +270,6 @@ def _vector_to_uv(export_ctx, ref):
 ##  Texture converters  ##
 ##########################
 
-_ONE_VECTOR_OPS = {'LENGTH', 'SCALE', 'NORMALIZE',
-                    'ABSOLUTE', 'FLOOR', 'CEIL',
-                    'FRACTION', 'SINE', 'COSINE',
-                    'TANGENT'}
 _MATH_EXPRESSIONS = {
     # Two-input arithmetic
     'ADD':            'in[0] + in[1]',
@@ -327,23 +323,36 @@ _MATH_EXPRESSIONS = {
 }
 
 
+def _literal(value):
+    '''A constant as an expression literal: a parenthesized float, or
+    ``rgb(..)`` for a 3-vector'''
+    if isinstance(value, (int, float)):
+        return f'({float(value)!r})'
+    r, g, b = (float(v) for v in tuple(value)[:3])
+    return f'rgb({r!r}, {g!r}, {b!r})'
+
+
 def _math(expr, *inputs):
+    '''A ``math`` texture dict evaluating ``expr`` over ``inputs``, which are
+    floats, 3-tuples, or texture dicts as eval_float/eval_color/eval_vector
+    return them. Constants are inlined as literals, so ``in[i]`` in ``expr``
+    refers to the i-th input rather than to the i-th texture.'''
     params = {'type': 'math'}
     tex_index = 0
-    final_expr = expr
     for i, value in enumerate(inputs):
-        if isinstance(value, dict):
-            if value.get('type') == 'rgb':
-                v = value['value']
-                final_expr = final_expr.replace(
-                    f'in[{i}]', f'rgb({v[0]}, {v[1]}, {v[2]})')
-            else:
-                final_expr = final_expr.replace(f'in[{i}]', f'in[{tex_index}]')
-                params[f'in{tex_index}'] = value
-                tex_index += 1
+        if isinstance(value, dict) and value.get('type') == 'rgb':
+            literal = _literal(value['value'])
+        elif isinstance(value, dict) and value.get('type') == 'srgb' \
+                and 'color' in value:
+            literal = _literal(value['color'])
+        elif isinstance(value, dict):
+            literal = f'in[{tex_index}]'
+            params[f'in{tex_index}'] = value
+            tex_index += 1
         else:
-            final_expr = final_expr.replace(f'in[{i}]', f'({float(value)})')
-    params['expr'] = final_expr
+            literal = _literal(value)
+        expr = expr.replace(f'in[{i}]', literal)
+    params['expr'] = expr
     return params
 
 
@@ -547,19 +556,20 @@ def convert_math(export_ctx, ref, out_socket):
     return params
 
 
-@texture_converter("HUE_SAT")
+@texture_converter('HUE_SAT')
 def convert_hue_saturation_value(export_ctx: ExportContext, ref: NodeRef, out_socket):
     node = ref.node
-
-    params = {
-        'type': 'hue_saturation_value',
-        'input': eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
-        'hue': eval_float(export_ctx, node.inputs['Hue'], stack=ref.stack),
-        'saturation': eval_float(export_ctx, node.inputs['Saturation'], stack=ref.stack),
-        'value' : eval_float(export_ctx, node.inputs['Value'], stack=ref.stack),
-        'mix' : eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack)
-    }
-    return params
+    # As in Cycles: shift the hue, scale the saturation (clamped) and the
+    # value, clamp the result to be non-negative and blend it in by Fac
+    return _math('tmp[0] = rgb_to_hsv(in[0]); '
+                 'tmp[1] = hsv_to_rgb(rgb(tmp[0].r + in[1] + 0.5, '
+                 'clip(tmp[0].g * in[2], 0, 1), tmp[0].b * in[3])); '
+                 'lerp(in[0], max(tmp[1], 0), in[4])',
+                 eval_color(export_ctx, node.inputs['Color'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Hue'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Saturation'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Value'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Fac'], stack=ref.stack))
 
 
 def _write_curve_table(export_ctx, arr):
@@ -616,36 +626,48 @@ def convert_rgb_curve(export_ctx: ExportContext, ref : NodeRef, out_socket):
 def _socket(sockets, identifier):
     return next(s for s in sockets if s.identifier == identifier)
 
-_SUPPORTED = ['MIX', 'ADD', 'MULTIPLY', 'SUBTRACT', 'SCREEN',
-              'DIVIDE', 'DIFFERENCE', 'DARKEN', 'LIGHTEN', 'OVERLAY']
+# Blend modes of the Mix node (Cycles' svm_mix.h) over the inputs a, b and
+# the factor t, held in tmp[0]
+_MIX_EXPRESSIONS = {
+    'MIX':        'lerp(in[0], in[1], tmp[0])',
+    'ADD':        'in[0] + tmp[0] * in[1]',
+    'MULTIPLY':   'in[0] * (1 - tmp[0] + tmp[0] * in[1])',
+    'SUBTRACT':   'in[0] - tmp[0] * in[1]',
+    'SCREEN':     '1 - (1 - tmp[0] + tmp[0] * (1 - in[1])) * (1 - in[0])',
+    'DIVIDE':     'in[1] != 0 ? (1 - tmp[0]) * in[0] + tmp[0] * in[0] / in[1] : in[0]',
+    'DIFFERENCE': '(1 - tmp[0]) * in[0] + tmp[0] * abs(in[0] - in[1])',
+    'DARKEN':     'lerp(in[0], min(in[0], in[1]), tmp[0])',
+    'LIGHTEN':    'max(in[0], tmp[0] * in[1])',
+    'OVERLAY':    'in[0] < 0.5 ? in[0] * (1 - tmp[0] + 2 * tmp[0] * in[1]) '
+                  ': 1 - (1 - tmp[0] + 2 * tmp[0] * (1 - in[1])) * (1 - in[0])',
+}
+
 
 @texture_converter('MIX')
 def convert_mix(export_ctx: ExportContext, ref : NodeRef, out_socket):
     node = ref.node
-
-    if node.blend_type not in _SUPPORTED:
-        raise ConversionError(f'Operation {node.blend_type} over a MIX node is not supported')
-
     data_type = node.data_type
-    params = {
-        'type': 'mix',
-        'clamp_factor': node.clamp_factor,
-        'clamp_result': node.clamp_result,
-        'factor': eval_float(export_ctx, _socket(node.inputs, 'Factor_Float'), stack=ref.stack),
-    }
+    factor = eval_float(export_ctx, _socket(node.inputs, 'Factor_Float'), stack=ref.stack)
 
     if data_type == 'FLOAT':
-        params['blend_type'] = 'MIX'
-        params['a'] = eval_float(export_ctx, _socket(node.inputs, 'A_Float'), stack=ref.stack)
-        params['b'] = eval_float(export_ctx, _socket(node.inputs, 'B_Float'), stack=ref.stack)
+        # Blend modes apply to colours only; a float mix is a plain lerp
+        blend_type = 'MIX'
+        a = eval_float(export_ctx, _socket(node.inputs, 'A_Float'), stack=ref.stack)
+        b = eval_float(export_ctx, _socket(node.inputs, 'B_Float'), stack=ref.stack)
     elif data_type == 'RGBA':
-        params['blend_type'] = node.blend_type
-        params['a'] = eval_color(export_ctx, _socket(node.inputs, 'A_Color'), stack=ref.stack)
-        params['b'] = eval_color(export_ctx, _socket(node.inputs, 'B_Color'), stack=ref.stack)
+        blend_type = node.blend_type
+        a = eval_color(export_ctx, _socket(node.inputs, 'A_Color'), stack=ref.stack)
+        b = eval_color(export_ctx, _socket(node.inputs, 'B_Color'), stack=ref.stack)
     else:
         raise ConversionError(f'Mix node "{node.name}": data type {data_type} is not supported')
 
-    return params
+    expr = _MIX_EXPRESSIONS.get(blend_type)
+    if expr is None:
+        raise ConversionError(f'Operation {blend_type} over a MIX node is not supported')
+    if node.clamp_result:
+        expr = f'clip({expr}, 0, 1)'
+    t = 'clip(in[2], 0, 1)' if node.clamp_factor else 'in[2]'
+    return _math(f'tmp[0] = {t}; {expr}', a, b, factor)
 
 
 @texture_converter('INVERT')
@@ -657,12 +679,12 @@ def convert_invert(export_ctx: ExportContext, ref : NodeRef, out_socket):
 
 @texture_converter('BRIGHTCONTRAST')
 def convert_brightness_contrast(export_ctx: ExportContext, ref : NodeRef, out_socket):
-    return {
-        'type' : 'brightness_contrast',
-        'color' : eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
-        'brightness' : eval_float(export_ctx, ref.node.inputs['Bright'], stack=ref.stack),
-        'contrast' : eval_float(export_ctx, ref.node.inputs['Contrast'], stack=ref.stack)
-    }
+    # node_shader_brightness.cc: gain 1 + contrast, offset bright - contrast/2,
+    # clamped to zero from below
+    return _math('max((1 + in[2]) * in[0] + in[1] - 0.5 * in[2], 0)',
+                 eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack),
+                 eval_float(export_ctx, ref.node.inputs['Bright'], stack=ref.stack),
+                 eval_float(export_ctx, ref.node.inputs['Contrast'], stack=ref.stack))
 
 
 @texture_converter('RGBTOBW')
@@ -691,117 +713,133 @@ def convert_clamp(export_ctx: ExportContext, ref: NodeRef, out_socket):
     return _math('clip(in[0], in[1], in[2])', value, lo, hi)
 
 
+# Interpolation of the Map Range node (node_shader_map_range.cc): statements
+# turning the linear factor tmp[0] into tmp[2], with the step count in in[5].
+# The smoothstep variants clamp the factor regardless of the clamp setting.
+_MAP_RANGE_INTERPOLATION = {
+    'LINEAR':       'tmp[2] = tmp[0]',
+    'STEPPED':      'tmp[2] = in[5] != 0 ? floor(tmp[0] * (in[5] + 1)) / in[5] : 0',
+    'SMOOTHSTEP':   'tmp[1] = clip(tmp[0], 0, 1); '
+                    'tmp[2] = (3 - 2 * tmp[1]) * tmp[1] * tmp[1]',
+    'SMOOTHERSTEP': 'tmp[1] = clip(tmp[0], 0, 1); '
+                    'tmp[2] = tmp[1] * tmp[1] * tmp[1] * (tmp[1] * (tmp[1] * 6 - 15) + 10)',
+}
+
+
 @texture_converter('MAP_RANGE')
 def convert_map_range(export_ctx: ExportContext, ref : NodeRef, out_socket):
     node = ref.node
-    is_float = node.data_type == 'FLOAT'
-    params = {
-        'type': 'map_range',
-        'clamp': node.clamp,
-        'vector': not is_float,
-        'interpolation_type' : node.interpolation_type,
-    }
-    if is_float:
-        params['input'] = eval_float(export_ctx, node.inputs['Value'], stack=ref.stack)
-        params['from_min'] = eval_float(export_ctx, node.inputs['From Min'], stack=ref.stack)
-        params['from_max'] = eval_float(export_ctx, node.inputs['From Max'], stack=ref.stack)
-        params['to_min'] = eval_float(export_ctx, node.inputs['To Min'], stack=ref.stack)
-        params['to_max'] = eval_float(export_ctx, node.inputs['To Max'], stack=ref.stack)
-        steps = next((s for s in node.inputs if s.identifier == 'Steps'), None)
-        if steps is not None:
-            params['steps'] = eval_float(export_ctx, steps, stack=ref.stack)
+    interpolation = _MAP_RANGE_INTERPOLATION.get(node.interpolation_type)
+    if interpolation is None:
+        raise ConversionError(f'Map Range node "{node.name}": interpolation '
+                              f'{node.interpolation_type} is not supported')
+
+    if node.data_type == 'FLOAT':
+        ev, names = eval_float, ('Value', 'From Min', 'From Max', 'To Min', 'To Max')
     else:
-        params['input'] = eval_vector(export_ctx, node.inputs['Vector'], stack=ref.stack)
-        params['from_min'] = eval_vector(export_ctx, node.inputs['From Min'], stack=ref.stack)
-        params['from_max'] = eval_vector(export_ctx, node.inputs['From Max'], stack=ref.stack)
-        params['to_min'] = eval_vector(export_ctx, node.inputs['To Min'], stack=ref.stack)
-        params['to_max'] = eval_vector(export_ctx, node.inputs['To Max'], stack=ref.stack)
-        steps = next((s for s in node.inputs if s.identifier == 'Steps'), None)
-        if steps is not None:
-            params['steps'] = eval_float(export_ctx, steps, stack=ref.stack)
-    return params
+        ev, names = eval_vector, ('Vector', 'From Min', 'From Max', 'To Min', 'To Max')
+    inputs = [ev(export_ctx, node.inputs[name], stack=ref.stack) for name in names]
+    steps = next((s for s in node.inputs if s.identifier == 'Steps'), None)
+    inputs.append(eval_float(export_ctx, steps, stack=ref.stack) if steps is not None else 4.0)
+
+    # The input is not clamped to the from-range; clamp applies to the result
+    # and honours a reversed to-range
+    expr = ('tmp[0] = in[2] != in[1] ? (in[0] - in[1]) / (in[2] - in[1]) : 0; '
+            f'{interpolation}; '
+            'tmp[3] = in[3] + tmp[2] * (in[4] - in[3]); ')
+    if node.clamp:
+        expr += 'in[4] > in[3] ? clip(tmp[3], in[3], in[4]) : clip(tmp[3], in[4], in[3])'
+    else:
+        expr += 'tmp[3]'
+    return _math(expr, *inputs)
 
 
 @texture_converter('COMBXYZ')
 def convert_combine_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
-    return {
-        'type': 'combine_xyz',
-        'x': eval_float(export_ctx, ref.node.inputs['X'], stack=ref.stack),
-        'y': eval_float(export_ctx, ref.node.inputs['Y'], stack=ref.stack),
-        'z': eval_float(export_ctx, ref.node.inputs['Z'], stack=ref.stack)
-    }
+    return _math('rgb(in[0], in[1], in[2])',
+                 eval_float(export_ctx, ref.node.inputs['X'], stack=ref.stack),
+                 eval_float(export_ctx, ref.node.inputs['Y'], stack=ref.stack),
+                 eval_float(export_ctx, ref.node.inputs['Z'], stack=ref.stack))
+
 
 @texture_converter('SEPXYZ')
 def convert_separate_xyz(export_ctx: ExportContext, ref: NodeRef, out_socket):
-    index = {'X': 0, 'Y': 1, 'Z': 2}[out_socket.identifier]
-    return {
-        'type': 'separate_xyz',
-        'index': index,
-        'vector': eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack)
-    }
+    channel = {'X': 'r', 'Y': 'g', 'Z': 'b'}[out_socket.identifier]
+    return _math(f'in[0].{channel}',
+                 eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack))
 
 @texture_converter('SEPARATE_COLOR')
 def convert_separate_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
     node = ref.node
-    color = eval_color(export_ctx, ref.node.inputs['Color'], stack=ref.stack)
-
-    if node.mode == 'RGB':
-        channel = {'Red': 'r', 'Green': 'g', 'Blue': 'b'}.get(out_socket.name)
-        if channel is None:
-            raise ConversionError(
-                f'output "{out_socket.name}" of Separate Color node '
-                f'"{node.name}" is not supported')
-        return _math(f'in[0].{channel}', color)
-
-    channel_map = {'Red': 0, 'Green': 1, 'Blue': 2}
-    idx = channel_map.get(out_socket.name)
-    if idx is None:
+    channel = {'Red': 'r', 'Green': 'g', 'Blue': 'b'}.get(out_socket.name)
+    if channel is None:
         raise ConversionError(
             f'output "{out_socket.name}" of Separate Color node '
             f'"{node.name}" is not supported')
-
-    return {
-        'type': 'separate_color',
-        'mode': node.mode,
-        'color': color,
-        'index': idx,
-    }
+    color = {'RGB': 'in[0]', 'HSV': 'rgb_to_hsv(in[0])',
+             'HSL': 'rgb_to_hsl(in[0])'}[node.mode]
+    return _math(f'{color}.{channel}',
+                 eval_color(export_ctx, node.inputs['Color'], stack=ref.stack))
 
 
 @texture_converter('COMBINE_COLOR')
 def convert_combine_color(export_ctx: ExportContext, ref: NodeRef, out_socket):
     node = ref.node
-    if node.mode == 'RGB':
-        return _math('rgb(in[0], in[1], in[2])',
-                     eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
-                     eval_float(export_ctx, node.inputs['Green'], stack=ref.stack),
-                     eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack))
-    return {
-        'type': 'combine_color',
-        'mode' : node.mode,
-        'red' : eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
-        'green' : eval_float(export_ctx, node.inputs['Green'], stack=ref.stack),
-        'blue' : eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack)
-    }
+    expr = {'RGB': 'rgb(in[0], in[1], in[2])',
+            'HSV': 'hsv_to_rgb(rgb(in[0], in[1], in[2]))',
+            'HSL': 'hsl_to_rgb(rgb(in[0], in[1], in[2]))'}[node.mode]
+    return _math(expr,
+                 eval_float(export_ctx, node.inputs['Red'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Green'], stack=ref.stack),
+                 eval_float(export_ctx, node.inputs['Blue'], stack=ref.stack))
+
+
+# Vector Math operations: the expression and the sockets it reads. Scalar
+# results are broadcast to all channels.
+_VECT_MATH_EXPRESSIONS = {
+    'ADD':           ('in[0] + in[1]', 2),
+    'SUBTRACT':      ('in[0] - in[1]', 2),
+    'MULTIPLY':      ('in[0] * in[1]', 2),
+    'DIVIDE':        ('in[1] != 0 ? in[0] / in[1] : 0', 2),
+    'MULTIPLY_ADD':  ('fma(in[0], in[1], in[2])', 3),
+    'CROSS_PRODUCT': ('rgb(in[0].g * in[1].b - in[0].b * in[1].g, '
+                      'in[0].b * in[1].r - in[0].r * in[1].b, '
+                      'in[0].r * in[1].g - in[0].g * in[1].r)', 2),
+    'DOT_PRODUCT':   ('tmp[0] = in[0] * in[1]; tmp[0].r + tmp[0].g + tmp[0].b', 2),
+    'DISTANCE':      ('tmp[0] = (in[0] - in[1]) * (in[0] - in[1]); '
+                      'sqrt(tmp[0].r + tmp[0].g + tmp[0].b)', 2),
+    'LENGTH':        ('tmp[0] = in[0] * in[0]; sqrt(tmp[0].r + tmp[0].g + tmp[0].b)', 1),
+    'SCALE':         ('in[0] * in[1]', 'scale'),
+    'NORMALIZE':     ('tmp[0] = in[0] * in[0]; tmp[1] = sqrt(tmp[0].r + tmp[0].g + tmp[0].b); '
+                      'tmp[1] > 0 ? in[0] / tmp[1] : 0', 1),
+    'ABSOLUTE':      ('abs(in[0])', 1),
+    'MINIMUM':       ('min(in[0], in[1])', 2),
+    'MAXIMUM':       ('max(in[0], in[1])', 2),
+    'FLOOR':         ('floor(in[0])', 1),
+    'CEIL':          ('ceil(in[0])', 1),
+    'FRACTION':      ('in[0] - floor(in[0])', 1),
+    'MODULO':        ('in[1] != 0 ? fmod(in[0], in[1]) : 0', 2),
+    'SINE':          ('sin(in[0])', 1),
+    'COSINE':        ('cos(in[0])', 1),
+    'TANGENT':       ('tan(in[0])', 1),
+}
 
 
 @texture_converter('VECT_MATH')
 def convert_vect_math(export_ctx: ExportContext, ref: NodeRef, out_socket):
-    op = ref.node.operation
-    params = {
-        'type': 'vect_math',
-        'vec_0': eval_vector(export_ctx, ref.node.inputs['Vector'], stack=ref.stack),
-        'op' : op
-    }
-    if op == 'SCALE':
-        params['scale'] = eval_float(export_ctx, ref.node.inputs['Scale'], stack=ref.stack)
-    elif op not in _ONE_VECTOR_OPS:
-        params['vec_1'] = eval_vector(export_ctx, ref.node.inputs['Vector_001'], stack=ref.stack)
-
-        if op == 'MULTIPLY_ADD':
-            params['vec_2'] = eval_vector(export_ctx, ref.node.inputs['Vector_002'], stack=ref.stack)
-
-    return params
+    node = ref.node
+    entry = _VECT_MATH_EXPRESSIONS.get(node.operation)
+    if entry is None:
+        raise ConversionError(f'Vector math operation {node.operation} of '
+                              f'node "{node.name}" is not supported')
+    expr, arity = entry
+    inputs = [eval_vector(export_ctx, node.inputs['Vector'], stack=ref.stack)]
+    if arity == 'scale':
+        inputs.append(eval_float(export_ctx, node.inputs['Scale'], stack=ref.stack))
+    else:
+        for name in ('Vector_001', 'Vector_002')[:arity - 1]:
+            inputs.append(eval_vector(export_ctx, node.inputs[name], stack=ref.stack))
+    return _math(expr, *inputs)
 
 
 @texture_converter('TEX_NOISE')
@@ -880,27 +918,23 @@ def _wrap_normalmap(export_ctx, ref, bsdf):
         except Exception:
             pass
 
-    strength = eval_float(export_ctx, node.inputs['Strength'], stack=ref.stack)
-    params = texture
-
-    use_strength = False
-    if node.inputs['Strength'].is_linked \
-        or (abs(node.inputs['Strength'].default_value - 1.0) > 1e-6):
-        use_strength = True
-        params = {
-            'type': 'normal_map',
-            'texture': texture,
-            'strength': strength
-        }
-
     if texture.get('type') == 'bitmap' and not texture.get('raw'):
         export_ctx.log(f'The image of normal map node "{node.name}" should '
                        'use a Non-Color space; interpreting it as raw '
                        'data.', 'WARN')
-        if use_strength:
-            params['texture']['raw'] = True
-        else:
-            params['raw'] = True
+        texture['raw'] = True
+
+    params = texture
+    if node.inputs['Strength'].is_linked \
+            or abs(node.inputs['Strength'].default_value - 1.0) > 1e-6:
+        # Cycles (svm_node_normal_map) lerps the shading normal towards the
+        # mapped one by the strength, clamped to zero from below, and
+        # renormalizes; the normalmap BSDF does the renormalization
+        strength = eval_float(export_ctx, node.inputs['Strength'], stack=ref.stack)
+        params = _math('tmp[0] = in[0] * 2 - 1; tmp[1] = max(in[1], 0); '
+                       'rgb(tmp[0].r * tmp[1], tmp[0].g * tmp[1], '
+                       '1 + tmp[1] * (tmp[0].b - 1)) * 0.5 + 0.5',
+                       texture, strength)
 
     return {
         'type': 'normalmap',

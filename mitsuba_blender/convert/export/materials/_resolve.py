@@ -30,20 +30,26 @@ _CONSTANT_FALLBACKS = {
 }
 
 class Constant:
-    '''A constant: a float, or a tuple for vectors and colors.'''
+    '''A constant: a float, or a tuple for vectors and colors.
+    ``source_type`` is the Blender type of the socket it came from
+    ('VALUE', 'VECTOR', 'RGBA') when known.'''
 
-    def __init__(self, value):
+    def __init__(self, value, source_type=None):
         self.value = value
+        self.source_type = source_type
 
     def __repr__(self):
         return f'Constant({self.value!r})'
 
 
 class Texture:
-    '''A Mitsuba texture dict produced by a registered texture converter.'''
+    '''A Mitsuba texture dict produced by a registered texture converter.
+    ``source_type`` is the Blender type of the output socket that produced
+    it ('VALUE', 'VECTOR', 'RGBA') when known.'''
 
-    def __init__(self, params):
+    def __init__(self, params, source_type=None):
         self.params = params
+        self.source_type = source_type
 
     def __repr__(self):
         return f'Texture({self.params!r})'
@@ -295,13 +301,13 @@ def resolve(export_ctx, socket, stack=()):
         return Unsupported(str(e))
 
     if node is None:
-        return Constant(socket_default(source))
+        return Constant(socket_default(source), source.type)
 
     ref = NodeRef(node, stack)
     converter = _texture_converters.get(node.type)
     if converter is not None:
         try:
-            return Texture(converter(export_ctx, ref, source))
+            return Texture(converter(export_ctx, ref, source), source.type)
         except ConversionError as e:
             return Unsupported(str(e))
 
@@ -334,11 +340,20 @@ def resolve(export_ctx, socket, stack=()):
 def eval_float(export_ctx, socket, default=None, stack=()):
     '''Resolve a float socket to a float or a Mitsuba texture dict. On
     unsupported input, a warning is logged and the default is used (the
-    socket default if none is given).'''
+    socket default if none is given).
+
+    Blender converts a colour to a float by its luminance and a vector by
+    the mean of its components (Cycles' NODE_CONVERT_CF and NODE_CONVERT_VF).
+    Mitsuba's monochromatic texture queries take the luminance, so a vector
+    source is wrapped in a mean() expression.'''
     result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
+        if result.source_type == 'VECTOR' and not isinstance(result.value, (int, float)):
+            return sum(result.value[:3]) / 3.0
         return _to_float(result.value)
     if isinstance(result, Texture):
+        if result.source_type == 'VECTOR':
+            return {'type': 'math', 'expr': 'mean(in[0])', 'in0': result.params}
         return result.params
 
     if export_ctx.strict:

@@ -1,8 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from .common import get_texture, get_vector_texture
-
 if TYPE_CHECKING:
     import mitsuba as mi
     import drjit as dr
@@ -146,8 +144,13 @@ def register(mi, dr):
         def __init__(self, props: mi.Properties) -> None:
             super().__init__(props)
 
-            self.vector = get_vector_texture(props, 'vector') if 'vector' in props else None
-            self.scale = get_texture(props, 'scale', 5.0)
+            # The coordinate is a texture, a constant 3-vector, or absent
+            self.vector = props.get('vector') if 'vector' in props else None
+            if self.vector is not None and not isinstance(self.vector, mi.Texture):
+                x, y, z = (float(v) for v in self.vector)
+                self.vector = mi.load_dict({'type': 'math',
+                                            'expr': f'rgb({x!r}, {y!r}, {z!r})'})
+            self.scale = props.get_texture('scale', 5.0)
 
             self.detail = float(props.get('detail', 2.0))
             self.roughness = float(props.get('roughness', 0.5))
