@@ -11,9 +11,11 @@ class ExportContext:
     # Subfolders of the export directory receiving textures and LUTs
     TEXTURES_FOLDER = 'textures'
     LUTS_FOLDER = 'luts'
-    # Every exported mesh is appended to this one ``.packed`` container next
-    # to the scene file, and the shapes reference their entry by index
+    # Every exported mesh and hair particle system is appended to one of
+    # these ``.packed`` containers next to the scene file, and the shapes
+    # reference their entry by index
     PACKED_NAME = 'meshes.packed'
+    CURVES_PACKED_NAME = 'curves.packed'
 
     def __init__(self):
         self.scene_data = OrderedDict([('type','scene')])
@@ -42,9 +44,12 @@ class ExportContext:
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
         self.blender_triangulation = False
-        # Shared .packed container of the exported meshes and its entry count
+        # Shared .packed containers of the exported meshes and curves, and
+        # their entry counts
         self.packed_file = None
         self.packed_count = 0
+        self.curves_file = None
+        self.curves_count = 0
         # Blender lights with a radius, keyed by visibility class; each
         # class becomes one cycles_lights shape (see finalize_lights)
         self.cycles_lights = OrderedDict()
@@ -57,30 +62,58 @@ class ExportContext:
         self.deg = None # Dependency graph
         self.strict = True
 
+    def _open_container(self, name):
+        import mitsuba as mi
+        if self.directory:
+            os.makedirs(self.directory, exist_ok=True)
+        return mi.PackedFile(os.path.join(self.directory, name))
+
     def add_packed_mesh(self, mi_mesh):
         '''Append a mesh to the scene's shared .packed container, returning
         the entry index that a shape entry references it by.'''
-        import mitsuba as mi
         if self.packed_file is None:
-            if self.directory:
-                os.makedirs(self.directory, exist_ok=True)
-            self.packed_file = mi.PackedFile(
-                os.path.join(self.directory, self.PACKED_NAME))
+            self.packed_file = self._open_container(self.PACKED_NAME)
         mi_mesh.write_packed(self.packed_file)
         self.packed_count += 1
         return self.packed_count - 1
 
+    def add_packed_curves(self, name, points, offsets):
+        '''Append a curve entry to the scene's curve container, returning
+        the entry index that a curve shape references it by.
+
+        ``points`` is a float32 array of shape (P, 4) holding the position
+        and radius of every control point, and ``offsets`` a uint32 array
+        with the first control point index of each curve followed by P. The
+        entry layout is documented in the Mitsuba file format reference.
+        '''
+        import struct
+        if self.curves_file is None:
+            self.curves_file = self._open_container(self.CURVES_PACKED_NAME)
+        pf = self.curves_file
+        pf.begin(name)
+        pf.stream().write(b'CURV' + struct.pack('<III', 1, len(offsets) - 1,
+                                                len(points)))
+        pf.write_array(offsets.tobytes())
+        pf.write_array(points.tobytes())
+        self.curves_count += 1
+        return self.curves_count - 1
+
     def finalize_packed(self):
-        '''Close the shared container, which writes the dictionary that
-        the packed plugin needs to locate an entry.'''
-        if self.packed_file is None:
-            return
-        self.packed_file.close()
-        self.packed_file = None
+        '''Close the shared containers, which writes the dictionary that
+        the plugins need to locate an entry.'''
+        for attr in ('packed_file', 'curves_file'):
+            pf = getattr(self, attr)
+            if pf is not None:
+                pf.close()
+                setattr(self, attr, None)
 
     def packed_filename(self):
-        '''Relative path that the shape entries reference.'''
+        '''Relative path that the mesh shape entries reference.'''
         return self.PACKED_NAME
+
+    def curves_filename(self):
+        '''Relative path that the curve shape entries reference.'''
+        return self.CURVES_PACKED_NAME
 
     def add_cycles_light(self, params):
         '''Queue one light of the cycles_lights shape (a dict with the

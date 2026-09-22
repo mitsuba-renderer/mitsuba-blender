@@ -1,5 +1,5 @@
 from . import export_context, plugin_bundle
-from ...convert.export import camera, lights, mesh, world
+from ...convert.export import camera, hair, lights, mesh, world
 
 class SceneConverter:
     '''
@@ -85,6 +85,11 @@ class SceneConverter:
                 continue
             if object_instance.object.type in {'MESH', 'FONT', 'SURFACE', 'META'}:
                 geometry.export_instance(object_instance)
+                # Hair belongs to the object rather than to its mesh data, so
+                # it is written once for the object itself and not for the
+                # copies an instancer places
+                if not object_instance.is_instance:
+                    hair.export_hair(self.export_ctx, object_instance)
 
     def _skip_instance(self, object_instance, use_selection, log=True):
         if use_selection:
