@@ -156,10 +156,16 @@ def test_world_without_nodes(fresh_scene, export_ctx, world):
     b_world = bpy.data.worlds.new('Plain')
     b_world.use_nodes = False
     b_world.color = (0.1, 0.2, 0.3)
+    if world.uses_nodes(b_world):
+        # Blender 5 ignores use_nodes and the default Background node's
+        # color is exported instead of the world color
+        expected = list(b_world.node_tree.nodes['Background']
+                        .inputs['Color'].default_value)[:3]
+    else:
+        expected = [0.1, 0.2, 0.3]
     params = world.convert_world(export_ctx, b_world)
     assert params['type'] == 'constant'
-    assert params['radiance']['value'] == \
-        pytest.approx([0.1, 0.2, 0.3], rel=1e-5)
+    assert params['radiance']['value'] == pytest.approx(expected, rel=1e-5)
 
 
 def test_unlinked_surface(fresh_scene, export_ctx, world):

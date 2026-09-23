@@ -4,6 +4,36 @@ import bpy
 import numpy as np
 
 
+def read_exr_channels(path):
+    '''The channels of an EXR file as {name: 2D array}. Blender 5 writes
+    multilayer EXR files with one part per pass, which Mitsuba's reader does
+    not support, so this uses the OpenImageIO module bundled with Blender.'''
+    try:
+        import OpenImageIO as oiio
+    except ImportError:
+        import mitsuba as mi
+        bitmap = mi.Bitmap(path)
+        pixels = np.array(bitmap)
+        return {f.name: pixels[:, :, i] for i, f in enumerate(bitmap.struct_())}
+
+    channels = {}
+    image = oiio.ImageInput.open(path)
+    try:
+        while True:
+            spec = image.spec()
+            part = spec.get_string_attribute('oiio:subimagename')
+            pixels = image.read_image(oiio.FLOAT)
+            for i, name in enumerate(spec.channelnames):
+                if part and not name.startswith(part):
+                    name = f'{part}.{name}'
+                channels[name] = pixels[:, :, i]
+            if not image.seek_subimage(image.current_subimage() + 1, 0):
+                break
+    finally:
+        image.close()
+    return channels
+
+
 def test_f12_default_cube(mi_addon, fresh_scene, tmp_path):
     scene = fresh_scene
     scene.render.engine = 'MITSUBA'
@@ -33,7 +63,12 @@ def test_f12_aov_passes(mi_addon, fresh_scene, tmp_path):
     scene.render.resolution_y = 32
     scene.render.resolution_percentage = 100
     scene.render.filepath = str(tmp_path / 'passes.exr')
-    scene.render.image_settings.file_format = 'OPEN_EXR_MULTILAYER'
+    settings = scene.render.image_settings
+    if hasattr(settings, 'media_type'):
+        # Blender 5 selects multilayer EXR through the media type
+        settings.media_type = 'MULTI_LAYER_IMAGE'
+    else:
+        settings.file_format = 'OPEN_EXR_MULTILAYER'
 
     scene.mitsuba.active_integrator = 'aov'
     aov = scene.mitsuba.available_integrators.aov
@@ -43,20 +78,18 @@ def test_f12_aov_passes(mi_addon, fresh_scene, tmp_path):
 
     assert bpy.ops.render.render(write_still=True) == {'FINISHED'}
 
-    import mitsuba as mi
-    bitmap = mi.Bitmap(str(tmp_path / 'passes.exr'))
-    pixels = np.array(bitmap)
     layers = {}
     channels = {}
     # Channels are named <render layer>.<pass>.<channel>
-    for index, field in enumerate(bitmap.struct_()):
-        _, pass_name, channel = field.name.rsplit('.', 2)
-        layers.setdefault(pass_name, []).append(pixels[:, :, index])
+    for name, plane in read_exr_channels(str(tmp_path / 'passes.exr')).items():
+        _, pass_name, channel = name.rsplit('.', 2)
+        layers.setdefault(pass_name, []).append(plane)
         channels.setdefault(pass_name, []).append(channel)
     layers = {name: np.dstack(planes) for name, planes in layers.items()}
 
-    # 'path' is the image rendered by the nested path integrator
-    assert {'depth', 'sh_normal', 'uv', 'path'} <= layers.keys()
+    # The image of the nested path integrator is the root component of the
+    # film, which the engine writes to the Combined pass
+    assert {'depth', 'sh_normal', 'uv', 'Combined'} <= layers.keys()
     depth = layers['depth']
     assert depth.shape[2] == 1
     assert depth.max() > 0.0, 'the cube must be visible in the depth pass'

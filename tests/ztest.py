@@ -39,7 +39,7 @@ class MitsubaSceneRenderer:
         scene = load_file(scene_file, **kwargs)
         scene.integrator().render(scene, seed=0, develop=False)
 
-        bmp = scene.sensors()[0].film().bitmap(raw=False)
+        bmp = scene.sensors()[0].film().bitmap()
         img, var_img = self._bitmap_extract(bmp)
 
         return img, var_img

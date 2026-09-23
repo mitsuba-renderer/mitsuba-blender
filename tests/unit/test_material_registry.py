@@ -154,8 +154,10 @@ def test_has_converter(fresh_scene, registry):
 
     assert has_converter(make_diffuse_material('ForRegistry'), registry)
 
-    no_nodes = bpy.data.materials.new('NoNodes')
-    assert not has_converter(no_nodes, registry)
+    # Blender 5 gives every new material a Principled BSDF tree, whereas
+    # earlier versions leave it without nodes
+    new_mat = bpy.data.materials.new('NoNodes')
+    assert has_converter(new_mat, registry) == registry.uses_nodes(new_mat)
 
 
 def test_add_material_to_dict_layouts(mi_addon, registry):

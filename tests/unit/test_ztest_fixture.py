@@ -33,7 +33,7 @@ def test_bitmap_extract_moment_splits():
         'emitter': {'type': 'constant', 'radiance': 0.5},
     })
     scene.integrator().render(scene, seed=0, develop=False)
-    bmp = scene.sensors()[0].film().bitmap(raw=False)
+    bmp = scene.sensors()[0].film().bitmap()
 
     img, var_img = MitsubaSceneRenderer()._bitmap_extract(bmp)
 
