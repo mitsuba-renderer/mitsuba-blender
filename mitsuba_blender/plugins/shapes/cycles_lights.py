@@ -40,7 +40,9 @@ first missing position:
 The ``visibility`` property of the shape applies to all of its lights. The
 emitter's sampling weight defaults to the number of lights, so that the
 scene chooses the shape as often as it would choose that many separate
-emitters. RGB variants only.
+emitters. RGB variants only. Fireflies from these lights are handled by the
+``clamp_direct`` / ``clamp_indirect`` properties of the integrator, which
+the exporter takes from the scene's Cycles settings.
 
 At load time the lights are arranged in a binary tree by recursive median
 splits of their centers, with up to ``leaf_size`` (integer, default 8)

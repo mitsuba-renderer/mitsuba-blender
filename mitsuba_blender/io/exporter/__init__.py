@@ -39,6 +39,13 @@ class SceneConverter:
                 'type': 'path',
                 'max_depth': cycles.max_bounces if cycles else 12,
             }
+            # Cycles' per-contribution clamps have the same semantics in
+            # Mitsuba, a value of 0 disables them in both
+            if cycles:
+                for key in ('direct', 'indirect'):
+                    value = getattr(cycles, f'sample_clamp_{key}')
+                    if value > 0:
+                        integrator[f'clamp_{key}'] = float(value)
         self.export_ctx.data_add(integrator)
 
         world.export_world(self.export_ctx, b_scene.world, ignore_background)

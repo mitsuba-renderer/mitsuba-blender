@@ -76,8 +76,26 @@ def test_export_survives_disabled_cycles_addon(mi_addon, fresh_scene,
                if isinstance(v, dict)]
     integrator = next(v for v in entries if v.get('type') == 'path')
     assert integrator['max_depth'] > 0
+    assert 'clamp_indirect' not in integrator
     sensor = next(v for v in entries if v.get('type') == 'perspective')
     assert sensor['sampler']['sample_count'] > 0
+
+
+def test_export_cycles_clamps(mi_addon, fresh_scene, tmp_path):
+    # The Cycles sample clamps become the integrator's clamp_direct and
+    # clamp_indirect; a value of 0 (off) is left out
+    cycles = bpy.context.scene.cycles
+    cycles.sample_clamp_direct = 0.0
+    cycles.sample_clamp_indirect = 7.5
+    converter = _scene_converter(mi_addon)
+    converter.export_ctx.directory = str(tmp_path)
+    converter.scene_to_dict(bpy.context.evaluated_depsgraph_get())
+
+    entries = [v for v in converter.export_ctx.scene_data.values()
+               if isinstance(v, dict)]
+    integrator = next(v for v in entries if v.get('type') == 'path')
+    assert 'clamp_direct' not in integrator
+    assert integrator['clamp_indirect'] == 7.5
 
 
 def test_scene_to_dict_leaves_edit_mode_alone(mi_addon, fresh_scene,
