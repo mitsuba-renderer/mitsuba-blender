@@ -368,12 +368,7 @@ def eval_color(export_ctx, socket, default=None, stack=()):
     socket default if none is given).'''
     result = resolve(export_ctx, socket, stack=stack)
     if isinstance(result, Constant):
-        rgb = list(_to_color(result.value))[:3]
-        if any(c < 0.0 or c > 1.0 for c in rgb):
-            # Mitsuba's 'rgb' rejects reflectances outside [0, 1]; Cycles
-            # accepts them (e.g. BSDF colors scaled up inside a Mix Shader)
-            return {'type': 'srgb', 'color': rgb, 'unbounded': True}
-        return export_ctx.spectrum(rgb)
+        return _color_constant(export_ctx, result.value)
     if isinstance(result, Texture):
         return result.params
 
@@ -382,7 +377,17 @@ def eval_color(export_ctx, socket, default=None, stack=()):
 
     export_ctx.log(f'{result.reason}; using the default color', 'WARN')
 
-    return _to_color(default if default is not None else socket_default(socket))
+    return _color_constant(export_ctx, default if default is not None
+                           else socket_default(socket))
+
+
+def _color_constant(export_ctx, value):
+    rgb = list(_to_color(value))[:3]
+    if any(c < 0.0 or c > 1.0 for c in rgb):
+        # Mitsuba's 'rgb' rejects reflectances outside [0, 1]; Cycles
+        # accepts them (e.g. BSDF colors scaled up inside a Mix Shader)
+        return {'type': 'srgb', 'color': rgb, 'unbounded': True}
+    return export_ctx.spectrum(rgb)
 
 
 def eval_vector(export_ctx, socket, default=None, stack=()):

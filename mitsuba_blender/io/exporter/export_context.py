@@ -41,6 +41,11 @@ class ExportContext:
         # Material name -> its displacement dict, or None
         self.displacements = {}
         self.export_ids = False # Export Object IDs in the XML file
+        # Bake a world that cannot be translated into an environment map
+        # with Cycles instead of dropping it, and the height in pixels of
+        # that map (see convert.export.world_bake)
+        self.bake_world = True
+        self.bake_world_resolution = 1024
         # Let Blender split the polygons of a mesh instead of Mitsuba,
         # whose fan triangulation is much faster but fills concave polygons
         self.blender_triangulation = False

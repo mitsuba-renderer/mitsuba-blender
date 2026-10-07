@@ -8,7 +8,7 @@ node driven by generated texture coordinates.
 
 from mathutils import Euler, Matrix
 
-from . import visibility_class
+from . import visibility_class, world_bake
 from .. import ConversionError
 from ...compat import uses_nodes
 from .materials import _resolve
@@ -149,15 +149,36 @@ def world_visibility(b_world):
         flags.camera, flags.diffuse or flags.glossy or flags.transmission)
 
 
+def _bake_untranslatable_world(export_ctx, b_world, error):
+    '''Environment map emitter of a world ``convert_world`` rejected, baked
+    with Cycles, or None when baking is off or fails.'''
+    if export_ctx.strict or not export_ctx.bake_world:
+        export_ctx.log(f'Failed to export the world: {error}. Skipping it.',
+                       'WARN')
+        return None
+    try:
+        params = world_bake.bake_world(export_ctx, b_world)
+    except Exception as e:
+        export_ctx.log(f'Failed to export the world: {error}, and baking it '
+                       f'failed as well: {e}. Skipping it.', 'WARN')
+        return None
+    export_ctx.log(f'Baked the world "{b_world.name}" to the environment map '
+                   f'"{params["filename"]}": {error}.', 'INFO')
+    # The bake already holds the world's strength, and its camera matches the
+    # parametrization an environment texture is looked up with
+    params['scale'] = 1.0
+    params['to_world'] = export_ctx.transform_matrix(ENVMAP_COORDINATE_MAT)
+    return params
+
+
 def export_world(export_ctx, b_world, ignore_background=True):
-    '''Convert the world and add it to the scene dict. Never raises:
-    failures produce a warning and the world is skipped.'''
+    '''Convert the world and add it to the scene dict. Never raises: an
+    untranslatable world is baked into an environment map, or skipped with a
+    warning when baking is off.'''
     try:
         params = convert_world(export_ctx, b_world, ignore_background)
     except Exception as e:
-        export_ctx.log(f'Failed to export the world: {e}. Skipping it.',
-                       'WARN')
-        return
+        params = _bake_untranslatable_world(export_ctx, b_world, e)
     if params is None:
         return
     visibility = world_visibility(b_world)

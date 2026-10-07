@@ -1,6 +1,10 @@
 """Export warnings are collected and reported after the export."""
 
+import xml.etree.ElementTree as ET
+
 import bpy
+import numpy as np
+import pytest
 
 
 def _scene_converter(mi_addon, render=False):
@@ -58,6 +62,29 @@ def test_export_operator_reports_warnings(mi_addon, fresh_scene, tmp_path,
     captured = capfd.readouterr()
     assert 'exported with' in captured.out
     assert 'warnings' in captured.out
+
+
+@pytest.mark.parametrize('mode', ['strict', 'relaxed'])
+def test_export_operator_honours_export_mode(mi_addon, fresh_scene, tmp_path,
+                                             mode):
+    """Only strict mode turns a material with an unsupported node into the
+    error BSDF."""
+    b_mat = bpy.data.materials.new('Bricks')
+    b_mat.use_nodes = True
+    tree = b_mat.node_tree
+    brick = tree.nodes.new('ShaderNodeTexBrick')
+    tree.links.new(brick.outputs['Color'],
+                   tree.nodes['Principled BSDF'].inputs['Base Color'])
+    bpy.ops.mesh.primitive_plane_add()
+    bpy.context.object.data.materials.append(b_mat)
+    fresh_scene.mitsuba.export_mode = mode
+    filepath = tmp_path / 'scene.xml'
+    assert bpy.ops.export_scene.mitsuba(filepath=str(filepath)) == {'FINISHED'}
+    bsdf = ET.parse(filepath).find(".//bsdf[@id='mat-Bricks']")
+    colors = [[float(v) for v in e.get('value').replace(',', ' ').split()]
+              for e in bsdf.iter('rgb')]
+    is_error = any(np.allclose(c, [1.0, 0.0, 0.3]) for c in colors)
+    assert is_error == (mode == 'strict')
 
 
 def test_export_survives_disabled_cycles_addon(mi_addon, fresh_scene,

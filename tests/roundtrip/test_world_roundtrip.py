@@ -1,11 +1,13 @@
 """Round-trip and import tests for world/environment emitters."""
 
 import importlib
+import os
 
 import bpy
 import numpy as np
 import pytest
 from bpy_extras.io_utils import axis_conversion
+from mathutils import Vector
 
 AXIS_MAT = axis_conversion(to_forward='-Z', to_up='Y').to_4x4()
 
@@ -223,3 +225,142 @@ def test_default_world_roundtrips_to_nothing(fresh_scene, export_ctx,
     bl_world = import_world.create_default_bl_world()
     assert export_world.convert_world(export_ctx, bl_world,
                                       ignore_background=True) is None
+
+
+##############################
+##  Baked (procedural) world  ##
+##############################
+
+# Directions to look along, asymmetric and away from the poles so that an
+# azimuth error in the baked map shows up as well as an elevation one
+SENSOR_DIRECTIONS = [(1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0),
+                     (0.0, -1.0, 0.0), (1.0, 1.0, 0.5), (-1.0, 0.7, 0.3)]
+SENSOR_RESOLUTION = 32
+SENSOR_FOV = 60.0
+BAKE_RESOLUTION = 256
+
+
+def make_procedural_world():
+    """A world whose color encodes the direction it is looked at along, so
+    that any rotation of the map it bakes to changes every rendered pixel.
+    Being procedural, it cannot be translated and has to be baked."""
+    b_world = bpy.data.worlds.new('Procedural')
+    b_world.use_nodes = True
+    tree = b_world.node_tree
+    tree.nodes.clear()
+    background = tree.nodes.new('ShaderNodeBackground')
+    coordinates = tree.nodes.new('ShaderNodeTexCoord')
+    separate = tree.nodes.new('ShaderNodeSeparateXYZ')
+    tree.links.new(coordinates.outputs['Generated'], separate.inputs['Vector'])
+    combine = tree.nodes.new('ShaderNodeCombineColor')
+    for index, axis in enumerate('XYZ'):
+        # The direction components run over [-1, 1], the channels over [0, 1]
+        remap = tree.nodes.new('ShaderNodeMath')
+        remap.operation = 'MULTIPLY_ADD'
+        remap.inputs[1].default_value = 0.5
+        remap.inputs[2].default_value = 0.5
+        tree.links.new(separate.outputs[axis], remap.inputs[0])
+        tree.links.new(remap.outputs['Value'], combine.inputs[index])
+    tree.links.new(combine.outputs['Color'], background.inputs['Color'])
+    output = tree.nodes.new('ShaderNodeOutputWorld')
+    tree.links.new(background.outputs['Background'], output.inputs['Surface'])
+    return b_world
+
+
+def sensor_up(direction):
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(direction.dot(up)) > 0.95:
+        up = Vector((0.0, 1.0, 0.0))
+    return up
+
+
+def render_cycles(b_scene, direction, filepath):
+    """The world of ``b_scene`` as a camera at the origin looking along
+    ``direction`` sees it."""
+    import mitsuba as mi
+    b_scene.camera.rotation_euler = \
+        direction.to_track_quat('-Z', 'Y').to_euler()
+    b_scene.render.filepath = filepath
+    bpy.ops.render.render(write_still=True)
+    return np.array(mi.Bitmap(filepath).convert(mi.Bitmap.PixelFormat.RGB,
+                                                mi.Struct.Type.Float32, False))
+
+
+def render_mitsuba(params, directory, direction):
+    """The emitter ``params`` as a sensor pointed the same way sees it. The
+    emitter's to_world carries the exporter's axis conversion, so the
+    direction has to be expressed in Mitsuba's frame as well."""
+    import mitsuba as mi
+    basis = AXIS_MAT.to_3x3()
+    direction = basis @ direction
+    emitter = dict(params,
+                   filename=os.path.join(directory, params['filename']))
+    scene = mi.load_dict({
+        'type': 'scene',
+        'integrator': {'type': 'path'},
+        'world': emitter,
+        'sensor': {
+            'type': 'perspective',
+            'fov': SENSOR_FOV,
+            'fov_axis': 'x',
+            'to_world': mi.ScalarTransform4f().look_at(
+                origin=[0, 0, 0], target=list(direction),
+                up=list(basis @ sensor_up(basis.inverted() @ direction))),
+            'film': {'type': 'hdrfilm', 'width': SENSOR_RESOLUTION,
+                     'height': SENSOR_RESOLUTION, 'pixel_format': 'rgb',
+                     'rfilter': {'type': 'box'}},
+            'sampler': {'type': 'independent', 'sample_count': 16},
+        },
+    })
+    return np.array(mi.render(scene, spp=16))
+
+
+def test_baked_world_renders_like_cycles(fresh_scene, export_ctx,
+                                         export_world, tmp_path):
+    """A world that has to be baked lights a Mitsuba scene exactly as Cycles
+    renders the original, which pins the orientation of the baked map."""
+    import math
+    b_scene = fresh_scene
+    # Only the world may contribute: the startup scene's cube encloses the
+    # sensor at the origin and would be all the render sees
+    for b_object in list(b_scene.objects):
+        bpy.data.objects.remove(b_object, do_unlink=True)
+    b_scene.world = make_procedural_world()
+    b_scene.render.engine = 'CYCLES'
+    b_scene.cycles.samples = 1
+    b_scene.cycles.use_denoising = False
+    b_scene.render.resolution_x = SENSOR_RESOLUTION
+    b_scene.render.resolution_y = SENSOR_RESOLUTION
+    b_scene.render.resolution_percentage = 100
+    b_scene.render.film_transparent = False
+    settings = b_scene.render.image_settings
+    settings.file_format = 'OPEN_EXR'
+    settings.color_mode = 'RGB'
+    settings.color_depth = '32'
+    b_scene.view_settings.view_transform = 'Standard'
+    b_scene.view_settings.look = 'None'
+
+    b_camera_data = bpy.data.cameras.new('sensor')
+    b_camera_data.lens_unit = 'FOV'
+    b_camera_data.angle = math.radians(SENSOR_FOV)
+    b_camera = bpy.data.objects.new('sensor', b_camera_data)
+    b_camera.location = (0.0, 0.0, 0.0)
+    b_scene.collection.objects.link(b_camera)
+    b_scene.camera = b_camera
+
+    export_ctx.strict = False
+    export_ctx.bake_world_resolution = BAKE_RESOLUTION
+    export_world.export_world(export_ctx, b_scene.world)
+    params = next(value for key, value in export_ctx.scene_data.items()
+                  if key != 'type')
+    assert params['type'] == 'envmap'
+
+    for direction in SENSOR_DIRECTIONS:
+        direction = Vector(direction).normalized()
+        reference = render_cycles(b_scene, direction,
+                                  str(tmp_path / 'cycles.exr'))
+        image = render_mitsuba(params, str(tmp_path), direction)
+        error = float(np.abs(image - reference).mean())
+        assert error < 0.01, \
+            f'looking along {tuple(direction)}, the baked world differs ' \
+            f'from Cycles by {error:.4f} on average'

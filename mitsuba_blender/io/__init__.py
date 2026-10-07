@@ -4,6 +4,7 @@ import bpy
 from bpy.props import (
         StringProperty,
         BoolProperty,
+        IntProperty,
     )
 from bpy_extras.io_utils import (
         ImportHelper,
@@ -140,6 +141,24 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
             default = True
     )
 
+    bake_world: BoolProperty(
+            name = "Bake Untranslatable Worlds",
+            description = "Render a world that has no Mitsuba equivalent (a "
+                          "Sky Texture or a procedural node tree) to an "
+                          "environment map with Cycles instead of dropping "
+                          "it. Relaxed exporting mode only",
+            default = True
+    )
+
+    bake_world_resolution: IntProperty(
+            name = "Baked World Resolution",
+            description = "Height in pixels of the environment map a baked "
+                          "world is rendered to; its width is twice that",
+            default = 1024,
+            min = 2,
+            soft_max = 8192
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -165,6 +184,10 @@ class ExportMitsuba(bpy.types.Operator, ExportHelper):
         self.converter.export_ctx.export_ids = self.export_ids
         self.converter.export_ctx.blender_triangulation = self.blender_triangulation
         self.converter.export_ctx.bake_display_transform = self.bake_display_transform
+        # The scene's exporting mode, as the render engine reads it
+        self.converter.export_ctx.strict = context.scene.mitsuba.export_mode == 'strict'
+        self.converter.export_ctx.bake_world = self.bake_world
+        self.converter.export_ctx.bake_world_resolution = self.bake_world_resolution
         # Meshes and textures are written to subfolders of the target directory
         self.converter.export_ctx.directory = os.path.dirname(self.filepath)
 
